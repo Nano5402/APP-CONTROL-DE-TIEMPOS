@@ -52,10 +52,12 @@ usan repositorios y modelos.
 | `services/seguridad_pin.py` | `ServicioPIN`: hash PBKDF2-HMAC-SHA256 y verificación del PIN opcional |
 | `services/historial.py` | `ServicioHistorial`: consulta por rangos (día, semana, mes), filtros combinados y detalle con trazabilidad |
 | `services/estadisticas.py` | `ServicioEstadisticas`: tendencia (día/semana/mes), tiempo por categoría, estimado vs. real, por solicitante y revisiones por motivo |
+| `reports/generador_pdf.py` | Renderizado HTML/CSS a PDF A4 con `QPdfWriter` + `QTextDocument` y plantillas de los 4 tipos de reporte |
+| `services/reportes_pdf.py` | `ServicioReportesPDF`: exportación de reporte diario, día no laboral, específico y semanal/mensual |
 | `ui/temas.py` | `generar_qss`: temas Claro, Oscuro y Azul Pizarra |
 | `ui/mini_widget.py` | `MiniWidgetCronometro`: ventana flotante siempre encima con controles en 1 clic |
 | `ui/dialogos.py` | Diálogos para PIN, pausa, revisión, reasignación, corrección con motivo y decisión del ingeniero |
-| `ui/pantallas/` | `PantallaHoy`, `PantallaPlanear`, `PantallaExtra`, `PantallaCierre`, `PantallaConfiguracion` |
+| `ui/pantallas/` | `PantallaHoy`, `PantallaPlanear`, `PantallaExtra`, `PantallaCierre`, `PantallaHistorial`, `PantallaEstadisticas`, `PantallaReportes`, `PantallaConfiguracion` |
 | `ui/ventana_principal.py` | `VentanaPrincipal`: navegación lateral, atajos de teclado y reloj en vivo |
 | `ui/dialogo_recordatorio.py` | `DialogoRecordatorio`: ventana emergente al frente con botones Sí / No / Pausar y ajuste de minutos |
 | `ui/bandeja.py` | `IconoBandeja` (`QSystemTrayIcon`) y `CoordinadorRecordatoriosUI` (`QTimer`) |
@@ -134,3 +136,4 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_cierre_y_whatsapp.py` | Texto del plan y resumen para WhatsApp, asistente de cierre y backup al cerrar |
 | `test_ui_y_pin.py` | Hash/verificación de PIN, generación de temas QSS, flujo completo en pantallas y mini-widget |
 | `test_historial_y_estadisticas.py` | Rangos de semana/mes, filtros del historial, detalle con ediciones y los 5 bloques de estadísticas |
+| `test_reportes_pdf.py` | Exportación en PDF de reporte diario, día no laboral, específico por actividad y semanal/mensual |

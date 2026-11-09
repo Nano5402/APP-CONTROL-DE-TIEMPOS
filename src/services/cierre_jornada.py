@@ -29,6 +29,7 @@ from services.actividades import ServicioActividades
 from services.backups import ServicioBackups
 from services.cronometro import ServicioCronometro
 from services.productividad import ResultadoProductividad, ServicioProductividad
+from services.reportes_pdf import ServicioReportesPDF
 from services.whatsapp import ServicioWhatsApp
 
 
@@ -56,6 +57,7 @@ class ResultadoCierreJornada:
     productividad: ResultadoProductividad
     texto_resumen_whatsapp: str
     copia_seguridad: CopiaSeguridad | None
+    ruta_pdf: Path | None = None
 
 
 class ActividadesAbiertasAlCierreError(RuntimeError):
@@ -77,6 +79,7 @@ class ServicioCierreJornada:
         self.srv_prod = ServicioProductividad(s)
         self.srv_wa = ServicioWhatsApp(s)
         self.srv_backups = ServicioBackups(s, ruta_bd_origen=ruta_bd)
+        self.srv_pdf = ServicioReportesPDF(s)
 
     def actividades_por_resolver(self, jornada: Jornada) -> list[Actividad]:
         """Devuelve las actividades de la jornada que requieren decisión antes de cerrar."""
@@ -133,6 +136,7 @@ class ServicioCierreJornada:
         *,
         decisiones: list[DecisionActividadCierre] | None = None,
         ejecutar_backup: bool = True,
+        generar_pdf: bool = True,
         momento: datetime | None = None,
     ) -> ResultadoCierreJornada:
         """Ejecuta el cierre completo de la jornada (RF-06)."""
@@ -168,6 +172,10 @@ class ServicioCierreJornada:
 
         resumen_wa = self.srv_wa.generar_texto_resumen(jornada, resultado_prod)
 
+        ruta_pdf = None
+        if generar_pdf:
+            ruta_pdf = self.srv_pdf.generar_pdf_jornada(jornada)
+
         copia = None
         if ejecutar_backup:
             copia = self.srv_backups.crear_copia(TipoCopia.AUTOMATICA, momento=instante)
@@ -177,4 +185,5 @@ class ServicioCierreJornada:
             productividad=resultado_prod,
             texto_resumen_whatsapp=resumen_wa,
             copia_seguridad=copia,
+            ruta_pdf=ruta_pdf,
         )

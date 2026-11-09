@@ -13,6 +13,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from pathlib import Path
+
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -32,6 +34,7 @@ from PySide6.QtWidgets import (
 
 from data.db import BaseDatos
 from data.repositorios.jornadas import RepoJornadas
+from reports.generador_pdf import abrir_archivo_pdf, abrir_carpeta_contenedora
 from services.cierre_jornada import (
     AccionCierreActividad,
     DecisionActividadCierre,
@@ -55,6 +58,7 @@ class PantallaCierre(QWidget):
         self.bd = bd
         self.al_cerrar_jornada = al_cerrar_jornada
         self._ids_abiertas: list[int] = []
+        self._ultimo_pdf: Path | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 16, 20, 16)
@@ -115,9 +119,13 @@ class PantallaCierre(QWidget):
         col_wa.addWidget(self.txt_resumen_wa, 1)
 
         fila_wa = QHBoxLayout()
+        self.btn_abrir_carpeta_pdf = QPushButton("📂 Abrir carpeta del PDF", self)
+        self.btn_abrir_carpeta_pdf.setProperty("rol", "secundario")
+        self.btn_abrir_carpeta_pdf.clicked.connect(self.accion_abrir_carpeta_pdf)
         self.btn_copiar_wa = QPushButton("📋 Copiar resumen para WhatsApp", self)
         self.btn_copiar_wa.clicked.connect(self.accion_copiar_resumen)
         fila_wa.addStretch()
+        fila_wa.addWidget(self.btn_abrir_carpeta_pdf)
         fila_wa.addWidget(self.btn_copiar_wa)
         col_wa.addLayout(fila_wa)
         layout.addWidget(card_wa, 1)
@@ -209,15 +217,26 @@ class PantallaCierre(QWidget):
                 return
 
             ruta_copia = res.copia_seguridad.ruta if res.copia_seguridad else "—"
+            self._ultimo_pdf = res.ruta_pdf
+
+        if self._ultimo_pdf:
+            abrir_archivo_pdf(self._ultimo_pdf)
 
         self.refrescar()
         if self.al_cerrar_jornada:
             self.al_cerrar_jornada()
+        pdf_txt = f"\nReporte PDF generado en:\n{self._ultimo_pdf}" if self._ultimo_pdf else ""
         QMessageBox.information(
             self,
             "Jornada cerrada",
-            f"Jornada cerrada correctamente.\nCopia de seguridad guardada en:\n{ruta_copia}",
+            f"Jornada cerrada correctamente.{pdf_txt}\n\nCopia de seguridad guardada en:\n{ruta_copia}",
         )
+
+    def accion_abrir_carpeta_pdf(self) -> None:
+        from config import rutas
+
+        objetivo = self._ultimo_pdf if self._ultimo_pdf else rutas.carpeta_reportes()
+        abrir_carpeta_contenedora(objetivo)
 
     def accion_copiar_resumen(self) -> None:
         copiar_al_portapapeles(self.txt_resumen_wa.toPlainText())

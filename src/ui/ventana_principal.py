@@ -31,6 +31,7 @@ from ui.pantallas.pantalla_extra import PantallaExtra
 from ui.pantallas.pantalla_historial import PantallaHistorial
 from ui.pantallas.pantalla_hoy import PantallaHoy
 from ui.pantallas.pantalla_planear import PantallaPlanear
+from ui.pantallas.pantalla_reportes import PantallaReportes
 from ui.temas import generar_qss
 
 
@@ -77,8 +78,9 @@ class VentanaPrincipal(QMainWindow):
         self.btn_nav_extra = self._crear_boton_nav("⚡  Actividad extra", 2, sidebar)
         self.btn_nav_cierre = self._crear_boton_nav("🔒  Cierre de jornada", 3, sidebar)
         self.btn_nav_historial = self._crear_boton_nav("🗂  Historial", 4, sidebar)
-        self.btn_nav_estadisticas = self._crear_boton_nav("📈  Estadísticas", 5, sidebar)
-        self.btn_nav_config = self._crear_boton_nav("⚙  Configuración", 6, sidebar)
+        self.btn_nav_reportes = self._crear_boton_nav("📄  Reportes PDF", 5, sidebar)
+        self.btn_nav_estadisticas = self._crear_boton_nav("📈  Estadísticas", 6, sidebar)
+        self.btn_nav_config = self._crear_boton_nav("⚙  Configuración", 7, sidebar)
 
         for b in (
             self.btn_nav_hoy,
@@ -86,6 +88,7 @@ class VentanaPrincipal(QMainWindow):
             self.btn_nav_extra,
             self.btn_nav_cierre,
             self.btn_nav_historial,
+            self.btn_nav_reportes,
             self.btn_nav_estadisticas,
             self.btn_nav_config,
         ):
@@ -124,6 +127,7 @@ class VentanaPrincipal(QMainWindow):
             bd, al_cerrar_jornada=self._al_actualizar_datos, parent=self.paginas
         )
         self.pantalla_historial = PantallaHistorial(bd, parent=self.paginas)
+        self.pantalla_reportes = PantallaReportes(bd, parent=self.paginas)
         self.pantalla_estadisticas = PantallaEstadisticas(bd, parent=self.paginas)
         self.pantalla_config = PantallaConfiguracion(
             bd, al_cambiar_tema=self.aplicar_tema, parent=self.paginas
@@ -134,6 +138,7 @@ class VentanaPrincipal(QMainWindow):
         self.paginas.addWidget(self.pantalla_extra)
         self.paginas.addWidget(self.pantalla_cierre)
         self.paginas.addWidget(self.pantalla_historial)
+        self.paginas.addWidget(self.pantalla_reportes)
         self.paginas.addWidget(self.pantalla_estadisticas)
         self.paginas.addWidget(self.pantalla_config)
 

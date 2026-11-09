@@ -18,7 +18,7 @@ from pathlib import Path
 
 NOMBRE_APP = "ControlTiempos"
 NOMBRE_VISIBLE = "Control de Tiempos"
-VERSION = "0.6.0"
+VERSION = "0.7.0"
 
 #: Variable de entorno que permite cambiar la carpeta de datos.
 ENV_DATA_DIR = "CONTROL_TIEMPOS_DATA_DIR"
@@ -61,5 +61,15 @@ def carpeta_copias() -> Path:
         ruta = carpeta_datos() / "Copias"
     else:
         ruta = Path.home() / "Documents" / NOMBRE_APP / "Copias"
+    ruta.mkdir(parents=True, exist_ok=True)
+    return ruta
+
+
+def carpeta_reportes() -> Path:
+    """Carpeta por defecto donde se exportan los reportes PDF."""
+    if os.environ.get(ENV_DATA_DIR):
+        ruta = carpeta_datos() / "Reportes"
+    else:
+        ruta = Path.home() / "Documents" / NOMBRE_APP / "Reportes"
     ruta.mkdir(parents=True, exist_ok=True)
     return ruta

@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.0] — 2026-11-09 — Fase 7: reportes PDF
+
+### Agregado
+- `reports/generador_pdf.py` y `ServicioReportesPDF` (`services/reportes_pdf.py`): generación local en PDF A4 (`QPdfWriter` + `QTextDocument`) para los 4 tipos de reporte (8.1 diario de jornada, 8.2 día no laboral sin porcentaje, 8.3 específico de actividad con revisiones y tramos, y 8.4 semanal/mensual con tendencia, categorías, solicitantes y revisiones).
+- `PantallaReportes` (`ui/pantallas/pantalla_reportes.py`) e integración del botón "Exportar reporte diario en PDF" en `PantallaCierre` y `ServicioCierreJornada`.
+- 80 pruebas automáticas en total.
+
 ## [0.6.0] — 2026-11-09 — Fase 6: historial y estadísticas
 
 ### Agregado

@@ -159,7 +159,14 @@ pesadas que inflan el ejecutable, el gráfico de tendencia de productividad
 mostrando guías del semáforo (60 % y 85 %) y soportando vista diaria, semanal y
 mensual.
 
+---
 
+## Fase 7 — Reportes PDF (2026-11-09)
 
-
+### D-24. Motor PDF nativo con `QPdfWriter` + `QTextDocument`
+En lugar de usar bibliotecas externas con binarios del sistema (como `wkhtmltopdf`
+o `WeasyPrint`, que requieren GTK/Pango e instalación global), `reports/generador_pdf.py`
+usa `QPdfWriter` y `QTextDocument` de `PySide6.QtGui`. No requiere permisos de
+administrador ni dependencias adicionales y genera PDFs A4 multi-página con tablas,
+encabezado de **Gente Util** y semáforo visual.
 
