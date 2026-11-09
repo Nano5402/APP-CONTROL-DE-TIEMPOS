@@ -25,6 +25,9 @@ python -m venv .venv
 
 ## Ejecutar
 
+- **Con doble clic desde la carpeta:** abre [Iniciar_ControlTiempos.bat](Iniciar_ControlTiempos.bat) (usa `pythonw.exe` para abrir la ventana sin dejar consola negra detrás, y si en un PC nuevo aún no existe `.venv`, lo crea e instala las dependencias automáticamente).
+- **Desde la terminal:**
+
 ```powershell
 .\.venv\Scripts\python.exe src\main.py              # abre la app
 .\.venv\Scripts\python.exe src\main.py --bandeja    # inicia minimizada en la bandeja del sistema
