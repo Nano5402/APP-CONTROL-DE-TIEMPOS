@@ -54,6 +54,7 @@ usan repositorios y modelos.
 | `services/estadisticas.py` | `ServicioEstadisticas`: tendencia (día/semana/mes), tiempo por categoría, estimado vs. real, por solicitante y revisiones por motivo |
 | `reports/generador_pdf.py` | Renderizado HTML/CSS a PDF A4 con `QPdfWriter` + `QTextDocument` y plantillas de los 4 tipos de reporte |
 | `services/reportes_pdf.py` | `ServicioReportesPDF`: exportación de reporte diario, día no laboral, específico y semanal/mensual |
+| `services/beta_herramientas.py` | `ServicioBeta`: simulador no destructivo de pesos de la fórmula y exportación de informe de validación para la beta con el ingeniero |
 | `ui/temas.py` | `generar_qss`: temas Claro, Oscuro y Azul Pizarra |
 | `ui/mini_widget.py` | `MiniWidgetCronometro`: ventana flotante siempre encima con controles en 1 clic |
 | `ui/dialogos.py` | Diálogos para PIN, pausa, revisión, reasignación, corrección con motivo y decisión del ingeniero |
@@ -137,3 +138,4 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_ui_y_pin.py` | Hash/verificación de PIN, generación de temas QSS, flujo completo en pantallas y mini-widget |
 | `test_historial_y_estadisticas.py` | Rangos de semana/mes, filtros del historial, detalle con ediciones y los 5 bloques de estadísticas |
 | `test_reportes_pdf.py` | Exportación en PDF de reporte diario, día no laboral, específico por actividad y semanal/mensual |
+| `test_aceptacion_v1.py` | Ciclo laboral completo extremo a extremo (criterios de aceptación de la sección 14 y simulador Beta) |

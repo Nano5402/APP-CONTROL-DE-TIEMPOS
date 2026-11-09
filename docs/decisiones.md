@@ -170,3 +170,15 @@ usa `QPdfWriter` y `QTextDocument` de `PySide6.QtGui`. No requiere permisos de
 administrador ni dependencias adicionales y genera PDFs A4 multi-página con tablas,
 encabezado de **Gente Util** y semáforo visual.
 
+---
+
+## Fase 8 — Pruebas integrales y herramientas de Beta (2026-11-09)
+
+### D-25. Simulador no destructivo de pesos para la Beta de equipo
+Para la sesión de validación de la fórmula 40/30/30 con el Ing. Luis Eduardo
+(sección 12 y 17.2 del plan), `ServicioBeta` (`services/beta_herramientas.py`)
+recalcula Cumplimiento, Eficiencia y Foco en cualquier rango de fechas con pesos
+alternativos sin alterar los valores históricos guardados en `jornadas`, y
+exporta una tabla comparativa en Markdown.
+
+

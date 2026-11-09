@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0] — 2026-11-09 — Fase 8: pruebas integrales y herramientas de beta
+
+### Agregado
+- `ServicioBeta` (`services/beta_herramientas.py`): simulador no destructivo de pesos de la fórmula de productividad (`simular_pesos_formula`) y generador del informe comparativo en Markdown (`exportar_informe_validacion_beta`) para la validación en la beta de equipo con el Ing. Luis Eduardo.
+- `tests/test_aceptacion_v1.py`: suite integral de aceptación extremo a extremo que recorre dos jornadas laborales completas y un domingo no laboral verificando todos los criterios de la sección 14 del plan.
+- 81 pruebas automáticas en total.
+
 ## [0.7.0] — 2026-11-09 — Fase 7: reportes PDF
 
 ### Agregado
