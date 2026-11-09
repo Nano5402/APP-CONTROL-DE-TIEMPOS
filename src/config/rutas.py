@@ -18,7 +18,7 @@ from pathlib import Path
 
 NOMBRE_APP = "ControlTiempos"
 NOMBRE_VISIBLE = "Control de Tiempos"
-VERSION = "0.5.0"
+VERSION = "0.6.0"
 
 #: Variable de entorno que permite cambiar la carpeta de datos.
 ENV_DATA_DIR = "CONTROL_TIEMPOS_DATA_DIR"

@@ -148,6 +148,18 @@ externas). Si no hay PIN configurado, la app abre directamente; si inicia con
 **Azul Pizarra**) aplicables en caliente tanto a `VentanaPrincipal` como a
 `MiniWidgetCronometro`. Un `QTimer` de 1 s mantiene sincronizados ambos relojes.
 
+---
+
+## Fase 6 — Historial y estadísticas (2026-11-09)
+
+### D-23. Gráficos vectoriales nativos con `QPainter`
+Para cumplir el requisito de inicio en `< 3 s` (RNF-03) y evitar dependencias
+pesadas que inflan el ejecutable, el gráfico de tendencia de productividad
+(`GraficoTendenciaWidget`) se dibuja de forma vectorial con `QPainter` de Qt,
+mostrando guías del semáforo (60 % y 85 %) y soportando vista diaria, semanal y
+mensual.
+
+
 
 
 

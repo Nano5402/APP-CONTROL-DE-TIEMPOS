@@ -50,6 +50,8 @@ usan repositorios y modelos.
 | `services/whatsapp.py` | `ServicioWhatsApp`: textos listos para "Copiar plan para WhatsApp" y "Copiar resumen para WhatsApp" |
 | `services/cierre_jornada.py` | `ServicioCierreJornada`: asistente de cierre de actividades abiertas, cálculo del día y backup automático |
 | `services/seguridad_pin.py` | `ServicioPIN`: hash PBKDF2-HMAC-SHA256 y verificación del PIN opcional |
+| `services/historial.py` | `ServicioHistorial`: consulta por rangos (día, semana, mes), filtros combinados y detalle con trazabilidad |
+| `services/estadisticas.py` | `ServicioEstadisticas`: tendencia (día/semana/mes), tiempo por categoría, estimado vs. real, por solicitante y revisiones por motivo |
 | `ui/temas.py` | `generar_qss`: temas Claro, Oscuro y Azul Pizarra |
 | `ui/mini_widget.py` | `MiniWidgetCronometro`: ventana flotante siempre encima con controles en 1 clic |
 | `ui/dialogos.py` | Diálogos para PIN, pausa, revisión, reasignación, corrección con motivo y decisión del ingeniero |
@@ -131,3 +133,4 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_backups.py` | Copias automáticas, rotación, carpeta externa/USB y restauración validada |
 | `test_cierre_y_whatsapp.py` | Texto del plan y resumen para WhatsApp, asistente de cierre y backup al cerrar |
 | `test_ui_y_pin.py` | Hash/verificación de PIN, generación de temas QSS, flujo completo en pantallas y mini-widget |
+| `test_historial_y_estadisticas.py` | Rangos de semana/mes, filtros del historial, detalle con ediciones y los 5 bloques de estadísticas |

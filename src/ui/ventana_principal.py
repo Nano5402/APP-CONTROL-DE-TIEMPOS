@@ -26,7 +26,9 @@ from data.models import Usuario
 from ui.mini_widget import MiniWidgetCronometro
 from ui.pantallas.pantalla_cierre import PantallaCierre
 from ui.pantallas.pantalla_configuracion import PantallaConfiguracion
+from ui.pantallas.pantalla_estadisticas import PantallaEstadisticas
 from ui.pantallas.pantalla_extra import PantallaExtra
+from ui.pantallas.pantalla_historial import PantallaHistorial
 from ui.pantallas.pantalla_hoy import PantallaHoy
 from ui.pantallas.pantalla_planear import PantallaPlanear
 from ui.temas import generar_qss
@@ -74,13 +76,17 @@ class VentanaPrincipal(QMainWindow):
         self.btn_nav_planear = self._crear_boton_nav("📋  Planear día", 1, sidebar)
         self.btn_nav_extra = self._crear_boton_nav("⚡  Actividad extra", 2, sidebar)
         self.btn_nav_cierre = self._crear_boton_nav("🔒  Cierre de jornada", 3, sidebar)
-        self.btn_nav_config = self._crear_boton_nav("⚙  Configuración", 4, sidebar)
+        self.btn_nav_historial = self._crear_boton_nav("🗂  Historial", 4, sidebar)
+        self.btn_nav_estadisticas = self._crear_boton_nav("📈  Estadísticas", 5, sidebar)
+        self.btn_nav_config = self._crear_boton_nav("⚙  Configuración", 6, sidebar)
 
         for b in (
             self.btn_nav_hoy,
             self.btn_nav_planear,
             self.btn_nav_extra,
             self.btn_nav_cierre,
+            self.btn_nav_historial,
+            self.btn_nav_estadisticas,
             self.btn_nav_config,
         ):
             col_nav.addWidget(b)
@@ -117,6 +123,8 @@ class VentanaPrincipal(QMainWindow):
         self.pantalla_cierre = PantallaCierre(
             bd, al_cerrar_jornada=self._al_actualizar_datos, parent=self.paginas
         )
+        self.pantalla_historial = PantallaHistorial(bd, parent=self.paginas)
+        self.pantalla_estadisticas = PantallaEstadisticas(bd, parent=self.paginas)
         self.pantalla_config = PantallaConfiguracion(
             bd, al_cambiar_tema=self.aplicar_tema, parent=self.paginas
         )
@@ -125,6 +133,8 @@ class VentanaPrincipal(QMainWindow):
         self.paginas.addWidget(self.pantalla_planear)
         self.paginas.addWidget(self.pantalla_extra)
         self.paginas.addWidget(self.pantalla_cierre)
+        self.paginas.addWidget(self.pantalla_historial)
+        self.paginas.addWidget(self.pantalla_estadisticas)
         self.paginas.addWidget(self.pantalla_config)
 
         layout_raiz.addWidget(sidebar)

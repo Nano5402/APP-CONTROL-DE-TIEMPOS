@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.0] — 2026-11-09 — Fase 6: historial y estadísticas
+
+### Agregado
+- `ServicioHistorial` (`services/historial.py`) y `PantallaHistorial` (`ui/pantallas/pantalla_historial.py`): consulta por día, semana, mes y rango libre; filtros por categoría, estado, solicitante y tipo; detalle de tramos, pausas, revisiones y bitácora de ediciones (`ediciones_log`); corrección de registros históricos con motivo obligatorio.
+- `ServicioEstadisticas` (`services/estadisticas.py`) y `PantallaEstadisticas` (`ui/pantallas/pantalla_estadisticas.py`): gráfico vectorial de tendencia por día/semana/mes (`GraficoTendenciaWidget`), tiempo por categoría, estimado vs. real, tiempo por solicitante y conteo de revisiones con sus motivos.
+- 79 pruebas automáticas en total.
+
 ## [0.5.0] — 2026-11-09 — Fase 5: interfaz moderna, temas, mini-widget, atajos, autocompletado y PIN
 
 ### Agregado
