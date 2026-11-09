@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0] — 2026-11-09 — Fase 4: jornada, productividad, copias de seguridad y WhatsApp
+
+### Agregado
+- `ServicioProductividad` (`services/productividad.py`): cálculo de Cumplimiento, Eficiencia, Foco, porcentaje total con pesos configurables (`40/30/30`), reglas especiales (extras de jefe/doctoras, arrastradas con `% de avance`, pausas por causa externa, tiempo fuera de horario, días no laborales sin porcentaje), semáforo (`🟢/🟡/🔴`), meta de tiempo efectivo y datos de referencia por categoría.
+- `ServicioBackups` (`services/backups.py`): copias automáticas con rotación, copia a USB/carpeta elegida y restauración manual con verificación de integridad SQLite.
+- `ServicioWhatsApp` (`services/whatsapp.py`): generación de texto para "Copiar plan para WhatsApp" y "Copiar resumen para WhatsApp".
+- `ServicioCierreJornada` (`services/cierre_jornada.py`): asistente de cierre para resolver actividades abiertas (finalizar, arrastrar con motivo y `% avance`, aplazar), guardar productividad y disparar la copia de seguridad diaria.
+- 74 pruebas automáticas en total.
+
 ## [0.3.0] — 2026-11-09 — Fase 3: recordatorios, bandeja e inicio con Windows
 
 ### Agregado

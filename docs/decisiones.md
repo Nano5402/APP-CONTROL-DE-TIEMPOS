@@ -116,4 +116,22 @@ escribe únicamente en `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVers
 pasando el argumento `--bandeja`, con lo que la app abre minimizada en el system
 tray y empieza a evaluar el horario laboral.
 
+---
+
+## Fase 4 — Jornada, productividad, copias de seguridad y WhatsApp (2026-11-09)
+
+### D-19. Ponderación cuando falta un sub-indicador en el día
+Si en un día laboral una persona trabaja únicamente con actividades sin estimado
+y sin historial previo en su categoría (por lo que `eficiencia_pct` es `None`),
+o sin plan previo (`cumplimiento_pct` es `None`), la fórmula normaliza los pesos
+sobre los indicadores presentes en lugar de asignar `0 %`, para no castigar
+injustamente al colaborador.
+
+### D-20. Copias de seguridad en caliente con `sqlite3.Connection.backup`
+En lugar de copiar el archivo `.db` con `shutil.copy` (que en modo WAL podría
+omitir páginas del `-wal`), `ServicioBackups` usa la API nativa de respaldo de
+SQLite con `contextlib.closing` (para liberar inmediatamente el descriptor de
+archivo en Windows) y valida con `PRAGMA integrity_check` antes de restaurar.
+
+
 

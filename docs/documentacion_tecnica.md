@@ -45,6 +45,10 @@ usan repositorios y modelos.
 | `services/cronometro.py` | `ServicioCronometro`: iniciar, pausar, reanudar, finalizar, "finalizar y empezar siguiente", reasignar y partición automática dentro/fuera de horario |
 | `services/recordatorios.py` | `ServicioRecordatorios`: avisos de continuidad (`¿Sigues con...?`), repetición sin respuesta, finalización, sin actividad en curso, almuerzo y salida |
 | `services/inicio_windows.py` | `ServicioInicioWindows`: inicio automático en `HKCU\...\Run` con `--bandeja` sin permisos de administrador |
+| `services/productividad.py` | `ServicioProductividad`: fórmula 40/30/30, reglas especiales, semáforo, meta de tiempo efectivo y datos de referencia |
+| `services/backups.py` | `ServicioBackups`: copias automáticas con rotación, copia a USB/carpeta y restauración con `PRAGMA integrity_check` |
+| `services/whatsapp.py` | `ServicioWhatsApp`: textos listos para "Copiar plan para WhatsApp" y "Copiar resumen para WhatsApp" |
+| `services/cierre_jornada.py` | `ServicioCierreJornada`: asistente de cierre de actividades abiertas, cálculo del día y backup automático |
 | `ui/dialogo_recordatorio.py` | `DialogoRecordatorio`: ventana emergente al frente con botones Sí / No / Pausar y ajuste de minutos |
 | `ui/bandeja.py` | `IconoBandeja` (`QSystemTrayIcon`) y `CoordinadorRecordatoriosUI` (`QTimer`) |
 | `ui/sonido.py` | `reproducir_tono_aviso`: tono local sin depender de internet |
@@ -117,3 +121,6 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_cronometro.py` | Cronómetro, pausas, prioridad máxima, piezas seguidas, fuera de horario, arrastradas y reasignaciones |
 | `test_recordatorios.py` | Jerarquía de intervalos, continuidad, repetición sin respuesta, finalización, sin actividad, almuerzo, salida y diálogo UI |
 | `test_inicio_windows.py` | Construcción del comando `--bandeja` y activación/desactivación de autostart por usuario |
+| `test_productividad.py` | Fórmula 40/30/30, semáforo, extras, arrastradas, causa externa, fuera de horario, día no laboral y datos de referencia |
+| `test_backups.py` | Copias automáticas, rotación, carpeta externa/USB y restauración validada |
+| `test_cierre_y_whatsapp.py` | Texto del plan y resumen para WhatsApp, asistente de cierre y backup al cerrar |
