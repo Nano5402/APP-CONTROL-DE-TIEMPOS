@@ -26,7 +26,13 @@ class RepoCategorias:
         consulta = select(Categoria).where(Categoria.nombre.ilike(limpio))
         return self.s.scalar(consulta)
 
-    def obtener_o_crear(self, nombre: str, color: str = "#6B7280") -> Categoria:
+    def obtener_o_crear(
+        self,
+        nombre: str,
+        color: str = "#6B7280",
+        *,
+        intervalo_recordatorio_min: int | None = None,
+    ) -> Categoria:
         """Devuelve la categoría existente (sin importar mayúsculas) o la crea."""
         limpio = nombre.strip()
         if not limpio:
@@ -34,8 +40,16 @@ class RepoCategorias:
         existente = self.buscar_por_nombre(limpio)
         if existente:
             existente.activo = True
+            if intervalo_recordatorio_min is not None:
+                existente.intervalo_recordatorio_min = intervalo_recordatorio_min
+            self.s.flush()
             return existente
-        nueva = Categoria(nombre=limpio, color=color, activo=True)
+        nueva = Categoria(
+            nombre=limpio,
+            color=color,
+            intervalo_recordatorio_min=intervalo_recordatorio_min,
+            activo=True,
+        )
         self.s.add(nueva)
         self.s.flush()
         return nueva

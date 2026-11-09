@@ -43,6 +43,11 @@ usan repositorios y modelos.
 | `services/numeracion.py` | Numeración consecutiva de piezas (`Flyer 1` → `Flyer 2`) y lotes |
 | `services/actividades.py` | `ServicioActividades`: planeadas, lotes, plantillas, extras, aprobaciones, revisiones, desglose y correcciones con trazabilidad |
 | `services/cronometro.py` | `ServicioCronometro`: iniciar, pausar, reanudar, finalizar, "finalizar y empezar siguiente", reasignar y partición automática dentro/fuera de horario |
+| `services/recordatorios.py` | `ServicioRecordatorios`: avisos de continuidad (`¿Sigues con...?`), repetición sin respuesta, finalización, sin actividad en curso, almuerzo y salida |
+| `services/inicio_windows.py` | `ServicioInicioWindows`: inicio automático en `HKCU\...\Run` con `--bandeja` sin permisos de administrador |
+| `ui/dialogo_recordatorio.py` | `DialogoRecordatorio`: ventana emergente al frente con botones Sí / No / Pausar y ajuste de minutos |
+| `ui/bandeja.py` | `IconoBandeja` (`QSystemTrayIcon`) y `CoordinadorRecordatoriosUI` (`QTimer`) |
+| `ui/sonido.py` | `reproducir_tono_aviso`: tono local sin depender de internet |
 
 ## 4. Modelo de datos
 
@@ -110,3 +115,5 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_numeracion.py` | Separación y numeración consecutiva de piezas y lotes |
 | `test_actividades.py` | Categorías, solicitantes, plantillas, extras/aprobaciones, revisiones y correcciones |
 | `test_cronometro.py` | Cronómetro, pausas, prioridad máxima, piezas seguidas, fuera de horario, arrastradas y reasignaciones |
+| `test_recordatorios.py` | Jerarquía de intervalos, continuidad, repetición sin respuesta, finalización, sin actividad, almuerzo, salida y diálogo UI |
+| `test_inicio_windows.py` | Construcción del comando `--bandeja` y activación/desactivación de autostart por usuario |

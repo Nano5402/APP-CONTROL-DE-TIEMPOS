@@ -45,6 +45,11 @@ def verificar(bd: BaseDatos) -> None:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=rutas.NOMBRE_VISIBLE)
     parser.add_argument("--verificar", action="store_true", help="revisa la BD y termina")
+    parser.add_argument(
+        "--bandeja",
+        action="store_true",
+        help="inicia minimizada en la bandeja del sistema (usado al arrancar con Windows)",
+    )
     args = parser.parse_args(argv)
 
     configurar_logs()
@@ -59,12 +64,25 @@ def main(argv: list[str] | None = None) -> int:
 
         from PySide6.QtWidgets import QApplication
 
+        from ui.bandeja import CoordinadorRecordatoriosUI, IconoBandeja, crear_icono_app
         from ui.ventana_principal import VentanaPrincipal
 
         app = QApplication(sys.argv)
         app.setApplicationName(rutas.NOMBRE_VISIBLE)
+        app.setWindowIcon(crear_icono_app())
+        app.setQuitOnLastWindowClosed(False)
+
         ventana = VentanaPrincipal(bd)
-        ventana.show()
+        bandeja = IconoBandeja(ventana)
+        bandeja.show()
+
+        coordinador = CoordinadorRecordatoriosUI(bd, ventana, bandeja)
+        coordinador.iniciar()
+        ventana.coordinador_recordatorios = coordinador
+
+        if not args.bandeja:
+            ventana.show()
+
         return app.exec()
     finally:
         bd.cerrar()

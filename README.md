@@ -4,7 +4,7 @@ App de escritorio **100 % local** para Windows 10/11 que permite planear el día
 medir con cronómetro el tiempo de cada actividad, recibir recordatorios, calcular
 un porcentaje de productividad y exportar reportes en PDF.
 
-> Estado: **Fase 2 completada** (núcleo de tiempos: actividades, cronómetro, pausas, extras, revisiones y correcciones).
+> Estado: **Fase 3 completada** (recordatorios, bandeja del sistema e inicio automático con Windows).
 > Ver el plan completo en [docs/plan-app-control-tiempos.md](docs/plan-app-control-tiempos.md).
 
 ## Requisitos
@@ -27,6 +27,7 @@ python -m venv .venv
 
 ```powershell
 .\.venv\Scripts\python.exe src\main.py              # abre la app
+.\.venv\Scripts\python.exe src\main.py --bandeja    # inicia minimizada en la bandeja del sistema
 .\.venv\Scripts\python.exe src\main.py --verificar  # revisa la base de datos sin interfaz
 ```
 

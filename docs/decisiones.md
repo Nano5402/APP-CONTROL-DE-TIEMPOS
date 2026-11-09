@@ -94,3 +94,26 @@ la sesión se divide automáticamente en sesiones dentro de horario
 (`fuera_horario=False`) y fuera de horario (`fuera_horario=True`). Así el
 cálculo de productividad del día es exacto al segundo.
 
+---
+
+## Fase 3 — Recordatorios, bandeja e inicio con Windows (2026-11-09)
+
+### D-16. Jerarquía del intervalo de continuidad y migración 0002
+Se agregó `intervalo_recordatorio_min` a `categorias` (migración `0002`) para
+evaluar el intervalo con la prioridad `actividad → plantilla → categoría → global`
+(RF-04).
+
+### D-17. Repetición sin respuesta en "¿Sigues con [actividad]?"
+Si el diálogo de continuidad queda sin respuesta durante
+`recordatorio.repetir_sin_respuesta_min` (2 min por defecto), `ServicioRecordatorios`
+inserta automáticamente un registro `sin_respuesta` en `recordatorios_log`,
+mantiene el cronómetro corriendo y vuelve a disparar el aviso con un tono más
+agudo.
+
+### D-18. Inicio con Windows en `HKCU\...\Run` con `--bandeja`
+Para cumplir la regla 6.2 (sin permisos de administrador), `ServicioInicioWindows`
+escribe únicamente en `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run`
+pasando el argumento `--bandeja`, con lo que la app abre minimizada en el system
+tray y empieza a evaluar el horario laboral.
+
+

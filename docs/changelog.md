@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] — 2026-11-09 — Fase 3: recordatorios, bandeja e inicio con Windows
+
+### Agregado
+- Migración `0002`: columna `intervalo_recordatorio_min` en `categorias`.
+- `ServicioRecordatorios` (`services/recordatorios.py`): recordatorios de continuidad con jerarquía (`actividad → plantilla → categoría → global`), registro automático de `sin_respuesta` y repetición del aviso manteniendo el cronómetro, recordatorio de finalización (por estimado o promedio histórico), aviso por inactividad en horario laboral, aviso de almuerzo y de salida.
+- `ServicioInicioWindows` (`services/inicio_windows.py`): registro en `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` sin permisos de administrador.
+- Ventana emergente al frente (`ui/dialogo_recordatorio.py`), sonido configurable (`ui/sonido.py`), bandeja del sistema (`ui/bandeja.py`) y soporte de `--bandeja` en `src/main.py`.
+- 68 pruebas automáticas en total.
+
 ## [0.2.0] — 2026-11-09 — Fase 2: núcleo de tiempos
 
 ### Agregado

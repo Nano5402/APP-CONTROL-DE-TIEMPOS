@@ -128,6 +128,8 @@ class Categoria(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     nombre: Mapped[str] = mapped_column(String(120), unique=True)
     color: Mapped[str] = mapped_column(String(9), default="#6B7280")
+    #: Intervalo de recordatorio personalizado por categoría (RF-04); opcional.
+    intervalo_recordatorio_min: Mapped[int | None] = mapped_column(Integer)
     activo: Mapped[bool] = mapped_column(Boolean, default=True)
 
 
