@@ -62,15 +62,29 @@ def main(argv: list[str] | None = None) -> int:
             verificar(bd)
             return 0
 
-        from PySide6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication, QMessageBox
 
+        from services.seguridad_pin import ServicioPIN
         from ui.bandeja import CoordinadorRecordatoriosUI, IconoBandeja, crear_icono_app
+        from ui.dialogos import DialogoPIN
         from ui.ventana_principal import VentanaPrincipal
 
         app = QApplication(sys.argv)
         app.setApplicationName(rutas.NOMBRE_VISIBLE)
         app.setWindowIcon(crear_icono_app())
         app.setQuitOnLastWindowClosed(False)
+
+        # Si el usuario configuró un PIN opcional y no inicia oculto en bandeja, solicitarlo
+        with bd.sesion() as s:
+            requiere_pin = ServicioPIN(s).tiene_pin()
+        if requiere_pin and not args.bandeja:
+            dlg_pin = DialogoPIN()
+            if dlg_pin.exec() != DialogoPIN.DialogCode.Accepted:
+                return 0
+            with bd.sesion() as s:
+                if not ServicioPIN(s).verificar(dlg_pin.pin):
+                    QMessageBox.critical(None, "PIN incorrecto", "El PIN ingresado no es válido.")
+                    return 1
 
         ventana = VentanaPrincipal(bd)
         bandeja = IconoBandeja(ventana)

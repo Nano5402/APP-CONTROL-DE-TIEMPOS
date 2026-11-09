@@ -49,6 +49,12 @@ usan repositorios y modelos.
 | `services/backups.py` | `ServicioBackups`: copias automáticas con rotación, copia a USB/carpeta y restauración con `PRAGMA integrity_check` |
 | `services/whatsapp.py` | `ServicioWhatsApp`: textos listos para "Copiar plan para WhatsApp" y "Copiar resumen para WhatsApp" |
 | `services/cierre_jornada.py` | `ServicioCierreJornada`: asistente de cierre de actividades abiertas, cálculo del día y backup automático |
+| `services/seguridad_pin.py` | `ServicioPIN`: hash PBKDF2-HMAC-SHA256 y verificación del PIN opcional |
+| `ui/temas.py` | `generar_qss`: temas Claro, Oscuro y Azul Pizarra |
+| `ui/mini_widget.py` | `MiniWidgetCronometro`: ventana flotante siempre encima con controles en 1 clic |
+| `ui/dialogos.py` | Diálogos para PIN, pausa, revisión, reasignación, corrección con motivo y decisión del ingeniero |
+| `ui/pantallas/` | `PantallaHoy`, `PantallaPlanear`, `PantallaExtra`, `PantallaCierre`, `PantallaConfiguracion` |
+| `ui/ventana_principal.py` | `VentanaPrincipal`: navegación lateral, atajos de teclado y reloj en vivo |
 | `ui/dialogo_recordatorio.py` | `DialogoRecordatorio`: ventana emergente al frente con botones Sí / No / Pausar y ajuste de minutos |
 | `ui/bandeja.py` | `IconoBandeja` (`QSystemTrayIcon`) y `CoordinadorRecordatoriosUI` (`QTimer`) |
 | `ui/sonido.py` | `reproducir_tono_aviso`: tono local sin depender de internet |
@@ -124,3 +130,4 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_productividad.py` | Fórmula 40/30/30, semáforo, extras, arrastradas, causa externa, fuera de horario, día no laboral y datos de referencia |
 | `test_backups.py` | Copias automáticas, rotación, carpeta externa/USB y restauración validada |
 | `test_cierre_y_whatsapp.py` | Texto del plan y resumen para WhatsApp, asistente de cierre y backup al cerrar |
+| `test_ui_y_pin.py` | Hash/verificación de PIN, generación de temas QSS, flujo completo en pantallas y mini-widget |

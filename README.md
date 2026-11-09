@@ -4,7 +4,7 @@ App de escritorio **100 % local** para Windows 10/11 que permite planear el día
 medir con cronómetro el tiempo de cada actividad, recibir recordatorios, calcular
 un porcentaje de productividad y exportar reportes en PDF.
 
-> Estado: **Fase 4 completada** (cierre de jornada, fórmula de productividad, copias de seguridad y textos para WhatsApp).
+> Estado: **Fase 5 completada** (interfaz moderna, temas, mini-ventana flotante, atajos, autocompletado y PIN opcional).
 > Ver el plan completo en [docs/plan-app-control-tiempos.md](docs/plan-app-control-tiempos.md).
 
 ## Requisitos

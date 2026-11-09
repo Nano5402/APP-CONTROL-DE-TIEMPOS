@@ -133,5 +133,21 @@ omitir páginas del `-wal`), `ServicioBackups` usa la API nativa de respaldo de
 SQLite con `contextlib.closing` (para liberar inmediatamente el descriptor de
 archivo en Windows) y valida con `PRAGMA integrity_check` antes de restaurar.
 
+---
+
+## Fase 5 — Interfaz moderna, temas, mini-widget, atajos, autocompletado y PIN (2026-11-09)
+
+### D-21. Hash de PIN con `hashlib.pbkdf2_hmac`
+El PIN opcional se almacena en `usuarios.pin_hash` como `sal_hex$hash_hex` usando
+PBKDF2-HMAC-SHA256 con 120.000 iteraciones (librería estándar, sin dependencias
+externas). Si no hay PIN configurado, la app abre directamente; si inicia con
+`--bandeja`, tampoco bloquea el arranque en segundo plano.
+
+### D-22. Tres temas predefinidos QSS y mini-widget sincronizado cada segundo
+`ui/temas.py` define tres paletas neutras (**Claro Neutro**, **Oscuro Grafito**,
+**Azul Pizarra**) aplicables en caliente tanto a `VentanaPrincipal` como a
+`MiniWidgetCronometro`. Un `QTimer` de 1 s mantiene sincronizados ambos relojes.
+
+
 
 

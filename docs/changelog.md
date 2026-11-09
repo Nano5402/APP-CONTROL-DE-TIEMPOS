@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.5.0] — 2026-11-09 — Fase 5: interfaz moderna, temas, mini-widget, atajos, autocompletado y PIN
+
+### Agregado
+- `ServicioPIN` (`services/seguridad_pin.py`): PIN opcional con PBKDF2-HMAC-SHA256.
+- Sistema de temas QSS (`ui/temas.py`): Claro Neutro, Oscuro Grafito y Azul Pizarra.
+- `MiniWidgetCronometro` (`ui/mini_widget.py`): mini-ventana flotante siempre encima con cronómetro en vivo y botones Pausar, Finalizar y Siguiente pieza.
+- Pantallas operativas completas (`ui/pantallas/`):
+  - `PantallaHoy`: cronómetro grande, barra de meta de tiempo efectivo, inicio rápido de no planeadas, tabla del día y botones para Iniciar, Pausar, Finalizar, "Finalizar y empezar siguiente", Aprobar/Rechazar, Revisión, Reasignar y Corregir.
+  - `PantallaPlanear`: alta rápida con autocompletado (`QCompleter`), creación de lotes, plantillas propuestas para hoy y "Copiar plan para WhatsApp".
+  - `PantallaExtra`: registro de actividades extra con reglas de prioridad y alta rápida de solicitantes.
+  - `PantallaCierre`: asistente interactivo de cierre, indicadores de productividad/semáforo y "Copiar resumen para WhatsApp".
+  - `PantallaConfiguracion`: perfil, temas, recordatorios, pesos de productividad, plantillas, PIN, copias de seguridad e inicio con Windows.
+- Atajos de teclado en `VentanaPrincipal`: `Ctrl+Espacio`, `Ctrl+Shift+F`, `Ctrl+Shift+S` y `Ctrl+M`.
+- 77 pruebas automáticas en total.
+
 ## [0.4.0] — 2026-11-09 — Fase 4: jornada, productividad, copias de seguridad y WhatsApp
 
 ### Agregado
