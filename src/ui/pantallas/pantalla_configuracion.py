@@ -79,6 +79,17 @@ class PantallaConfiguracion(QWidget):
 
         self.txt_usuario = QLineEdit(self)
         self.txt_empresa = QLineEdit(self)
+        self.txt_color_empresa = QLineEdit(self)
+        self.txt_color_empresa.setPlaceholderText("#0F4C81")
+        self.txt_logo_ruta = QLineEdit(self)
+        self.txt_logo_ruta.setPlaceholderText("Automático (logo corporativo Gente Util)")
+        self.btn_elegir_logo = QPushButton("Elegir logo...", self)
+        self.btn_elegir_logo.setProperty("rol", "secundario")
+        self.btn_elegir_logo.clicked.connect(self.accion_elegir_logo)
+
+        fila_logo = QHBoxLayout()
+        fila_logo.addWidget(self.txt_logo_ruta, 1)
+        fila_logo.addWidget(self.btn_elegir_logo)
 
         self.combo_tema = QComboBox(self)
         for cod, paleta in TEMAS.items():
@@ -90,6 +101,8 @@ class PantallaConfiguracion(QWidget):
 
         form_gen.addRow("Tu nombre (para reportes y WhatsApp):", self.txt_usuario)
         form_gen.addRow("Empresa:", self.txt_empresa)
+        form_gen.addRow("Color primario en reportes PDF:", self.txt_color_empresa)
+        form_gen.addRow("Logo para reportes PDF:", fila_logo)
         form_gen.addRow("Tema visual:", self.combo_tema)
         form_gen.addRow("", self.chk_autostart)
         layout.addWidget(card_gen)
@@ -224,6 +237,10 @@ class PantallaConfiguracion(QWidget):
 
             self.txt_usuario.setText(usr.nombre if usr else "")
             self.txt_empresa.setText(cfg.obtener("empresa.nombre", "Gente Util") or "Gente Util")
+            self.txt_color_empresa.setText(
+                cfg.obtener("empresa.color_primario", "#0F4C81") or "#0F4C81"
+            )
+            self.txt_logo_ruta.setText(cfg.obtener("empresa.logo_ruta", "") or "")
 
             tema_actual = usr.tema if usr and usr.tema else "claro"
             idx = self.combo_tema.findData(tema_actual)
@@ -274,6 +291,10 @@ class PantallaConfiguracion(QWidget):
 
             cfg = RepoConfiguracion(s)
             cfg.guardar("empresa.nombre", self.txt_empresa.text().strip() or "Gente Util")
+            cfg.guardar(
+                "empresa.color_primario", self.txt_color_empresa.text().strip() or "#0F4C81"
+            )
+            cfg.guardar("empresa.logo_ruta", self.txt_logo_ruta.text().strip())
             cfg.guardar("sistema.inicio_con_windows", autostart)
             cfg.guardar("recordatorio.continuidad_min", int(self.spin_rec_cont.value()))
             cfg.guardar(
@@ -306,6 +327,16 @@ class PantallaConfiguracion(QWidget):
             self.al_cambiar_tema(tema)
 
         QMessageBox.information(self, "Guardado", "Configuración actualizada correctamente.")
+
+    def accion_elegir_logo(self) -> None:
+        archivo, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar logo de la empresa",
+            "",
+            "Imágenes (*.svg *.png *.jpg *.jpeg)",
+        )
+        if archivo:
+            self.txt_logo_ruta.setText(archivo)
 
     def accion_crear_plantilla(self) -> None:
         nombre = self.txt_plant_nombre.text().strip()

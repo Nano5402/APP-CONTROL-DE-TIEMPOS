@@ -83,6 +83,23 @@ TEMAS: dict[str, PaletaTema] = {
         peligro="#B91C1C",
         fondo_input="#FFFFFF",
     ),
+    "gente_util": PaletaTema(
+        codigo="gente_util",
+        nombre="Gente Util (Corporativo)",
+        fondo_ventana="#F4F7FB",
+        fondo_panel="#FFFFFF",
+        fondo_sidebar="#0F4C81",
+        texto_principal="#0F172A",
+        texto_secundario="#475569",
+        texto_sidebar="#F8FAFC",
+        borde="#CBD5E1",
+        acento="#0F4C81",
+        acento_hover="#0B3B66",
+        exito="#15803D",
+        advertencia="#D97706",
+        peligro="#DC2626",
+        fondo_input="#FFFFFF",
+    ),
 }
 
 

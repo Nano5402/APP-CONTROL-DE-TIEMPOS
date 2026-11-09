@@ -4,8 +4,8 @@ App de escritorio **100 % local** para Windows 10/11 que permite planear el día
 medir con cronómetro el tiempo de cada actividad, recibir recordatorios, calcular
 un porcentaje de productividad y exportar reportes en PDF.
 
-> Estado: **Fase 8 completada** (pruebas integrales de aceptación extremo a extremo y simulador de validación de fórmula para las betas).
-> Ver el plan completo en [docs/plan-app-control-tiempos.md](docs/plan-app-control-tiempos.md).
+> Estado: **v1.0.0 completada (Fases 1 a 9)** — Lista para producción local en Windows 10/11 (instalador por usuario sin administrador y edición portable).
+> Ver el plan completo en [docs/plan-app-control-tiempos.md](docs/plan-app-control-tiempos.md) y el [Manual de usuario](docs/manual_usuario.md).
 
 ## Requisitos
 
@@ -39,13 +39,23 @@ python -m venv .venv
 
 ## Dónde se guardan los datos
 
-| Qué | Dónde |
-|---|---|
-| Base de datos y logs | `%LOCALAPPDATA%\ControlTiempos` |
-| Copias de seguridad | `Documentos\ControlTiempos\Copias` |
+| Qué | Modo instalado por usuario | Modo portable (`portable.flag`) |
+|---|---|---|
+| Base de datos y logs | `%LOCALAPPDATA%\ControlTiempos` | `<carpeta_portable>\datos` |
+| Copias de seguridad | `Documentos\ControlTiempos\Copias` | `<carpeta_portable>\datos\Copias` |
+| Reportes PDF | `Documentos\ControlTiempos\Reportes` | `<carpeta_portable>\datos\Reportes` |
 
-Para usar otra carpeta (pruebas o versión portable) se define la variable de
-entorno `CONTROL_TIEMPOS_DATA_DIR`.
+Para usar otra carpeta también se puede definir la variable de entorno `CONTROL_TIEMPOS_DATA_DIR`.
+
+## Empaquetado (sin permisos de administrador)
+
+```powershell
+# Generar paquete portable (.zip) en dist/
+$env:PYTHONPATH="src"; .\.venv\Scripts\python.exe build\empaquetar_portable.py
+
+# Compilar ejecutable con PyInstaller (sin UAC)
+.\.venv\Scripts\pyinstaller.exe build\control_tiempos.spec
+```
 
 ## Estructura
 
@@ -69,4 +79,4 @@ entorno `CONTROL_TIEMPOS_DATA_DIR`.
 - [Documentación técnica](docs/documentacion_tecnica.md)
 - [Decisiones](docs/decisiones.md)
 - [Changelog](docs/changelog.md)
-- [Manual de usuario](docs/manual_usuario.md) (se completa en la Fase 9)
+- [Manual de usuario](docs/manual_usuario.md)

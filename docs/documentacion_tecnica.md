@@ -55,7 +55,7 @@ usan repositorios y modelos.
 | `reports/generador_pdf.py` | Renderizado HTML/CSS a PDF A4 con `QPdfWriter` + `QTextDocument` y plantillas de los 4 tipos de reporte |
 | `services/reportes_pdf.py` | `ServicioReportesPDF`: exportación de reporte diario, día no laboral, específico y semanal/mensual |
 | `services/beta_herramientas.py` | `ServicioBeta`: simulador no destructivo de pesos de la fórmula y exportación de informe de validación para la beta con el ingeniero |
-| `ui/temas.py` | `generar_qss`: temas Claro, Oscuro y Azul Pizarra |
+| `ui/temas.py` | `generar_qss`: temas Claro, Oscuro, Azul Pizarra y Gente Util (Corporativo) |
 | `ui/mini_widget.py` | `MiniWidgetCronometro`: ventana flotante siempre encima con controles en 1 clic |
 | `ui/dialogos.py` | Diálogos para PIN, pausa, revisión, reasignación, corrección con motivo y decisión del ingeniero |
 | `ui/pantallas/` | `PantallaHoy`, `PantallaPlanear`, `PantallaExtra`, `PantallaCierre`, `PantallaHistorial`, `PantallaEstadisticas`, `PantallaReportes`, `PantallaConfiguracion` |
@@ -63,6 +63,8 @@ usan repositorios y modelos.
 | `ui/dialogo_recordatorio.py` | `DialogoRecordatorio`: ventana emergente al frente con botones Sí / No / Pausar y ajuste de minutos |
 | `ui/bandeja.py` | `IconoBandeja` (`QSystemTrayIcon`) y `CoordinadorRecordatoriosUI` (`QTimer`) |
 | `ui/sonido.py` | `reproducir_tono_aviso`: tono local sin depender de internet |
+| `assets/logo_gente_util.svg` | Logo vectorial corporativo de Gente Util para reportes y cabecera |
+| `build/` | `control_tiempos.spec` (PyInstaller sin UAC), `instalador_usuario.iss` (Inno Setup modo usuario) y `empaquetar_portable.py` (generador del `.zip` portable) |
 
 ## 4. Modelo de datos
 
@@ -139,3 +141,4 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_historial_y_estadisticas.py` | Rangos de semana/mes, filtros del historial, detalle con ediciones y los 5 bloques de estadísticas |
 | `test_reportes_pdf.py` | Exportación en PDF de reporte diario, día no laboral, específico por actividad y semanal/mensual |
 | `test_aceptacion_v1.py` | Ciclo laboral completo extremo a extremo (criterios de aceptación de la sección 14 y simulador Beta) |
+| `test_empaquetado_v1.py` | Configuración sin administrador (`uac_admin=False`, `PrivilegesRequired=lowest`) y construcción del `.zip` portable |

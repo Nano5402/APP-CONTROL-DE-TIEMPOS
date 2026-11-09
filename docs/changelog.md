@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.0.0] — 2026-11-09 — Fase 9: empaquetado sin administrador, versión portable, identidad Gente Util y documentación v1.0
+
+### Agregado
+- Modo portable automático en `config/rutas.py` mediante el archivo bandera `portable.flag` (almacena BD, logs, copias y PDFs en `./datos`).
+- Logo vectorial corporativo `src/assets/logo_gente_util.svg`, cuarto tema visual **Gente Util (Corporativo)** en `ui/temas.py`, y configuración de logo/color primario en `PantallaConfiguracion`.
+- Scripts de empaquetado en `build/` sin permisos de administrador (`uac_admin=False` en `build/control_tiempos.spec`, `PrivilegesRequired=lowest` en `build/instalador_usuario.iss`, y generador de `.zip` portable en `build/empaquetar_portable.py`).
+- Manual de usuario completo en `docs/manual_usuario.md`.
+- 84 pruebas automáticas en total.
+
 ## [0.8.0] — 2026-11-09 — Fase 8: pruebas integrales y herramientas de beta
 
 ### Agregado

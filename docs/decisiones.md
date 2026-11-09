@@ -181,4 +181,25 @@ recalcula Cumplimiento, Eficiencia y Foco en cualquier rango de fechas con pesos
 alternativos sin alterar los valores históricos guardados en `jornadas`, y
 exporta una tabla comparativa en Markdown.
 
+---
+
+## Fase 9 — Empaquetado sin administrador, modo portable y v1.0.0 (2026-11-09)
+
+### D-26. Detección automática de modo portable mediante `portable.flag`
+Cuando existe el archivo `portable.flag` junto al ejecutable (o en la raíz
+definida por `CONTROL_TIEMPOS_PORTABLE_ROOT`), `config/rutas.py` redirige
+automáticamente la base de datos, los logs, las copias de seguridad y los PDFs
+a la subcarpeta `./datos`, sin escribir nada en `%LOCALAPPDATA%` ni en
+`Documentos`.
+
+### D-27. Empaquetado 100 % sin administrador (PyInstaller + Inno Setup `lowest`)
+- `build/control_tiempos.spec` fija `uac_admin=False` y `uac_uiaccess=False`
+  para que el ejecutable corra con nivel `asInvoker` sin mostrar escudo UAC.
+- `build/instalador_usuario.iss` usa `PrivilegesRequired=lowest`, instala en
+  `{localappdata}\Programs\ControlTiempos` y registra el inicio automático en
+  `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+- `build/empaquetar_portable.py` construye el `.zip` portable listo para
+  descomprimir en cualquier carpeta del usuario o memoria USB.
+
+
 
