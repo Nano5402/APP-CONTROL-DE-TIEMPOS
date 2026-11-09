@@ -65,3 +65,32 @@ agregan siempre sin sobrescribir las existentes.
 `jornadas.fecha` es única (un usuario por PC). Una actividad arrastrada
 pertenece a la jornada donde se creó; el tiempo de cada día se calcula desde
 sus `sesiones_tiempo`. Una pausa pertenece a la jornada donde empezó.
+
+---
+
+## Fase 2 — Núcleo de tiempos (2026-11-09)
+
+### D-12. Piezas repetidas: numeración automática + lotes opcionales
+Al planear se puede crear una sola actividad (y usar "Finalizar y empezar
+siguiente" para numerar `Flyer 1`, `Flyer 2`… automáticamente) o crear un lote
+de N piezas de golpe (`ServicioActividades.crear_lote_piezas`). Si ya existía la
+siguiente pieza planeada como `pendiente`, "Finalizar y empezar siguiente" la
+reutiliza sin duplicarla.
+
+### D-13. Respuesta "No" en recordatorio de continuidad
+Cuando el usuario responde "No" a "¿Sigues con [actividad]?", el cronómetro se
+detiene en ese instante y ofrece ajustar minutos hacia atrás si olvidó cerrarla
+antes (`ajuste_minutos_menos` en `ServicioCronometro.finalizar`).
+
+### D-14. Corrección desde "Hoy" e "Historial"
+Tanto la pantalla "Hoy" como "Historial" usan `corregir_actividad` y
+`corregir_sesion_tiempo`, que exigen motivo obligatorio, marcan `editado=True` y
+guardan el detalle campo por campo en `ediciones_log`.
+
+### D-15. Corte automático en límites del horario laboral
+Si un tramo continuo de cronómetro cruza el inicio/fin de un bloque laboral (por
+ejemplo, de 4:30 pm a 5:00 pm siendo las 4:45 pm la hora de salida), al cerrar
+la sesión se divide automáticamente en sesiones dentro de horario
+(`fuera_horario=False`) y fuera de horario (`fuera_horario=True`). Así el
+cálculo de productividad del día es exacto al segundo.
+

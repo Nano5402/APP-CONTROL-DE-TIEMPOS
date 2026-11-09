@@ -38,6 +38,11 @@ usan repositorios y modelos.
 | `data/migrations/` | Entorno y versiones de Alembic |
 | `data/repositorios/configuracion.py` | `RepoConfiguracion`: lectura/escritura tipada |
 | `data/repositorios/horarios.py` | `RepoHorarios`: bloques, día laboral, duración de jornada, en horario |
+| `data/repositorios/catalogos.py` | `RepoCategorias`, `RepoSolicitantes`, `RepoPlantillas` |
+| `data/repositorios/jornadas.py` | `RepoJornadas`: apertura automática de jornada laboral o no laboral |
+| `services/numeracion.py` | Numeración consecutiva de piezas (`Flyer 1` → `Flyer 2`) y lotes |
+| `services/actividades.py` | `ServicioActividades`: planeadas, lotes, plantillas, extras, aprobaciones, revisiones, desglose y correcciones con trazabilidad |
+| `services/cronometro.py` | `ServicioCronometro`: iniciar, pausar, reanudar, finalizar, "finalizar y empezar siguiente", reasignar y partición automática dentro/fuera de horario |
 
 ## 4. Modelo de datos
 
@@ -102,3 +107,6 @@ Por defecto Alembic CLI trabaja sobre una BD de desarrollo en `.\dev_data\`
 | `test_semilla.py` | Horario, solicitantes, configuración; no sobrescribe cambios |
 | `test_horarios.py` | Duración de jornada, días laborales, en horario, edición de bloques |
 | `test_models.py` | Relaciones, restricciones, llaves foráneas, repositorio de configuración |
+| `test_numeracion.py` | Separación y numeración consecutiva de piezas y lotes |
+| `test_actividades.py` | Categorías, solicitantes, plantillas, extras/aprobaciones, revisiones y correcciones |
+| `test_cronometro.py` | Cronómetro, pausas, prioridad máxima, piezas seguidas, fuera de horario, arrastradas y reasignaciones |
