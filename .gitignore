@@ -1,0 +1,30 @@
+# Entorno virtual
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Empaquetado
+build/dist/
+build/work/
+*.spec.bak
+dist/
+
+# Datos locales (nunca se suben al repositorio)
+dev_data/
+backups/*
+!backups/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+*.log
+
+# Editores / sistema
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini

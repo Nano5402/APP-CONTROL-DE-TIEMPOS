@@ -1,0 +1,5 @@
+# Dependencias de ejecución de la app (Fase 1).
+# Todas funcionan 100 % local y se instalan sin permisos de administrador.
+PySide6>=6.10
+SQLAlchemy>=2.0
+alembic>=1.14
