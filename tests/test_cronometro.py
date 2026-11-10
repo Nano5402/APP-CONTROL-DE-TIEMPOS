@@ -283,3 +283,45 @@ def test_corregir_sesion_tiempo_y_cambiar_activa_finalizando(s):
     )
     assert sesion.duracion_seg == 20 * 60
     assert a1.editado is True
+
+
+def test_flujo_flyers_dinamicos_encadenados(s):
+    """Verifica que los flyers se numeren incrementalmente sobre la marcha (Flyer 1 -> Flyer 2 -> Flyer 3...)."""
+    from data.repositorios.catalogos import RepoCategorias
+    from data.repositorios.jornadas import RepoJornadas
+
+    jornada = RepoJornadas(s).obtener_o_crear(datetime(2026, 11, 10).date())
+    cat_flyers = RepoCategorias(s).obtener_o_crear("Flyers", "#003D95")
+    srv_act = ServicioActividades(s)
+    cron = ServicioCronometro(s)
+
+    # Inicialmente el siguiente sugerido es Flyer 1
+    assert cron.siguiente_nombre_flyer_del_dia(jornada.id) == "Flyer 1"
+
+    # Inicia Flyer 1
+    f1 = srv_act.crear_planeada("Flyer 1", categoria_id=cat_flyers.id, momento=datetime(2026, 11, 10, 8, 0))
+    cron.iniciar(f1, momento=datetime(2026, 11, 10, 8, 0))
+    assert cron.es_actividad_flyer(f1) is True
+    assert cron.siguiente_nombre_flyer_del_dia(jornada.id) == "Flyer 2"
+
+    # Termina Flyer 1 e inicia Flyer 2 en 1 clic
+    f2 = cron.finalizar_e_iniciar_otro_flyer(f1, momento=datetime(2026, 11, 10, 8, 25))
+    assert f1.estado == EstadoActividad.COMPLETADA.value
+    assert f2.nombre == "Flyer 2"
+    assert f2.estado == EstadoActividad.EN_CURSO.value
+    assert f2.categoria_id == cat_flyers.id
+    assert cron.siguiente_nombre_flyer_del_dia(jornada.id) == "Flyer 3"
+
+    # Termina Flyer 2 e inicia Flyer 3 en 1 clic
+    f3 = cron.finalizar_e_iniciar_otro_flyer(f2, momento=datetime(2026, 11, 10, 8, 50))
+    assert f2.estado == EstadoActividad.COMPLETADA.value
+    assert f3.nombre == "Flyer 3"
+    assert f3.estado == EstadoActividad.EN_CURSO.value
+
+    # Termina Flyer 3 normalmente (sin iniciar otro)
+    cron.finalizar(f3, momento=datetime(2026, 11, 10, 9, 15))
+    assert f3.estado == EstadoActividad.COMPLETADA.value
+    assert cron.actividad_en_curso() is None
+    # El siguiente nuevo flyer sería el 4
+    assert cron.siguiente_nombre_flyer_del_dia(jornada.id) == "Flyer 4"
+

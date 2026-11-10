@@ -155,21 +155,31 @@ class PantallaHoy(QWidget):
         col_botones = QHBoxLayout()
         col_botones.setSpacing(8)
         self.btn_iniciar = QPushButton("▶  Iniciar / Reanudar seleccionada", self)
+        self.btn_iniciar_flyer = QPushButton("⚡  Iniciar siguiente Flyer", self)
+        self.btn_iniciar_flyer.setProperty("rol", "exito")
         self.btn_pausar = QPushButton("⏸  Pausar", self)
         self.btn_pausar.setProperty("rol", "advertencia")
         self.btn_finalizar = QPushButton("⏹  Ya terminé (Finalizar)", self)
         self.btn_finalizar.setProperty("rol", "exito")
         self.btn_siguiente = QPushButton("⏭  Terminar esta y empezar siguiente pieza", self)
 
-        for b in (self.btn_iniciar, self.btn_pausar, self.btn_finalizar, self.btn_siguiente):
+        for b in (
+            self.btn_iniciar,
+            self.btn_iniciar_flyer,
+            self.btn_pausar,
+            self.btn_finalizar,
+            self.btn_siguiente,
+        ):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.btn_iniciar.clicked.connect(self.accion_iniciar_seleccionada)
+        self.btn_iniciar_flyer.clicked.connect(self.accion_iniciar_flyer_rapido)
         self.btn_pausar.clicked.connect(self.accion_pausar_activa)
         self.btn_finalizar.clicked.connect(self.accion_finalizar_activa)
         self.btn_siguiente.clicked.connect(self.accion_finalizar_y_siguiente)
 
         col_botones.addWidget(self.btn_iniciar)
+        col_botones.addWidget(self.btn_iniciar_flyer)
         col_botones.addWidget(self.btn_pausar)
         col_botones.addWidget(self.btn_finalizar)
         col_botones.addWidget(self.btn_siguiente)
@@ -219,32 +229,23 @@ class PantallaHoy(QWidget):
         capa_meta.addLayout(fila_barra)
 
         fila_rapida = QHBoxLayout()
-        lbl_rap = QLabel("💡 Mandado rápido:", self)
+        lbl_rap = QLabel("💡 Iniciar tarea rápida:", self)
         lbl_rap.setStyleSheet("font-weight: 600;")
-
-        self.btn_flyer_ya = QPushButton("⚡ + Iniciar Flyer ya", self)
-        self.btn_flyer_ya.setProperty("rol", "exito")
-        self.btn_flyer_ya.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_flyer_ya.setToolTip(
-            "Crea e inicia de inmediato el siguiente Flyer del día bajo la categoría Flyers"
-        )
-        self.btn_flyer_ya.clicked.connect(self.accion_iniciar_flyer_rapido)
 
         self.txt_no_planeada = QLineEdit(self)
         self.txt_no_planeada.setPlaceholderText(
-            "O escribe otra actividad rápida y pulsa Enter..."
+            "Escribe una actividad que surgió de momento y pulsa Enter..."
         )
         self.txt_no_planeada.returnPressed.connect(self.accion_iniciar_no_planeada_rapida)
 
         self.combo_cat_rapida = QComboBox(self)
-        self.combo_cat_rapida.setMinimumWidth(145)
+        self.combo_cat_rapida.setMinimumWidth(150)
 
         self.btn_no_planeada = QPushButton("▶ Empezar ya", self)
         self.btn_no_planeada.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_no_planeada.clicked.connect(self.accion_iniciar_no_planeada_rapida)
 
         fila_rapida.addWidget(lbl_rap)
-        fila_rapida.addWidget(self.btn_flyer_ya)
         fila_rapida.addWidget(self.txt_no_planeada, 1)
         fila_rapida.addWidget(self.combo_cat_rapida)
         fila_rapida.addWidget(self.btn_no_planeada)
@@ -392,12 +393,14 @@ class PantallaHoy(QWidget):
             cron = ServicioCronometro(s)
             activa = cron.actividad_en_curso()
             if activa is None:
-                self.nombre_siguiente_sugerido = None
+                jornada = RepoJornadas(s).obtener_o_crear()
+                sig_flyer = cron.siguiente_nombre_flyer_del_dia(jornada.id)
+                self.nombre_siguiente_sugerido = sig_flyer
                 self.lbl_reloj.setText("00:00:00")
                 self.lbl_badge_activa.setText("⚪ SIN ACTIVIDAD EN CURSO")
                 self.lbl_activa_titulo.setText("Ninguna actividad en curso")
                 self.lbl_activa_detalle.setText(
-                    "Selecciona una actividad de la tabla y pulsa el botón azul «▶ Iniciar» (o haz doble clic)."
+                    f"Selecciona una actividad de la tabla y pulsa «▶ Iniciar», o empieza directamente con «⚡ Iniciar siguiente Flyer ({sig_flyer})»."
                 )
                 self.btn_pausar.setVisible(False)
                 self.btn_finalizar.setVisible(False)
@@ -406,6 +409,9 @@ class PantallaHoy(QWidget):
                 self.btn_finalizar.setEnabled(False)
                 self.btn_siguiente.setEnabled(False)
                 self.btn_iniciar.setVisible(self.tabla.rowCount() > 0)
+                self.btn_iniciar_flyer.setText(f"⚡ Iniciar siguiente Flyer ({sig_flyer})")
+                self.btn_iniciar_flyer.setVisible(True)
+                self.btn_iniciar_flyer.setEnabled(True)
                 return None, 0
 
             seg = cron.segundos_trabajados(activa)
@@ -423,6 +429,9 @@ class PantallaHoy(QWidget):
             self.lbl_activa_detalle.setText(
                 f"Categoría: {cat_txt}  ·  Prioridad: {_etiqueta_prioridad_visual(activa.prioridad)}"
             )
+            self.btn_iniciar.setVisible(False)
+            self.btn_iniciar_flyer.setVisible(False)
+            self.btn_iniciar_flyer.setEnabled(False)
             self.btn_pausar.setVisible(True)
             self.btn_finalizar.setVisible(True)
             self.btn_pausar.setEnabled(True)
@@ -430,10 +439,12 @@ class PantallaHoy(QWidget):
 
             # Regla solicitada: SOLO la categoría Flyers muestra la opción de iniciar otro Flyer al terminar
             if es_flyer and nombre_sig:
-                self.btn_siguiente.setText(f"⏭  Terminar este e iniciar otro Flyer ({nombre_sig})")
+                self.btn_finalizar.setText("⏹  Terminar este Flyer")
+                self.btn_siguiente.setText(f"⏭  Terminar e iniciar otro Flyer ({nombre_sig})")
                 self.btn_siguiente.setVisible(True)
                 self.btn_siguiente.setEnabled(True)
             else:
+                self.btn_finalizar.setText("⏹  Ya terminé (Finalizar)")
                 self.btn_siguiente.setVisible(False)
                 self.btn_siguiente.setEnabled(False)
 
@@ -630,50 +641,13 @@ class PantallaHoy(QWidget):
         self.refrescar()
 
     def accion_finalizar_activa(self) -> None:
+        """Finaliza la actividad activa y detiene el cronómetro."""
         with self.bd.sesion() as s:
             cron = ServicioCronometro(s)
             activa = cron.actividad_en_curso()
             if activa is None:
                 return
-            es_flyer = cron.es_actividad_flyer(activa)
-            nombre_act = activa.nombre
-            sig_flyer = (
-                cron.siguiente_nombre_flyer_del_dia(activa.jornada_id)
-                if es_flyer
-                else None
-            )
-
-        iniciar_otro = False
-        if es_flyer and os.environ.get("QT_QPA_PLATFORM") != "offscreen":
-            msg = QMessageBox(self)
-            msg.setWindowTitle("Flyer terminado")
-            msg.setIcon(QMessageBox.Icon.Question)
-            msg.setText(f"Has finalizado «{nombre_act}».")
-            msg.setInformativeText(
-                f"¿Vas a iniciar otro Flyer de una vez ({sig_flyer}) o solo deseas finalizar este?"
-            )
-            btn_otro = msg.addButton(
-                f"▶ Iniciar otro Flyer ({sig_flyer})", QMessageBox.ButtonRole.AcceptRole
-            )
-            btn_solo = msg.addButton(
-                "⏹ Solo finalizar este", QMessageBox.ButtonRole.DestructiveRole
-            )
-            btn_cancel = msg.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-            msg.exec()
-            clic = msg.clickedButton()
-            if clic == btn_cancel:
-                return
-            iniciar_otro = clic == btn_otro
-
-        with self.bd.sesion() as s:
-            cron = ServicioCronometro(s)
-            activa = cron.actividad_en_curso()
-            if activa is None:
-                return
-            if iniciar_otro:
-                cron.finalizar_e_iniciar_otro_flyer(activa)
-            else:
-                cron.finalizar(activa)
+            cron.finalizar(activa)
         self.refrescar()
 
     def accion_finalizar_y_siguiente(self) -> None:
