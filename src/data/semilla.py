@@ -60,6 +60,13 @@ CONFIGURACION_POR_DEFECTO: dict[str, str] = {
     "aviso.volumen": "70",
     # Sistema
     "sistema.inicio_con_windows": "1",
+    "sistema.iniciar_minimizada_bandeja": "0",
+    # Atajos de teclado (RF-12): desactivados (vacíos) por defecto para no interferir
+    # mientras el usuario trabaja en otros programas; cada persona los define a su gusto.
+    "atajo.iniciar_pausar": "",
+    "atajo.finalizar": "",
+    "atajo.siguiente_pieza": "",
+    "atajo.mini_ventana": "",
     # Copias de seguridad (RF-09)
     "copias.carpeta": "",  # vacío = carpeta por defecto en Documentos
     "copias.conservar": "30",

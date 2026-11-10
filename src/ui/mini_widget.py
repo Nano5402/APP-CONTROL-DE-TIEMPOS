@@ -46,37 +46,41 @@ class MiniWidgetCronometro(QWidget):
             | Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.Tool,
         )
-        self.setWindowTitle("Cronómetro — Control de Tiempos")
-        self.setFixedSize(310, 118)
+        self.setWindowTitle("Cronómetro — Gente Util")
+        self.setFixedSize(348, 130)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(10, 8, 10, 8)
         layout.setSpacing(6)
 
         marco = QFrame(self)
-        marco.setProperty("card", True)
+        marco.setObjectName("heroCronometro")
         capa_marco = QVBoxLayout(marco)
-        capa_marco.setContentsMargins(8, 6, 8, 6)
-        capa_marco.setSpacing(4)
+        capa_marco.setContentsMargins(12, 10, 12, 10)
+        capa_marco.setSpacing(8)
 
         fila_sup = QHBoxLayout()
-        self.lbl_actividad = QLabel("Sin actividad en curso", self)
-        self.lbl_actividad.setStyleSheet("font-weight: bold;")
+        self.lbl_actividad = QLabel("⚪ Sin actividad en curso", self)
+        self.lbl_actividad.setStyleSheet("font-weight: bold; font-size: 13px;")
         self.lbl_reloj = QLabel("00:00:00", self)
         self.lbl_reloj.setStyleSheet(
-            "font-family: Consolas, monospace; font-size: 18px; font-weight: bold; color: #2563EB;"
+            "font-family: 'Cascadia Mono', Consolas, monospace; font-size: 20px; font-weight: bold; color: #2563EB;"
         )
         fila_sup.addWidget(self.lbl_actividad, 1)
         fila_sup.addWidget(self.lbl_reloj)
         capa_marco.addLayout(fila_sup)
 
         fila_btn = QHBoxLayout()
-        self.btn_pausar = QPushButton("Pausar", self)
+        fila_btn.setSpacing(6)
+        self.btn_pausar = QPushButton("⏸ Pausar", self)
         self.btn_pausar.setProperty("rol", "advertencia")
-        self.btn_finalizar = QPushButton("Finalizar", self)
+        self.btn_finalizar = QPushButton("⏹ Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
-        self.btn_siguiente = QPushButton("Fin + Siguiente", self)
+        self.btn_siguiente = QPushButton("⏭ Siguiente", self)
         self.btn_siguiente.setToolTip("Finalizar esta pieza y empezar la siguiente")
+
+        for b in (self.btn_pausar, self.btn_finalizar, self.btn_siguiente):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
 
         if al_pausar:
             self.btn_pausar.clicked.connect(al_pausar)
@@ -96,7 +100,11 @@ class MiniWidgetCronometro(QWidget):
     def actualizar_estado(self, nombre_actividad: str | None, segundos: int) -> None:
         """Actualiza el texto y el reloj del mini-widget."""
         activa = bool(nombre_actividad)
-        self.lbl_actividad.setText(nombre_actividad or "Sin actividad en curso")
+        if nombre_actividad:
+            corto = nombre_actividad if len(nombre_actividad) <= 22 else nombre_actividad[:21] + "…"
+            self.lbl_actividad.setText(f"🟢 {corto}")
+        else:
+            self.lbl_actividad.setText("⚪ Sin actividad en curso")
         self.lbl_reloj.setText(formatear_reloj_hms(segundos))
         self.btn_pausar.setEnabled(activa)
         self.btn_finalizar.setEnabled(activa)

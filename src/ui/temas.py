@@ -1,10 +1,10 @@
-"""Temas visuales (QSS) de la aplicación (RF-09, RNF-06).
+"""Temas visuales (QSS) modernos de la aplicación (RF-09, RNF-06).
 
-Paleta neutra, moderna y con amplio espacio en blanco (la paleta corporativa y
-el logo de Gente Util se incorporan antes de la v1.0). Incluye tres temas:
-- ``claro``: fondo blanco cálido/gris muy suave, acento azul profesional.
-- ``oscuro``: fondo grafito oscuro con alto contraste y descanso visual.
-- ``pizarra``: tono azul pizarra suave para jornadas largas.
+Incluye cuatro paletas cuidadosamente diseñadas:
+- ``claro``: Blanco limpio y gris suave con acento azul real.
+- ``gente_util``: Identidad corporativa de Gente Util (azul profundo y ámbar cálido).
+- ``oscuro``: Modo oscuro grafito de alto confort visual.
+- ``pizarra``: Azul pizarra sereno para jornadas largas de diseño.
 """
 
 from __future__ import annotations
@@ -18,87 +18,132 @@ class PaletaTema:
     nombre: str
     fondo_ventana: str
     fondo_panel: str
+    fondo_hero: str
+    fondo_reloj: str
     fondo_sidebar: str
     texto_principal: str
     texto_secundario: str
     texto_sidebar: str
     borde: str
+    borde_fuerte: str
     acento: str
     acento_hover: str
+    acento_suave: str
     exito: str
+    exito_hover: str
     advertencia: str
+    advertencia_hover: str
     peligro: str
+    peligro_hover: str
     fondo_input: str
+    seleccion_tabla: str
+    texto_seleccion: str
 
 
 TEMAS: dict[str, PaletaTema] = {
     "claro": PaletaTema(
         codigo="claro",
-        nombre="Claro Neutro",
-        fondo_ventana="#F8FAFC",
+        nombre="Claro Moderno",
+        fondo_ventana="#F1F5F9",
         fondo_panel="#FFFFFF",
+        fondo_hero="#F8FAFC",
+        fondo_reloj="#EFF6FF",
         fondo_sidebar="#0F172A",
+        texto_principal="#0F172A",
+        texto_secundario="#64748B",
+        texto_sidebar="#CBD5E1",
+        borde="#E2E8F0",
+        borde_fuerte="#CBD5E1",
+        acento="#2563EB",
+        acento_hover="#1D4ED8",
+        acento_suave="#DBEAFE",
+        exito="#16A34A",
+        exito_hover="#15803D",
+        advertencia="#D97706",
+        advertencia_hover="#B45309",
+        peligro="#DC2626",
+        peligro_hover="#B91C1C",
+        fondo_input="#F8FAFC",
+        seleccion_tabla="#DBEAFE",
+        texto_seleccion="#1E3A8A",
+    ),
+    "gente_util": PaletaTema(
+        codigo="gente_util",
+        nombre="Gente Util (Corporativo)",
+        fondo_ventana="#F0F4F8",
+        fondo_panel="#FFFFFF",
+        fondo_hero="#F8FAFC",
+        fondo_reloj="#E6F0FA",
+        fondo_sidebar="#0A2E52",
         texto_principal="#0F172A",
         texto_secundario="#475569",
         texto_sidebar="#E2E8F0",
-        borde="#E2E8F0",
-        acento="#2563EB",
-        acento_hover="#1D4ED8",
-        exito="#16A34A",
+        borde="#D8E2EE",
+        borde_fuerte="#B8C9DE",
+        acento="#0F4C81",
+        acento_hover="#0A365E",
+        acento_suave="#D6E6F5",
+        exito="#15803D",
+        exito_hover="#166534",
         advertencia="#D97706",
+        advertencia_hover="#B45309",
         peligro="#DC2626",
-        fondo_input="#FFFFFF",
+        peligro_hover="#B91C1C",
+        fondo_input="#F8FAFC",
+        seleccion_tabla="#D6E6F5",
+        texto_seleccion="#0A2E52",
     ),
     "oscuro": PaletaTema(
         codigo="oscuro",
         nombre="Oscuro Grafito",
         fondo_ventana="#0B1120",
-        fondo_panel="#1E293B",
-        fondo_sidebar="#020617",
+        fondo_panel="#151F32",
+        fondo_hero="#1E293B",
+        fondo_reloj="#0F172A",
+        fondo_sidebar="#060B14",
         texto_principal="#F1F5F9",
         texto_secundario="#94A3B8",
-        texto_sidebar="#E2E8F0",
-        borde="#334155",
+        texto_sidebar="#CBD5E1",
+        borde="#26354D",
+        borde_fuerte="#334155",
         acento="#3B82F6",
-        acento_hover="#60A5FA",
+        acento_hover="#2563EB",
+        acento_suave="#1E3A8A",
         exito="#22C55E",
+        exito_hover="#16A34A",
         advertencia="#F59E0B",
+        advertencia_hover="#D97706",
         peligro="#EF4444",
+        peligro_hover="#DC2626",
         fondo_input="#0F172A",
+        seleccion_tabla="#1E3A8A",
+        texto_seleccion="#FFFFFF",
     ),
     "pizarra": PaletaTema(
         codigo="pizarra",
         nombre="Azul Pizarra",
-        fondo_ventana="#EFF6FF",
+        fondo_ventana="#E8F0FE",
         fondo_panel="#FFFFFF",
-        fondo_sidebar="#1E3A8A",
+        fondo_hero="#F5F8FF",
+        fondo_reloj="#EEF2FF",
+        fondo_sidebar="#1E293B",
         texto_principal="#1E293B",
         texto_secundario="#475569",
-        texto_sidebar="#F8FAFC",
-        borde="#BFDBFE",
-        acento="#1D4ED8",
-        acento_hover="#1E40AF",
-        exito="#15803D",
-        advertencia="#B45309",
-        peligro="#B91C1C",
-        fondo_input="#FFFFFF",
-    ),
-    "gente_util": PaletaTema(
-        codigo="gente_util",
-        nombre="Gente Util (Corporativo)",
-        fondo_ventana="#F4F7FB",
-        fondo_panel="#FFFFFF",
-        fondo_sidebar="#0F4C81",
-        texto_principal="#0F172A",
-        texto_secundario="#475569",
-        texto_sidebar="#F8FAFC",
+        texto_sidebar="#E2E8F0",
         borde="#CBD5E1",
-        acento="#0F4C81",
-        acento_hover="#0B3B66",
+        borde_fuerte="#94A3B8",
+        acento="#3730A3",
+        acento_hover="#312E81",
+        acento_suave="#E0E7FF",
         exito="#15803D",
-        advertencia="#D97706",
-        peligro="#DC2626",
-        fondo_input="#FFFFFF",
+        exito_hover="#166534",
+        advertencia="#B45309",
+        advertencia_hover="#92400E",
+        peligro="#B91C1C",
+        peligro_hover="#991B1B",
+        fondo_input="#F8FAFC",
+        seleccion_tabla="#E0E7FF",
+        texto_seleccion="#1E1B4B",
     ),
 }
 
@@ -122,15 +167,44 @@ def generar_qss(codigo: str | None = "claro") -> str:
         font-family: "Segoe UI", Arial, sans-serif;
         font-size: 13px;
     }}
+    /* Barra lateral */
     QFrame#sidebar {{
         background-color: {t.fondo_sidebar};
-        border: none;
+        border-right: 1px solid rgba(255, 255, 255, 0.06);
+    }}
+    QFrame#marcaSidebar {{
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.09);
+        border-radius: 10px;
+        padding: 10px;
     }}
     QLabel#tituloSidebar {{
         color: #FFFFFF;
         font-size: 16px;
         font-weight: bold;
-        padding: 8px 4px;
+        background: transparent;
+    }}
+    QLabel#subtituloSidebar {{
+        color: #94A3B8;
+        font-size: 11px;
+        font-weight: 600;
+        background: transparent;
+    }}
+    QLabel#seccionSidebar {{
+        color: #64748B;
+        font-size: 10px;
+        font-weight: bold;
+        letter-spacing: 1px;
+        padding: 10px 8px 2px 8px;
+        background: transparent;
+    }}
+    QLabel#chipEstadoSidebar {{
+        background-color: rgba(255, 255, 255, 0.07);
+        color: #E2E8F0;
+        border-radius: 8px;
+        padding: 7px 10px;
+        font-size: 12px;
+        font-weight: 600;
     }}
     QPushButton[nav="true"] {{
         background-color: transparent;
@@ -143,36 +217,50 @@ def generar_qss(codigo: str | None = "claro") -> str:
         font-weight: 500;
     }}
     QPushButton[nav="true"]:hover {{
-        background-color: rgba(255, 255, 255, 0.10);
+        background-color: rgba(255, 255, 255, 0.09);
+        color: #FFFFFF;
     }}
     QPushButton[nav="true"]:checked {{
         background-color: {t.acento};
         color: #FFFFFF;
         font-weight: bold;
     }}
+    /* Tarjetas y contenedores */
     QFrame[card="true"], QGroupBox {{
         background-color: {t.fondo_panel};
         border: 1px solid {t.borde};
-        border-radius: 10px;
-        padding: 12px;
+        border-radius: 12px;
+        padding: 14px;
     }}
-    QGroupBox {{
-        margin-top: 10px;
-        font-weight: bold;
+    QFrame#heroCronometro {{
+        background-color: {t.fondo_panel};
+        border: 2px solid {t.acento};
+        border-radius: 14px;
+        padding: 16px;
     }}
-    QGroupBox::title {{
-        subcontrol-origin: margin;
-        left: 12px;
-        padding: 0 6px;
+    QFrame#cajaReloj {{
+        background-color: {t.fondo_reloj};
+        border: 1px solid {t.borde_fuerte};
+        border-radius: 12px;
+        padding: 10px 18px;
     }}
     QLabel#relojGrande {{
-        font-size: 38px;
+        font-size: 40px;
         font-weight: bold;
         color: {t.acento};
-        font-family: "Consolas", "Segoe UI", monospace;
+        font-family: "Cascadia Mono", "Consolas", "Segoe UI", monospace;
+        background: transparent;
+    }}
+    QLabel#badgeActiva {{
+        background-color: {t.acento_suave};
+        color: {t.acento};
+        font-size: 11px;
+        font-weight: bold;
+        border-radius: 6px;
+        padding: 3px 8px;
     }}
     QLabel#tituloPantalla {{
-        font-size: 20px;
+        font-size: 22px;
         font-weight: bold;
         color: {t.texto_principal};
     }}
@@ -180,13 +268,15 @@ def generar_qss(codigo: str | None = "claro") -> str:
         color: {t.texto_secundario};
         font-size: 12px;
     }}
+    /* Botones */
     QPushButton {{
         background-color: {t.acento};
         color: #FFFFFF;
         border: none;
-        border-radius: 6px;
-        padding: 7px 14px;
+        border-radius: 8px;
+        padding: 8px 16px;
         font-weight: 600;
+        min-height: 18px;
     }}
     QPushButton:hover {{
         background-color: {t.acento_hover};
@@ -198,49 +288,100 @@ def generar_qss(codigo: str | None = "claro") -> str:
     QPushButton[rol="exito"] {{
         background-color: {t.exito};
     }}
+    QPushButton[rol="exito"]:hover {{
+        background-color: {t.exito_hover};
+    }}
     QPushButton[rol="advertencia"] {{
         background-color: {t.advertencia};
+    }}
+    QPushButton[rol="advertencia"]:hover {{
+        background-color: {t.advertencia_hover};
     }}
     QPushButton[rol="peligro"] {{
         background-color: {t.peligro};
     }}
-    QPushButton[rol="secundario"] {{
-        background-color: transparent;
-        color: {t.texto_principal};
-        border: 1px solid {t.borde};
+    QPushButton[rol="peligro"]:hover {{
+        background-color: {t.peligro_hover};
     }}
-    QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox, QTimeEdit, QDateTimeEdit {{
+    QPushButton[rol="secundario"] {{
+        background-color: {t.fondo_panel};
+        color: {t.texto_principal};
+        border: 1px solid {t.borde_fuerte};
+    }}
+    QPushButton[rol="secundario"]:hover {{
+        background-color: {t.fondo_ventana};
+        border: 1px solid {t.acento};
+    }}
+    /* Entradas de formulario */
+    QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox,
+    QTimeEdit, QDateEdit, QDateTimeEdit, QKeySequenceEdit {{
         background-color: {t.fondo_input};
         color: {t.texto_principal};
-        border: 1px solid {t.borde};
-        border-radius: 6px;
-        padding: 6px 8px;
-    }}
-    QTableWidget {{
-        background-color: {t.fondo_panel};
-        alternate-background-color: {t.fondo_ventana};
-        border: 1px solid {t.borde};
+        border: 1px solid {t.borde_fuerte};
         border-radius: 8px;
+        padding: 7px 10px;
+        min-height: 20px;
+    }}
+    QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus,
+    QSpinBox:focus, QDateEdit:focus, QDateTimeEdit:focus, QKeySequenceEdit:focus {{
+        border: 2px solid {t.acento};
+        background-color: {t.fondo_panel};
+    }}
+    /* Tablas */
+    QTableWidget, QListWidget {{
+        background-color: {t.fondo_panel};
+        alternate-background-color: {t.fondo_hero};
+        border: 1px solid {t.borde};
+        border-radius: 10px;
         gridline-color: {t.borde};
+        selection-background-color: {t.seleccion_tabla};
+        selection-color: {t.texto_seleccion};
+        outline: none;
+    }}
+    QTableWidget::item {{
+        padding: 6px 8px;
+        border-bottom: 1px solid {t.borde};
+    }}
+    QTableWidget::item:selected, QListWidget::item:selected {{
+        background-color: {t.seleccion_tabla};
+        color: {t.texto_seleccion};
+        font-weight: 600;
     }}
     QHeaderView::section {{
-        background-color: {t.fondo_ventana};
+        background-color: {t.fondo_hero};
         color: {t.texto_secundario};
         font-weight: bold;
+        font-size: 12px;
         border: none;
-        border-bottom: 1px solid {t.borde};
-        padding: 8px;
+        border-bottom: 2px solid {t.borde_fuerte};
+        padding: 10px 8px;
     }}
+    /* Barra de progreso */
     QProgressBar {{
-        border: 1px solid {t.borde};
-        border-radius: 6px;
+        border: 1px solid {t.borde_fuerte};
+        border-radius: 8px;
         text-align: center;
-        background-color: {t.fondo_ventana};
-        height: 18px;
+        background-color: {t.fondo_input};
+        height: 22px;
         font-weight: bold;
+        color: {t.texto_principal};
     }}
     QProgressBar::chunk {{
         background-color: {t.exito};
+        border-radius: 7px;
+    }}
+    /* Barras de desplazamiento delgadas */
+    QScrollBar:vertical {{
+        background: transparent;
+        width: 10px;
+        margin: 2px;
+    }}
+    QScrollBar::handle:vertical {{
+        background: {t.borde_fuerte};
+        min-height: 28px;
         border-radius: 5px;
+    }}
+    QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
+        height: 0px;
     }}
     """

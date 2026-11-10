@@ -65,10 +65,30 @@ def test_ventana_principal_pantallas_y_mini_widget_offscreen(bd, monkeypatch):
     nombre_activo, _ = ventana.pantalla_hoy.actualizar_reloj_en_vivo()
     assert nombre_activo == "Flyer 1"
 
+    # Por defecto no hay ningún atajo de teclado activo (evita activaciones accidentales)
+    assert len(ventana._atajos_activos) == 0
+    assert "desactivados" in ventana.lbl_atajos.text()
+
     # Mostrar mini-widget y verificar que se sincroniza con la actividad activa
     ventana.mostrar_ocultar_mini_widget(True)
-    assert ventana.mini_widget.lbl_actividad.text() == "Flyer 1"
+    assert "Flyer 1" in ventana.mini_widget.lbl_actividad.text()
     assert ventana.mini_widget.btn_siguiente.isEnabled() is True
+
+    # Personalizar un atajo y recargar en caliente, luego limpiar todos
+    from data.repositorios.configuracion import RepoConfiguracion
+
+    with bd.sesion() as s:
+        RepoConfiguracion(s).guardar("atajo.finalizar", "F9")
+    ventana.recargar_atajos()
+    assert len(ventana._atajos_activos) == 1
+    assert "F9" in ventana.lbl_atajos.text()
+
+    ventana.pantalla_config.refrescar()
+    ventana.pantalla_config.accion_limpiar_todos_los_atajos()
+    with bd.sesion() as s:
+        RepoConfiguracion(s).guardar("atajo.finalizar", "")
+    ventana.recargar_atajos()
+    assert len(ventana._atajos_activos) == 0
 
     # Finalizar y empezar siguiente pieza desde Hoy
     ventana.pantalla_hoy.accion_finalizar_y_siguiente()

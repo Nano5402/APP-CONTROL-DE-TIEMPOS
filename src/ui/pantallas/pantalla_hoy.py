@@ -1,12 +1,12 @@
 """Pantalla 1: Hoy (principal) — RF-02, RF-03, RF-03b, RF-03c, RF-07, RF-10.
 
 Contiene:
-- Tarjeta superior de **Actividad en curso** con cronómetro grande (`HH:MM:SS`) y
+- Tarjeta Hero superior de **Actividad en curso** con cronómetro grande (`HH:MM:SS`) y
   botones directos: **Iniciar**, **Pausar**, **Reanudar**, **Finalizar** y
   **"Finalizar y empezar siguiente"** (flujo en máximo 2 clics).
 - Barra de progreso de **Meta de tiempo efectivo del día** y datos de referencia.
-- Alta rápida de **actividad no planeada** para empezar en 1 clic sin plan previo.
-- Tabla de actividades del día (más las arrastradas pendientes de días anteriores)
+- Tarjeta de **Inicio rápido de actividad no planeada** para empezar en 1 clic sin plan previo.
+- Tabla moderna de actividades del día (más las arrastradas pendientes de días anteriores)
   con botones de acción para **Aprobar/Rechazar (ingeniero)**, **Revisión**,
   **Reasignar** y **Corregir registro**.
 """
@@ -33,7 +33,7 @@ from PySide6.QtWidgets import (
 )
 
 from data.db import BaseDatos
-from data.enums import EstadoActividad, EstadoAprobacion, TipoActividad
+from data.enums import EstadoActividad, EstadoAprobacion, Prioridad, TipoActividad
 from data.models import Actividad, Solicitante
 from data.repositorios.catalogos import RepoSolicitantes
 from data.repositorios.jornadas import RepoJornadas
@@ -55,6 +55,46 @@ from ui.dialogos import (
 from ui.mini_widget import formatear_reloj_hms
 
 
+def _etiqueta_estado_visual(act: Actividad) -> str:
+    if (
+        act.estado == EstadoActividad.BLOQUEADA.value
+        or act.aprobacion_estado == EstadoAprobacion.PENDIENTE.value
+    ):
+        return "🔒 Bloqueada (esperando ing.)"
+    mapa = {
+        EstadoActividad.EN_CURSO.value: "🟢 En curso",
+        EstadoActividad.PAUSADA.value: "🟠 Pausada",
+        EstadoActividad.COMPLETADA.value: "✔ Completada",
+        EstadoActividad.PENDIENTE.value: "⏳ Pendiente",
+        EstadoActividad.ARRASTRADA.value: "🟣 Arrastrada",
+        EstadoActividad.REASIGNADA.value: "↗ Reasignada",
+        EstadoActividad.RECHAZADA.value: "✖ Rechazada",
+        EstadoActividad.APLAZADA.value: "📅 Aplazada",
+    }
+    return mapa.get(act.estado, act.estado)
+
+
+def _etiqueta_prioridad_visual(prioridad: str) -> str:
+    mapa = {
+        Prioridad.MAXIMA.value: "🔴 Máxima",
+        Prioridad.NORMAL.value: "🔵 Normal",
+        Prioridad.MINIMA.value: "⚪ Mínima",
+    }
+    return mapa.get(prioridad, prioridad)
+
+
+def _etiqueta_tipo_visual(act: Actividad) -> str:
+    mapa = {
+        TipoActividad.PLANEADA.value: "📋 Planeada",
+        TipoActividad.EXTRA.value: "⚡ Extra",
+        TipoActividad.NO_PLANEADA.value: "💡 No planeada",
+    }
+    base = mapa.get(act.tipo, act.tipo)
+    if act.solicitante:
+        return f"{base} · {act.solicitante.nombre}"
+    return base
+
+
 class PantallaHoy(QWidget):
     """Pantalla operativa principal del día."""
 
@@ -70,46 +110,57 @@ class PantallaHoy(QWidget):
         self.al_cambiar_estado = al_cambiar_estado
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(24, 18, 24, 18)
         layout.setSpacing(12)
 
         # Encabezado
         fila_enc = QHBoxLayout()
-        lbl_tit = QLabel("Hoy — Control de Actividades", self)
+        lbl_tit = QLabel("Hoy — Panel de Actividades", self)
         lbl_tit.setObjectName("tituloPantalla")
         self.lbl_resumen_dia = QLabel("", self)
-        self.lbl_resumen_dia.setObjectName("subtitulo")
+        self.lbl_resumen_dia.setStyleSheet("font-size: 13px; font-weight: 600;")
         fila_enc.addWidget(lbl_tit)
         fila_enc.addStretch()
         fila_enc.addWidget(self.lbl_resumen_dia)
         layout.addLayout(fila_enc)
 
-        # Tarjeta de cronómetro activo y controles en 1 clic
+        # Tarjeta Hero de cronómetro activo y controles en 1 clic
         card_cron = QFrame(self)
-        card_cron.setProperty("card", True)
+        card_cron.setObjectName("heroCronometro")
         capa_cron = QHBoxLayout(card_cron)
+        capa_cron.setSpacing(18)
 
         col_info = QVBoxLayout()
+        col_info.setSpacing(4)
+
+        fila_badge = QHBoxLayout()
+        self.lbl_badge_activa = QLabel("EN ESPERA", self)
+        self.lbl_badge_activa.setObjectName("badgeActiva")
+        fila_badge.addWidget(self.lbl_badge_activa)
+        fila_badge.addStretch()
+        col_info.addLayout(fila_badge)
+
         self.lbl_activa_titulo = QLabel("Ninguna actividad en curso", self)
-        self.lbl_activa_titulo.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self.lbl_activa_titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.lbl_activa_detalle = QLabel(
-            "Selecciona una actividad de la lista y pulsa Iniciar (o escribe una rápida abajo).",
+            "Selecciona una actividad de la tabla y pulsa «Iniciar / Reanudar» o haz doble clic sobre ella.",
             self,
         )
         self.lbl_activa_detalle.setObjectName("subtitulo")
         col_info.addWidget(self.lbl_activa_titulo)
         col_info.addWidget(self.lbl_activa_detalle)
 
-        self.lbl_reloj = QLabel("00:00:00", self)
-        self.lbl_reloj.setObjectName("relojGrande")
-
         col_botones = QHBoxLayout()
-        self.btn_iniciar = QPushButton("▶ Iniciar / Reanudar", self)
-        self.btn_pausar = QPushButton("⏸ Pausar", self)
+        col_botones.setSpacing(8)
+        self.btn_iniciar = QPushButton("▶  Iniciar / Reanudar", self)
+        self.btn_pausar = QPushButton("⏸  Pausar", self)
         self.btn_pausar.setProperty("rol", "advertencia")
-        self.btn_finalizar = QPushButton("⏹ Finalizar", self)
+        self.btn_finalizar = QPushButton("⏹  Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
-        self.btn_siguiente = QPushButton("⏭ Finalizar y empezar siguiente", self)
+        self.btn_siguiente = QPushButton("⏭  Finalizar y empezar siguiente", self)
+
+        for b in (self.btn_iniciar, self.btn_pausar, self.btn_finalizar, self.btn_siguiente):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.btn_iniciar.clicked.connect(self.accion_iniciar_seleccionada)
         self.btn_pausar.clicked.connect(self.accion_pausar_activa)
@@ -120,41 +171,68 @@ class PantallaHoy(QWidget):
         col_botones.addWidget(self.btn_pausar)
         col_botones.addWidget(self.btn_finalizar)
         col_botones.addWidget(self.btn_siguiente)
+        col_botones.addStretch()
 
         col_izq = QVBoxLayout()
+        col_izq.setSpacing(10)
         col_izq.addLayout(col_info)
         col_izq.addLayout(col_botones)
 
+        # Caja estilizada del reloj digital
+        caja_reloj = QFrame(card_cron)
+        caja_reloj.setObjectName("cajaReloj")
+        col_reloj = QVBoxLayout(caja_reloj)
+        col_reloj.setContentsMargins(16, 8, 16, 8)
+        col_reloj.setSpacing(2)
+        lbl_cap_reloj = QLabel("TIEMPO DE LA ACTIVIDAD", caja_reloj)
+        lbl_cap_reloj.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_cap_reloj.setStyleSheet("font-size: 10px; font-weight: bold; letter-spacing: 1px;")
+        self.lbl_reloj = QLabel("00:00:00", caja_reloj)
+        self.lbl_reloj.setObjectName("relojGrande")
+        self.lbl_reloj.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        col_reloj.addWidget(lbl_cap_reloj)
+        col_reloj.addWidget(self.lbl_reloj)
+
         capa_cron.addLayout(col_izq, 1)
-        capa_cron.addWidget(self.lbl_reloj, 0, Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        capa_cron.addWidget(caja_reloj, 0, Qt.AlignmentFlag.AlignVCenter)
         layout.addWidget(card_cron)
 
-        # Barra de meta de tiempo efectivo + datos de referencia
+        # Fila combinada: Meta de tiempo efectivo + Inicio rápido sin plan
         card_meta = QFrame(self)
         card_meta.setProperty("card", True)
-        capa_meta = QHBoxLayout(card_meta)
+        capa_meta = QVBoxLayout(card_meta)
+        capa_meta.setContentsMargins(12, 10, 12, 10)
+        capa_meta.setSpacing(8)
+
+        fila_barra = QHBoxLayout()
         self.lbl_meta = QLabel("Meta de tiempo efectivo:", self)
+        self.lbl_meta.setStyleSheet("font-weight: 600;")
         self.barra_meta = QProgressBar(self)
         self.barra_meta.setRange(0, 100)
         self.lbl_referencia = QLabel("", self)
         self.lbl_referencia.setObjectName("subtitulo")
-        capa_meta.addWidget(self.lbl_meta)
-        capa_meta.addWidget(self.barra_meta, 1)
-        capa_meta.addWidget(self.lbl_referencia)
-        layout.addWidget(card_meta)
+        fila_barra.addWidget(self.lbl_meta)
+        fila_barra.addWidget(self.barra_meta, 1)
+        fila_barra.addWidget(self.lbl_referencia)
+        capa_meta.addLayout(fila_barra)
 
-        # Inicio rápido de actividad no planeada (trabajar sin plan previo)
         fila_rapida = QHBoxLayout()
+        lbl_rap = QLabel("💡 Inicio rápido (sin plan):", self)
+        lbl_rap.setStyleSheet("font-weight: 600;")
         self.txt_no_planeada = QLineEdit(self)
         self.txt_no_planeada.setPlaceholderText(
-            "Iniciar actividad rápida no planeada (escribe el nombre y pulsa Enter)..."
+            "Escribe una actividad imprevista por iniciativa propia y pulsa Enter..."
         )
         self.txt_no_planeada.returnPressed.connect(self.accion_iniciar_no_planeada_rapida)
-        self.btn_no_planeada = QPushButton("+ Iniciar no planeada ya", self)
+        self.btn_no_planeada = QPushButton("▶ Empezar ahora", self)
+        self.btn_no_planeada.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_no_planeada.clicked.connect(self.accion_iniciar_no_planeada_rapida)
+        fila_rapida.addWidget(lbl_rap)
         fila_rapida.addWidget(self.txt_no_planeada, 1)
         fila_rapida.addWidget(self.btn_no_planeada)
-        layout.addLayout(fila_rapida)
+        capa_meta.addLayout(fila_rapida)
+
+        layout.addWidget(card_meta)
 
         # Tabla de actividades del día
         self.tabla = QTableWidget(0, 7, self)
@@ -165,30 +243,45 @@ class PantallaHoy(QWidget):
                 "Prioridad",
                 "Estado",
                 "Estimado",
-                "Tiempo total",
-                "Cambios / Notas",
+                "Tiempo real",
+                "Revisiones / Notas",
             ]
         )
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla.setAlternatingRowColors(True)
+        self.tabla.setShowGrid(False)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.verticalHeader().setDefaultSectionSize(38)
         self.tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tabla.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla.itemDoubleClicked.connect(lambda _item: self.accion_iniciar_seleccionada())
         layout.addWidget(self.tabla, 1)
 
         # Barra inferior de acciones secundarias sobre la fila seleccionada
         fila_sec = QHBoxLayout()
-        self.btn_aprobacion = QPushButton("✔/✖ Decisión ingeniero (bloqueada)", self)
+        fila_sec.setSpacing(8)
+        self.btn_aprobacion = QPushButton("✔/✖  Decisión ingeniero", self)
         self.btn_aprobacion.setProperty("rol", "secundario")
-        self.btn_revision = QPushButton("🔄 Reabrir como Revisión", self)
+        self.btn_revision = QPushButton("🔄  Nueva revisión", self)
         self.btn_revision.setProperty("rol", "secundario")
-        self.btn_reasignar = QPushButton("👤 Reasignar a compañero", self)
+        self.btn_reasignar = QPushButton("↗  Reasignar", self)
         self.btn_reasignar.setProperty("rol", "secundario")
-        self.btn_corregir = QPushButton("✏ Corregir tiempo / datos", self)
+        self.btn_corregir = QPushButton("✏  Corregir registro", self)
         self.btn_corregir.setProperty("rol", "secundario")
-        self.btn_eliminar = QPushButton("🗑 Eliminar", self)
+        self.btn_eliminar = QPushButton("🗑  Eliminar", self)
         self.btn_eliminar.setProperty("rol", "secundario")
+
+        for b in (
+            self.btn_aprobacion,
+            self.btn_revision,
+            self.btn_reasignar,
+            self.btn_corregir,
+            self.btn_eliminar,
+        ):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.btn_aprobacion.clicked.connect(self.accion_decision_ingeniero)
         self.btn_revision.clicked.connect(self.accion_crear_revision)
@@ -224,6 +317,11 @@ class PantallaHoy(QWidget):
             activa = cron.actividad_en_curso()
             if activa is None:
                 self.lbl_reloj.setText("00:00:00")
+                self.lbl_badge_activa.setText("⚪ EN ESPERA")
+                self.lbl_activa_titulo.setText("Ninguna actividad en curso")
+                self.lbl_activa_detalle.setText(
+                    "Selecciona una actividad de la tabla y pulsa «Iniciar / Reanudar» o haz doble clic sobre ella."
+                )
                 self.btn_pausar.setEnabled(False)
                 self.btn_finalizar.setEnabled(False)
                 self.btn_siguiente.setEnabled(False)
@@ -231,10 +329,11 @@ class PantallaHoy(QWidget):
 
             seg = cron.segundos_trabajados(activa)
             self.lbl_reloj.setText(formatear_reloj_hms(seg))
-            self.lbl_activa_titulo.setText(f"En curso: {activa.nombre}")
+            self.lbl_badge_activa.setText("🟢 EN CURSO")
+            self.lbl_activa_titulo.setText(activa.nombre)
             cat_txt = activa.categoria.nombre if activa.categoria else "Sin categoría"
             self.lbl_activa_detalle.setText(
-                f"Categoría: {cat_txt} · Prioridad: {activa.prioridad}"
+                f"Categoría: {cat_txt}  ·  Prioridad: {_etiqueta_prioridad_visual(activa.prioridad)}"
             )
             self.btn_pausar.setEnabled(True)
             self.btn_finalizar.setEnabled(True)
@@ -268,30 +367,25 @@ class PantallaHoy(QWidget):
                 it_nom = QTableWidgetItem(nombre_mostrar)
                 it_nom.setData(Qt.ItemDataRole.UserRole, act.id)
 
-                sol_txt = f" ({act.solicitante.nombre})" if act.solicitante else ""
-                it_tipo = QTableWidgetItem(f"{act.tipo}{sol_txt}")
-                it_prio = QTableWidgetItem(act.prioridad)
-
-                est_txt = act.estado
-                if (
-                    act.estado == EstadoActividad.BLOQUEADA.value
-                    or act.aprobacion_estado == EstadoAprobacion.PENDIENTE.value
-                ):
-                    est_txt = "🔒 Bloqueada (esperando ing.)"
-                it_estado = QTableWidgetItem(est_txt)
+                it_tipo = QTableWidgetItem(_etiqueta_tipo_visual(act))
+                it_prio = QTableWidgetItem(_etiqueta_prioridad_visual(act.prioridad))
+                it_estado = QTableWidgetItem(_etiqueta_estado_visual(act))
 
                 it_est_min = QTableWidgetItem(
                     f"{act.tiempo_estimado_min} min" if act.tiempo_estimado_min else "—"
                 )
+                it_est_min.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+
                 it_tiempo = QTableWidgetItem(formatear_reloj_hms(desglose.segundos_total))
+                it_tiempo.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
                 cambios_txt = (
-                    f"¿Cambios? Sí ({desglose.cantidad_revisiones})"
+                    f"🔁 {desglose.cantidad_revisiones} rev."
                     if desglose.solicitaron_cambios
-                    else "No"
+                    else "—"
                 )
                 if act.reasignada_a:
-                    cambios_txt = f"Reasignada a {act.reasignada_a}"
+                    cambios_txt = f"↗ A: {act.reasignada_a}"
                 it_cambios = QTableWidgetItem(cambios_txt)
 
                 self.tabla.setItem(i, 0, it_nom)
@@ -310,7 +404,7 @@ class PantallaHoy(QWidget):
             self.barra_meta.setValue(int(round(res_prod.progreso_meta_pct)))
             ef_min = res_prod.tiempo_efectivo_seg // 60
             meta_min = res_prod.meta_tiempo_seg // 60
-            self.lbl_meta.setText(f"Tiempo efectivo: {ef_min} / {meta_min} min")
+            self.lbl_meta.setText(f"⏱ Tiempo efectivo hoy: {ef_min} / {meta_min} min")
             if res_prod.datos_referencia:
                 self.lbl_referencia.setText(res_prod.datos_referencia[0].mensaje)
             else:
@@ -318,7 +412,7 @@ class PantallaHoy(QWidget):
 
             if res_prod.productividad_pct is not None:
                 self.lbl_resumen_dia.setText(
-                    f"{res_prod.semaforo.emoji()} Productividad parcial: {res_prod.productividad_pct:.1f}%"
+                    f"{res_prod.semaforo.emoji()} Productividad parcial: {res_prod.productividad_pct:.1f}% ({res_prod.semaforo.etiqueta()})"
                 )
             else:
                 self.lbl_resumen_dia.setText("⚪ Día no laboral (solo registro de tiempo)")

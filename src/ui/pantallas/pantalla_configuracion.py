@@ -1,11 +1,14 @@
-"""Pantalla 8: Configuración — RF-09.
+"""Pantalla 8: Configuración — RF-09, RF-12.
 
 Permite configurar en un solo lugar:
-- Datos del usuario y empresa, tema visual (Claro, Oscuro, Azul Pizarra).
+- Datos del usuario y empresa, tema visual (Gente Util Corporativo, Claro, Oscuro, Azul Pizarra).
+- Inicio automático con Windows (`HKCU`, sin permisos de administrador) y opción de
+  abrir la ventana al encender el portátil o iniciar oculta en la bandeja.
+- Atajos de teclado opcionales (vacíos/desactivados por defecto para no interferir
+  mientras se trabaja; cada persona puede asignarlos o limpiarlos a su gusto).
 - Intervalos de recordatorios, meta de tiempo efectivo y pesos de la fórmula.
 - Plantillas y actividades recurrentes.
 - PIN opcional (establecer o desactivar).
-- Inicio automático con Windows (`HKCU`, sin permisos de administrador).
 - Copias de seguridad: copia manual ahora, copiar a USB/carpeta externa y
   restaurar desde archivo `.db`.
 """
@@ -14,6 +17,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -21,6 +25,7 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QMessageBox,
@@ -51,11 +56,13 @@ class PantallaConfiguracion(QWidget):
         bd: BaseDatos,
         *,
         al_cambiar_tema: Callable[[str], None] | None = None,
+        al_cambiar_atajos: Callable[[], None] | None = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self.bd = bd
         self.al_cambiar_tema = al_cambiar_tema
+        self.al_cambiar_atajos = al_cambiar_atajos
 
         layout_raiz = QVBoxLayout(self)
         layout_raiz.setContentsMargins(0, 0, 0, 0)
@@ -65,10 +72,10 @@ class PantallaConfiguracion(QWidget):
         scroll.setFrameShape(QFrame.Shape.NoFrame)
         contenedor = QWidget(scroll)
         layout = QVBoxLayout(contenedor)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(24, 18, 24, 18)
         layout.setSpacing(14)
 
-        lbl_tit = QLabel("Configuración", self)
+        lbl_tit = QLabel("Configuración y Personalización", self)
         lbl_tit.setObjectName("tituloPantalla")
         layout.addWidget(lbl_tit)
 
@@ -76,8 +83,11 @@ class PantallaConfiguracion(QWidget):
         card_gen = QFrame(self)
         card_gen.setProperty("card", True)
         form_gen = QFormLayout(card_gen)
+        form_gen.setSpacing(10)
+        form_gen.addRow(QLabel("<b>1. Apariencia, Empresa e Inicio con Windows</b>"))
 
         self.txt_usuario = QLineEdit(self)
+        self.txt_usuario.setPlaceholderText("Ej. Andrés")
         self.txt_empresa = QLineEdit(self)
         self.txt_color_empresa = QLineEdit(self)
         self.txt_color_empresa.setPlaceholderText("#0F4C81")
@@ -96,7 +106,12 @@ class PantallaConfiguracion(QWidget):
             self.combo_tema.addItem(paleta.nombre, cod)
 
         self.chk_autostart = QCheckBox(
-            "Iniciar automáticamente con Windows (minimizada en la bandeja)", self
+            "Iniciar automáticamente al encender el portátil (inicio de sesión de Windows)",
+            self,
+        )
+        self.chk_iniciar_oculta = QCheckBox(
+            "Al iniciar con Windows, arrancar oculta en la bandeja (desmarca para abrir la ventana en pantalla)",
+            self,
         )
 
         form_gen.addRow("Tu nombre (para reportes y WhatsApp):", self.txt_usuario)
@@ -105,12 +120,56 @@ class PantallaConfiguracion(QWidget):
         form_gen.addRow("Logo para reportes PDF:", fila_logo)
         form_gen.addRow("Tema visual:", self.combo_tema)
         form_gen.addRow("", self.chk_autostart)
+        form_gen.addRow("", self.chk_iniciar_oculta)
         layout.addWidget(card_gen)
 
-        # 2. Recordatorios, Meta y Fórmula de Productividad
+        # 2. Atajos de teclado opcionales (desactivados por defecto)
+        card_atajos = QFrame(self)
+        card_atajos.setProperty("card", True)
+        form_atajos = QFormLayout(card_atajos)
+        form_atajos.setSpacing(10)
+        form_atajos.addRow(
+            QLabel(
+                "<b>2. Atajos de teclado (opcionales — vacíos por defecto para no interferir con otros programas)</b>"
+            )
+        )
+
+        self.key_iniciar_pausar = QKeySequenceEdit(self)
+        self.key_finalizar = QKeySequenceEdit(self)
+        self.key_siguiente = QKeySequenceEdit(self)
+        self.key_mini = QKeySequenceEdit(self)
+
+        form_atajos.addRow(
+            "Iniciar / Pausar actividad:",
+            self._fila_key_edit(self.key_iniciar_pausar),
+        )
+        form_atajos.addRow(
+            "Finalizar actividad en curso:",
+            self._fila_key_edit(self.key_finalizar),
+        )
+        form_atajos.addRow(
+            "Finalizar y empezar siguiente pieza:",
+            self._fila_key_edit(self.key_siguiente),
+        )
+        form_atajos.addRow(
+            "Mostrar / Ocultar Mini-ventana:",
+            self._fila_key_edit(self.key_mini),
+        )
+
+        self.btn_limpiar_atajos = QPushButton(
+            "🗑 Desactivar / Limpiar todos los atajos", self
+        )
+        self.btn_limpiar_atajos.setProperty("rol", "secundario")
+        self.btn_limpiar_atajos.clicked.connect(self.accion_limpiar_todos_los_atajos)
+        form_atajos.addRow("", self.btn_limpiar_atajos)
+        layout.addWidget(card_atajos)
+
+        # 3. Recordatorios, Meta y Fórmula de Productividad
         card_rec = QFrame(self)
         card_rec.setProperty("card", True)
         form_rec = QFormLayout(card_rec)
+        form_rec.setSpacing(10)
+        form_rec.addRow(QLabel("<b>3. Recordatorios, Meta de Tiempo y Fórmula</b>"))
 
         self.spin_rec_cont = QSpinBox(self)
         self.spin_rec_cont.setRange(1, 180)
@@ -155,16 +214,17 @@ class PantallaConfiguracion(QWidget):
         form_rec.addRow("Meta de tiempo efectivo diario:", self.spin_meta_pct)
         form_rec.addRow("Pesos de productividad:", fila_pesos)
 
-        self.btn_guardar_cfg = QPushButton("💾 Guardar configuración general", self)
+        self.btn_guardar_cfg = QPushButton("💾 Guardar configuración general y atajos", self)
         self.btn_guardar_cfg.clicked.connect(self.accion_guardar_general)
         form_rec.addRow("", self.btn_guardar_cfg)
         layout.addWidget(card_rec)
 
-        # 3. Crear Plantilla / Recurrente
+        # 4. Crear Plantilla / Recurrente
         card_plant = QFrame(self)
         card_plant.setProperty("card", True)
         form_plant = QFormLayout(card_plant)
-        form_plant.addRow(QLabel("<b>Nueva plantilla o actividad recurrente</b>"))
+        form_plant.setSpacing(10)
+        form_plant.addRow(QLabel("<b>4. Nueva plantilla o actividad recurrente</b>"))
 
         self.txt_plant_nombre = QLineEdit(self)
         self.txt_plant_nombre.setPlaceholderText("Ej. Flyers vacantes, Posts de Instagram...")
@@ -188,11 +248,12 @@ class PantallaConfiguracion(QWidget):
         form_plant.addRow("", self.btn_crear_plant)
         layout.addWidget(card_plant)
 
-        # 4. PIN Opcional y Copias de Seguridad
+        # 5. PIN Opcional y Copias de Seguridad
         card_seg = QFrame(self)
         card_seg.setProperty("card", True)
         col_seg = QVBoxLayout(card_seg)
-        col_seg.addWidget(QLabel("<b>Seguridad (PIN opcional) y Copias de Seguridad</b>"))
+        col_seg.setSpacing(10)
+        col_seg.addWidget(QLabel("<b>5. Seguridad (PIN opcional) y Copias de Seguridad</b>"))
 
         fila_pin = QHBoxLayout()
         self.txt_nuevo_pin = QLineEdit(self)
@@ -230,6 +291,24 @@ class PantallaConfiguracion(QWidget):
 
         self.refrescar()
 
+    def _fila_key_edit(self, editor: QKeySequenceEdit) -> QWidget:
+        cont = QWidget(self)
+        fila = QHBoxLayout(cont)
+        fila.setContentsMargins(0, 0, 0, 0)
+        fila.setSpacing(6)
+        btn_limpiar = QPushButton("✖ Quitar", cont)
+        btn_limpiar.setProperty("rol", "secundario")
+        btn_limpiar.clicked.connect(editor.clear)
+        fila.addWidget(editor, 1)
+        fila.addWidget(btn_limpiar)
+        return cont
+
+    def accion_limpiar_todos_los_atajos(self) -> None:
+        self.key_iniciar_pausar.clear()
+        self.key_finalizar.clear()
+        self.key_siguiente.clear()
+        self.key_mini.clear()
+
     def refrescar(self) -> None:
         with self.bd.sesion() as s:
             usr = s.scalar(select(Usuario).limit(1))
@@ -242,12 +321,29 @@ class PantallaConfiguracion(QWidget):
             )
             self.txt_logo_ruta.setText(cfg.obtener("empresa.logo_ruta", "") or "")
 
-            tema_actual = usr.tema if usr and usr.tema else "claro"
+            tema_actual = usr.tema if usr and usr.tema else "gente_util"
             idx = self.combo_tema.findData(tema_actual)
             if idx >= 0:
                 self.combo_tema.setCurrentIndex(idx)
 
             self.chk_autostart.setChecked(cfg.obtener_bool("sistema.inicio_con_windows", True))
+            self.chk_iniciar_oculta.setChecked(
+                cfg.obtener_bool("sistema.iniciar_minimizada_bandeja", False)
+            )
+
+            self.key_iniciar_pausar.setKeySequence(
+                QKeySequence(cfg.obtener("atajo.iniciar_pausar", "") or "")
+            )
+            self.key_finalizar.setKeySequence(
+                QKeySequence(cfg.obtener("atajo.finalizar", "") or "")
+            )
+            self.key_siguiente.setKeySequence(
+                QKeySequence(cfg.obtener("atajo.siguiente_pieza", "") or "")
+            )
+            self.key_mini.setKeySequence(
+                QKeySequence(cfg.obtener("atajo.mini_ventana", "") or "")
+            )
+
             self.spin_rec_cont.setValue(cfg.obtener_int("recordatorio.continuidad_min", 10))
             self.spin_rec_rep.setValue(
                 cfg.obtener_int("recordatorio.repetir_sin_respuesta_min", 2)
@@ -282,6 +378,7 @@ class PantallaConfiguracion(QWidget):
 
         tema = str(self.combo_tema.currentData())
         autostart = self.chk_autostart.isChecked()
+        iniciar_oculta = self.chk_iniciar_oculta.isChecked()
 
         with self.bd.sesion() as s:
             usr = s.scalar(select(Usuario).limit(1))
@@ -296,6 +393,17 @@ class PantallaConfiguracion(QWidget):
             )
             cfg.guardar("empresa.logo_ruta", self.txt_logo_ruta.text().strip())
             cfg.guardar("sistema.inicio_con_windows", autostart)
+            cfg.guardar("sistema.iniciar_minimizada_bandeja", iniciar_oculta)
+
+            cfg.guardar(
+                "atajo.iniciar_pausar", self.key_iniciar_pausar.keySequence().toString()
+            )
+            cfg.guardar("atajo.finalizar", self.key_finalizar.keySequence().toString())
+            cfg.guardar(
+                "atajo.siguiente_pieza", self.key_siguiente.keySequence().toString()
+            )
+            cfg.guardar("atajo.mini_ventana", self.key_mini.keySequence().toString())
+
             cfg.guardar("recordatorio.continuidad_min", int(self.spin_rec_cont.value()))
             cfg.guardar(
                 "recordatorio.repetir_sin_respuesta_min", int(self.spin_rec_rep.value())
@@ -325,6 +433,8 @@ class PantallaConfiguracion(QWidget):
 
         if self.al_cambiar_tema:
             self.al_cambiar_tema(tema)
+        if self.al_cambiar_atajos:
+            self.al_cambiar_atajos()
 
         QMessageBox.information(self, "Guardado", "Configuración actualizada correctamente.")
 

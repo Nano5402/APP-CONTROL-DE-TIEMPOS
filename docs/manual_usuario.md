@@ -112,11 +112,12 @@ Al llegar la hora de salida:
 
 ---
 
-## 4. Atajos de Teclado
+## 4. Atajos de Teclado (Opcionales y Personalizables)
 
-| Atajo | Acción |
-|---|---|
-| `Ctrl + Espacio` | Pausar o reanudar la actividad actual |
-| `Ctrl + Shift + F` | Finalizar la actividad en curso |
-| `Ctrl + Shift + S` | Finalizar pieza actual y empezar la siguiente (`Flyer 1 → Flyer 2`) |
-| `Ctrl + M` | Mostrar u ocultar la mini-ventana flotante |
+Por defecto **todos los atajos de teclado vienen desactivados (vacíos)** para no interferir nunca mientras trabajas en Illustrator, Photoshop, navegador u otros programas.
+
+Si deseas asignarlos a tu gusto:
+1. Ve a **⚙ Configuración → 2. Atajos de teclado**.
+2. Haz clic sobre el cuadro de la acción que quieras configurar (*Iniciar/Pausar*, *Finalizar*, *Finalizar y empezar siguiente pieza* o *Mostrar/Ocultar Mini-ventana*) y presiona la combinación de teclas que prefieras (por ejemplo `F9` o `Ctrl+Alt+P`).
+3. Para quitar un atajo individual pulsa **✖ Quitar**, o usa **🗑 Desactivar / Limpiar todos los atajos** y haz clic en **💾 Guardar configuración general y atajos**.
+

@@ -10,11 +10,19 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import sys
 from logging.handlers import RotatingFileHandler
+from pathlib import Path
 
-from config import rutas
-from data.db import BaseDatos
+# Garantiza que el paquete src esté en sys.path incluso cuando Windows inicia
+# la aplicación desde HKCU\...\Run con directorio de trabajo en C:\Windows\System32.
+_CARPETA_SRC = str(Path(__file__).resolve().parent)
+if _CARPETA_SRC not in sys.path:
+    sys.path.insert(0, _CARPETA_SRC)
+
+from config import rutas  # noqa: E402
+from data.db import BaseDatos  # noqa: E402
 
 
 def configurar_logs() -> None:
@@ -48,7 +56,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--bandeja",
         action="store_true",
-        help="inicia minimizada en la bandeja del sistema (usado al arrancar con Windows)",
+        help="indica arranque desde el inicio automático de Windows",
     )
     args = parser.parse_args(argv)
 
@@ -64,20 +72,35 @@ def main(argv: list[str] | None = None) -> int:
 
         from PySide6.QtWidgets import QApplication, QMessageBox
 
+        from data.repositorios.configuracion import RepoConfiguracion
+        from services.inicio_windows import ServicioInicioWindows
         from services.seguridad_pin import ServicioPIN
         from ui.bandeja import CoordinadorRecordatoriosUI, IconoBandeja, crear_icono_app
         from ui.dialogos import DialogoPIN
         from ui.ventana_principal import VentanaPrincipal
+
+        with bd.sesion() as s:
+            cfg = RepoConfiguracion(s)
+            autostart_activo = cfg.obtener_bool("sistema.inicio_con_windows", True)
+            iniciar_oculta = cfg.obtener_bool("sistema.iniciar_minimizada_bandeja", False)
+            requiere_pin = ServicioPIN(s).tiene_pin()
+
+        # Asegura que el registro HKCU\...\Run esté siempre sincronizado en el PC real
+        if not os.environ.get(rutas.ENV_DATA_DIR):
+            try:
+                ServicioInicioWindows().sincronizar(autostart_activo)
+            except Exception as exc:
+                log.warning("No se pudo sincronizar el inicio automático con Windows: %s", exc)
 
         app = QApplication(sys.argv)
         app.setApplicationName(rutas.NOMBRE_VISIBLE)
         app.setWindowIcon(crear_icono_app())
         app.setQuitOnLastWindowClosed(False)
 
-        # Si el usuario configuró un PIN opcional y no inicia oculto en bandeja, solicitarlo
-        with bd.sesion() as s:
-            requiere_pin = ServicioPIN(s).tiene_pin()
-        if requiere_pin and not args.bandeja:
+        ocultar_ventana_al_arrancar = bool(args.bandeja and iniciar_oculta)
+
+        # Si el usuario configuró un PIN opcional y se va a mostrar la ventana, solicitarlo
+        if requiere_pin and not ocultar_ventana_al_arrancar:
             dlg_pin = DialogoPIN()
             if dlg_pin.exec() != DialogoPIN.DialogCode.Accepted:
                 return 0
@@ -94,8 +117,15 @@ def main(argv: list[str] | None = None) -> int:
         coordinador.iniciar()
         ventana.coordinador_recordatorios = coordinador
 
-        if not args.bandeja:
+        if not ocultar_ventana_al_arrancar:
             ventana.show()
+            ventana.raise_()
+            ventana.activateWindow()
+        elif bandeja.isSystemTrayAvailable():
+            bandeja.showMessage(
+                rutas.NOMBRE_VISIBLE,
+                "La aplicación está activa en la bandeja del sistema.",
+            )
 
         return app.exec()
     finally:
