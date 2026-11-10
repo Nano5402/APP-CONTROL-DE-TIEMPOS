@@ -17,7 +17,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 from enum import StrEnum
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from data.enums import (
@@ -31,7 +31,7 @@ from data.models import Actividad, Pausa, SesionTiempo
 from data.repositorios.horarios import RepoHorarios
 from data.repositorios.jornadas import RepoJornadas
 from data.tiempo import ahora
-from services.numeracion import siguiente_nombre_pieza
+from services.numeracion import separar_base_y_numero, siguiente_nombre_pieza
 
 
 class AccionSobreActiva(StrEnum):
@@ -331,6 +331,83 @@ class ServicioCronometro:
         self.s.flush()
         return actividad
 
+    def siguiente_actividad_sugerida(
+        self, actividad_actual: Actividad | None = None
+    ) -> tuple[Actividad | None, str | None]:
+        """Determina cuál es la siguiente actividad lógica tras ``actividad_actual``.
+
+        Reglas:
+        1. Si ``actividad_actual`` es una pieza explícitamente numerada (ej. ``Flyer 1``),
+           busca la siguiente pieza numerada ``pendiente`` (ej. ``Flyer 2``) o sugiere
+           crearla con ese nombre.
+        2. Si ``actividad_actual`` **no** tiene número al final (ej. ``Depuración``),
+           **nunca** inventa ``Depuración 2``: busca la siguiente actividad ``pendiente``
+           (o ``pausada``/``arrastrada``) que ya exista en la lista de la jornada.
+        """
+        act = actividad_actual or self.actividad_en_curso()
+        if act is None:
+            return None, None
+
+        _base, num_actual = separar_base_y_numero(act.nombre)
+        if num_actual is not None:
+            consulta_trabajadas = select(Actividad.nombre).where(
+                Actividad.jornada_id == act.jornada_id,
+                Actividad.id != act.id,
+                Actividad.estado.not_in(
+                    [EstadoActividad.ELIMINADA.value, EstadoActividad.PENDIENTE.value]
+                ),
+            )
+            trabajadas = list(self.s.scalars(consulta_trabajadas)) + [act.nombre]
+            nombre_pieza = siguiente_nombre_pieza(act.nombre, trabajadas)
+            candidata = self.s.scalar(
+                select(Actividad)
+                .where(
+                    Actividad.jornada_id == act.jornada_id,
+                    Actividad.id != act.id,
+                    Actividad.estado == EstadoActividad.PENDIENTE.value,
+                    Actividad.nombre.ilike(nombre_pieza),
+                )
+                .order_by(Actividad.id)
+            )
+            if candidata is not None:
+                return candidata, candidata.nombre
+            return None, nombre_pieza
+
+        orden_prio = case(
+            (Actividad.prioridad == Prioridad.MAXIMA.value, 0),
+            (Actividad.prioridad == Prioridad.NORMAL.value, 1),
+            else_=2,
+        )
+        pendiente = self.s.scalar(
+            select(Actividad)
+            .where(
+                Actividad.jornada_id == act.jornada_id,
+                Actividad.id != act.id,
+                Actividad.estado == EstadoActividad.PENDIENTE.value,
+                Actividad.aprobacion_estado != EstadoAprobacion.PENDIENTE.value,
+            )
+            .order_by(orden_prio, Actividad.id)
+        )
+        if pendiente is not None:
+            return pendiente, pendiente.nombre
+
+        pausada = self.s.scalar(
+            select(Actividad)
+            .where(
+                Actividad.jornada_id == act.jornada_id,
+                Actividad.id != act.id,
+                Actividad.estado.in_(
+                    [EstadoActividad.PAUSADA.value, EstadoActividad.ARRASTRADA.value]
+                ),
+                Actividad.aprobacion_estado != EstadoAprobacion.PENDIENTE.value,
+            )
+            .order_by(orden_prio, Actividad.id)
+        )
+        if pausada is not None:
+            return pausada, pausada.nombre
+
+        return None, None
+
     def finalizar_y_empezar_siguiente(
         self,
         actividad_actual: Actividad,
@@ -340,64 +417,63 @@ class ServicioCronometro:
         lugar: Lugar | str = Lugar.OFICINA,
         momento: datetime | None = None,
     ) -> Actividad:
-        """Finaliza la pieza actual y arranca la siguiente en 1 acción (RF-02).
+        """Finaliza la actividad actual y arranca la siguiente en 1 acción (RF-02).
 
-        - Si ya existe en la jornada otra actividad ``pendiente`` de la misma
-          categoría/plantilla con el siguiente número (cuando se creó un lote),
-          inicia esa.
-        - Si no existe, crea automáticamente la siguiente pieza numerada
-          (ej. ``Flyer 1`` → ``Flyer 2``) copiando categoría, tipo y estimado, y
-          arranca su cronómetro.
+        - Si la actividad actual es una pieza numerada (ej. ``Flyer 1``), continúa con
+          la siguiente pieza numerada (``Flyer 2``), reutilizándola si ya estaba
+          planeada o creándola si es una serie.
+        - Si la actividad actual **no** es numerada (ej. ``Depuración``), inicia la
+          siguiente actividad ``pendiente`` (o ``pausada``) de la lista del día sin
+          inventar ``Depuración 2``.
         """
         instante = momento or ahora()
         self.finalizar(actividad_actual, descripcion=descripcion_actual, momento=instante)
 
-        # Solo tomamos las actividades ya trabajadas (no las pendientes) para calcular
-        # el siguiente número consecutivo; así, si "Flyer 3" ya estaba planeada como
-        # pendiente, se reutiliza en lugar de saltar a "Flyer 4".
-        consulta_trabajadas = select(Actividad.nombre).where(
-            Actividad.jornada_id == actividad_actual.jornada_id,
-            Actividad.estado.not_in(
-                [EstadoActividad.ELIMINADA.value, EstadoActividad.PENDIENTE.value]
-            ),
-        )
-        trabajadas = list(self.s.scalars(consulta_trabajadas))
-        nombre_obj = (
-            nombre_siguiente.strip()
-            if nombre_siguiente and nombre_siguiente.strip()
-            else siguiente_nombre_pieza(actividad_actual.nombre, trabajadas)
-        )
-
-        # ¿Ya estaba planeada en la jornada con ese nombre y sigue pendiente?
-        candidata = self.s.scalar(
-            select(Actividad)
-            .where(
-                Actividad.jornada_id == actividad_actual.jornada_id,
-                Actividad.estado == EstadoActividad.PENDIENTE.value,
-                Actividad.nombre.ilike(nombre_obj),
+        if nombre_siguiente and nombre_siguiente.strip():
+            nombre_obj = nombre_siguiente.strip()
+            candidata = self.s.scalar(
+                select(Actividad)
+                .where(
+                    Actividad.jornada_id == actividad_actual.jornada_id,
+                    Actividad.estado == EstadoActividad.PENDIENTE.value,
+                    Actividad.nombre.ilike(nombre_obj),
+                )
+                .order_by(Actividad.id)
             )
-            .order_by(Actividad.id)
+            if candidata is None:
+                candidata = self._clonar_pieza(actividad_actual, nombre_obj, instante)
+            return self.iniciar(candidata, lugar=lugar, momento=instante)
+
+        candidata, nombre_crear = self.siguiente_actividad_sugerida(actividad_actual)
+        if candidata is not None:
+            return self.iniciar(candidata, lugar=lugar, momento=instante)
+
+        if nombre_crear is not None:
+            nueva = self._clonar_pieza(actividad_actual, nombre_crear, instante)
+            return self.iniciar(nueva, lugar=lugar, momento=instante)
+
+        return actividad_actual
+
+    def _clonar_pieza(
+        self, base: Actividad, nombre_pieza: str, instante: datetime
+    ) -> Actividad:
+        nueva = Actividad(
+            jornada_id=base.jornada_id,
+            categoria_id=base.categoria_id,
+            plantilla_id=base.plantilla_id,
+            nombre=nombre_pieza,
+            tipo=base.tipo,
+            solicitante_id=base.solicitante_id,
+            prioridad=base.prioridad,
+            estado=EstadoActividad.PENDIENTE.value,
+            aprobacion_estado=base.aprobacion_estado,
+            tiempo_estimado_min=base.tiempo_estimado_min,
+            intervalo_recordatorio_min=base.intervalo_recordatorio_min,
+            creada_en=instante,
         )
-
-        if candidata is None:
-            candidata = Actividad(
-                jornada_id=actividad_actual.jornada_id,
-                categoria_id=actividad_actual.categoria_id,
-                plantilla_id=actividad_actual.plantilla_id,
-                nombre=nombre_obj,
-                tipo=actividad_actual.tipo,
-                solicitante_id=actividad_actual.solicitante_id,
-                prioridad=actividad_actual.prioridad,
-                estado=EstadoActividad.PENDIENTE.value,
-                aprobacion_estado=actividad_actual.aprobacion_estado,
-                tiempo_estimado_min=actividad_actual.tiempo_estimado_min,
-                intervalo_recordatorio_min=actividad_actual.intervalo_recordatorio_min,
-                creada_en=instante,
-            )
-            self.s.add(candidata)
-            self.s.flush()
-
-        return self.iniciar(candidata, lugar=lugar, momento=instante)
+        self.s.add(nueva)
+        self.s.flush()
+        return nueva
 
     def reasignar(
         self,

@@ -63,9 +63,7 @@ class MiniWidgetCronometro(QWidget):
         self.lbl_actividad = QLabel("⚪ Sin actividad en curso", self)
         self.lbl_actividad.setStyleSheet("font-weight: bold; font-size: 13px;")
         self.lbl_reloj = QLabel("00:00:00", self)
-        self.lbl_reloj.setStyleSheet(
-            "font-family: 'Cascadia Mono', Consolas, monospace; font-size: 20px; font-weight: bold; color: #2563EB;"
-        )
+        self.lbl_reloj.setObjectName("relojMini")
         fila_sup.addWidget(self.lbl_actividad, 1)
         fila_sup.addWidget(self.lbl_reloj)
         capa_marco.addLayout(fila_sup)
@@ -77,7 +75,7 @@ class MiniWidgetCronometro(QWidget):
         self.btn_finalizar = QPushButton("⏹ Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
         self.btn_siguiente = QPushButton("⏭ Siguiente", self)
-        self.btn_siguiente.setToolTip("Finalizar esta pieza y empezar la siguiente")
+        self.btn_siguiente.setToolTip("Terminar esta actividad y empezar la siguiente")
 
         for b in (self.btn_pausar, self.btn_finalizar, self.btn_siguiente):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -97,8 +95,13 @@ class MiniWidgetCronometro(QWidget):
         layout.addWidget(marco)
         self.actualizar_estado(None, 0)
 
-    def actualizar_estado(self, nombre_actividad: str | None, segundos: int) -> None:
-        """Actualiza el texto y el reloj del mini-widget."""
+    def actualizar_estado(
+        self,
+        nombre_actividad: str | None,
+        segundos: int,
+        nombre_siguiente: str | None = "",
+    ) -> None:
+        """Actualiza el texto, el reloj y el botón de siguiente del mini-widget."""
         activa = bool(nombre_actividad)
         if nombre_actividad:
             corto = nombre_actividad if len(nombre_actividad) <= 22 else nombre_actividad[:21] + "…"
@@ -108,4 +111,12 @@ class MiniWidgetCronometro(QWidget):
         self.lbl_reloj.setText(formatear_reloj_hms(segundos))
         self.btn_pausar.setEnabled(activa)
         self.btn_finalizar.setEnabled(activa)
-        self.btn_siguiente.setEnabled(activa)
+
+        if nombre_siguiente is None:
+            self.btn_siguiente.setEnabled(False)
+            self.btn_siguiente.setVisible(False)
+        else:
+            self.btn_siguiente.setVisible(True)
+            self.btn_siguiente.setEnabled(activa)
+            if nombre_siguiente:
+                self.btn_siguiente.setToolTip(f"Terminar e iniciar «{nombre_siguiente}»")

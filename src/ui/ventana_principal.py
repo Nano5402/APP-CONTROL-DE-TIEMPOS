@@ -238,7 +238,9 @@ class VentanaPrincipal(QMainWindow):
         if not hasattr(self, "pantalla_hoy"):
             return
         nombre, seg = self.pantalla_hoy.actualizar_reloj_en_vivo()
-        self.mini_widget.actualizar_estado(nombre, seg)
+        self.mini_widget.actualizar_estado(
+            nombre, seg, self.pantalla_hoy.nombre_siguiente_sugerido
+        )
         if nombre:
             corto = nombre if len(nombre) <= 22 else nombre[:21] + "…"
             self.lbl_estado_sidebar.setText(f"🟢 {corto}\n⏱ {formatear_reloj_hms(seg)}")

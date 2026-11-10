@@ -251,6 +251,21 @@ def generar_qss(codigo: str | None = "claro") -> str:
         font-family: "Cascadia Mono", "Consolas", "Segoe UI", monospace;
         background: transparent;
     }}
+    QLabel#relojMini {{
+        font-size: 20px;
+        font-weight: bold;
+        color: {t.acento};
+        font-family: "Cascadia Mono", "Consolas", "Segoe UI", monospace;
+        background: transparent;
+    }}
+    QLabel#bannerInfo {{
+        background-color: {t.fondo_reloj};
+        color: {t.texto_principal};
+        border: 1px solid {t.borde_fuerte};
+        border-radius: 8px;
+        padding: 9px 14px;
+        font-weight: 500;
+    }}
     QLabel#badgeActiva {{
         background-color: {t.acento_suave};
         color: {t.acento};

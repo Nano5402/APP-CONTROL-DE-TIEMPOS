@@ -107,6 +107,7 @@ class PantallaHoy(QWidget):
         super().__init__(parent)
         self.bd = bd
         self.al_cambiar_estado = al_cambiar_estado
+        self.nombre_siguiente_sugerido: str | None = None
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(24, 18, 24, 18)
@@ -240,10 +241,7 @@ class PantallaHoy(QWidget):
             self,
         )
         self.lbl_guia_vacia.setWordWrap(True)
-        self.lbl_guia_vacia.setStyleSheet(
-            "background-color: #EFF6FF; color: #1E3A8A; border: 1px solid #BFDBFE; "
-            "border-radius: 8px; padding: 10px 14px; font-weight: 500;"
-        )
+        self.lbl_guia_vacia.setObjectName("bannerInfo")
         layout.addWidget(self.lbl_guia_vacia)
 
         # Tabla de actividades del día
@@ -376,6 +374,7 @@ class PantallaHoy(QWidget):
             cron = ServicioCronometro(s)
             activa = cron.actividad_en_curso()
             if activa is None:
+                self.nombre_siguiente_sugerido = None
                 self.lbl_reloj.setText("00:00:00")
                 self.lbl_badge_activa.setText("⚪ SIN ACTIVIDAD EN CURSO")
                 self.lbl_activa_titulo.setText("Ninguna actividad en curso")
@@ -392,6 +391,9 @@ class PantallaHoy(QWidget):
                 return None, 0
 
             seg = cron.segundos_trabajados(activa)
+            _cand, nombre_sig = cron.siguiente_actividad_sugerida(activa)
+            self.nombre_siguiente_sugerido = nombre_sig
+
             self.lbl_reloj.setText(formatear_reloj_hms(seg))
             self.lbl_badge_activa.setText("🟢 EN CURSO AHORA")
             self.lbl_activa_titulo.setText(activa.nombre)
@@ -401,10 +403,18 @@ class PantallaHoy(QWidget):
             )
             self.btn_pausar.setVisible(True)
             self.btn_finalizar.setVisible(True)
-            self.btn_siguiente.setVisible(True)
             self.btn_pausar.setEnabled(True)
             self.btn_finalizar.setEnabled(True)
-            self.btn_siguiente.setEnabled(True)
+
+            if nombre_sig:
+                corto_sig = nombre_sig if len(nombre_sig) <= 26 else nombre_sig[:25] + "…"
+                self.btn_siguiente.setText(f"⏭  Terminar y seguir con «{corto_sig}»")
+                self.btn_siguiente.setVisible(True)
+                self.btn_siguiente.setEnabled(True)
+            else:
+                self.btn_siguiente.setVisible(False)
+                self.btn_siguiente.setEnabled(False)
+
             return activa.nombre, seg
 
     def refrescar(self) -> None:

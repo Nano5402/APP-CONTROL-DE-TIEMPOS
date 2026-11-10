@@ -137,6 +137,42 @@ def test_finalizar_y_empezar_siguiente_crea_o_usa_lote(s):
     assert f3_activa.estado == EstadoActividad.EN_CURSO.value
 
 
+def test_finalizar_y_empezar_siguiente_pasa_a_la_siguiente_pendiente_sin_numerar(s):
+    """Si la actividad no termina en número (ej. 'Depuración'), inicia la siguiente pendiente ('Flyers')
+    y nunca inventa 'Depuración 2' ni 'Depuración 3'."""
+    srv_act = ServicioActividades(s)
+    cron = ServicioCronometro(s)
+
+    depuracion = srv_act.crear_planeada(
+        "Depuración código app control de gestión de tiempos",
+        momento=datetime(2026, 11, 9, 8, 0),
+    )
+    flyers = srv_act.crear_planeada(
+        "Flyers",
+        momento=datetime(2026, 11, 9, 8, 0),
+    )
+
+    cron.iniciar(depuracion, momento=datetime(2026, 11, 9, 8, 0))
+    cand, nombre_sug = cron.siguiente_actividad_sugerida(depuracion)
+    assert cand == flyers
+    assert nombre_sug == "Flyers"
+
+    sig = cron.finalizar_y_empezar_siguiente(depuracion, momento=datetime(2026, 11, 9, 9, 0))
+    assert depuracion.estado == EstadoActividad.COMPLETADA.value
+    assert sig.id == flyers.id
+    assert flyers.estado == EstadoActividad.EN_CURSO.value
+
+    # Ahora 'Flyers' es la última y tampoco tiene número al final: no debe inventar 'Flyers 2'
+    cand_2, nombre_sug_2 = cron.siguiente_actividad_sugerida(flyers)
+    assert cand_2 is None
+    assert nombre_sug_2 is None
+
+    cron.finalizar_y_empezar_siguiente(flyers, momento=datetime(2026, 11, 9, 9, 30))
+    assert flyers.estado == EstadoActividad.COMPLETADA.value
+    assert cron.actividad_en_curso() is None
+    assert len(srv_act.listar_visibles_jornada(depuracion.jornada_id)) == 2
+
+
 def test_tramo_que_cruza_salida_se_divide_en_horario_y_fuera_de_horario(s):
     srv_act = ServicioActividades(s)
     cron = ServicioCronometro(s)

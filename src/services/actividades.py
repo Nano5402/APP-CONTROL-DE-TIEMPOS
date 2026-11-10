@@ -201,6 +201,18 @@ class ServicioActividades:
             if tiempo_estimado_min is not None
             else plantilla.tiempo_estimado_min
         )
+        if cantidad == 1:
+            return [
+                self.crear_planeada(
+                    base,
+                    jornada=jornada,
+                    categoria_id=plantilla.categoria_id,
+                    tiempo_estimado_min=estimado,
+                    intervalo_recordatorio_min=plantilla.intervalo_recordatorio_min,
+                    plantilla_id=plantilla.id,
+                    momento=momento,
+                )
+            ]
         return self.crear_lote_piezas(
             base,
             cantidad,

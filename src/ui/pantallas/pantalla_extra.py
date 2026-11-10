@@ -108,9 +108,7 @@ class PantallaExtra(QWidget):
 
         self.lbl_regla_prioridad = QLabel("", self)
         self.lbl_regla_prioridad.setWordWrap(True)
-        self.lbl_regla_prioridad.setStyleSheet(
-            "background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 6px; padding: 6px 10px;"
-        )
+        self.lbl_regla_prioridad.setObjectName("bannerInfo")
 
         # Solo visible cuando quien solicita es compañero o tercero
         self.chk_aprobada_ing = QCheckBox(
