@@ -91,22 +91,30 @@ def _dibujar_pixmap_icono(tamano: int) -> QPixmap:
 
 
 def crear_icono_app() -> QIcon:
-    """Carga el icono corporativo oficial de Gente Util (o lo genera si no existe en disco)."""
-    ruta_emblema = rutas.carpeta_assets() / "icono_emblema.png"
+    """Carga literalmente el logo oficial de Gente Util S.A. (``logo_gente_util.png``)."""
+    ruta_logo = rutas.carpeta_assets() / "logo_gente_util.png"
     ruta_ico = rutas.carpeta_assets() / "icono_app.ico"
-    if ruta_emblema.is_file():
-        base_pix = QPixmap(str(ruta_emblema))
+    if ruta_logo.is_file():
+        base_pix = QPixmap(str(ruta_logo))
         if not base_pix.isNull():
             icono = QIcon()
             for tam in (16, 24, 32, 48, 64, 128, 256):
-                icono.addPixmap(
-                    base_pix.scaled(
-                        tam,
-                        tam,
-                        Qt.AspectRatioMode.KeepAspectRatio,
-                        Qt.TransformationMode.SmoothTransformation,
-                    )
+                lienzo = QPixmap(tam, tam)
+                lienzo.fill(QColor(0, 0, 0, 0))
+                escalado = base_pix.scaled(
+                    tam,
+                    tam,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
                 )
+                pintor = QPainter(lienzo)
+                pintor.drawPixmap(
+                    (tam - escalado.width()) // 2,
+                    (tam - escalado.height()) // 2,
+                    escalado,
+                )
+                pintor.end()
+                icono.addPixmap(lienzo)
             return icono
 
     icono = QIcon()
