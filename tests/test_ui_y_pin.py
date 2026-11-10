@@ -111,3 +111,35 @@ def test_ventana_principal_pantallas_y_mini_widget_offscreen(bd, monkeypatch):
     ventana.aplicar_tema("oscuro")
     ventana.mostrar_ocultar_mini_widget(False)
     ventana.close()
+
+
+def test_dialogo_pausa_y_visibilidad_contextual(monkeypatch):
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+
+    from data.enums import TipoPausa
+    from ui.dialogos import DialogoPausa
+
+    _app = QApplication.instance() or QApplication([])
+    dlg = DialogoPausa("Flyer promocional")
+    dlg.show()
+
+    # Por defecto (Pausa personal / baño), el % de avance está OCULTO
+    assert dlg.widget_avance.isVisible() is False
+
+    # Solo cuando se selecciona FIN_JORNADA se hace visible el % de avance
+    idx_fin = dlg.combo_tipo.findData(TipoPausa.FIN_JORNADA.value)
+    dlg.combo_tipo.setCurrentIndex(idx_fin)
+    assert dlg.widget_avance.isVisible() is True
+
+    # Al volver a pausa personal o almuerzo, se vuelve a ocultar
+    idx_almuerzo = dlg.combo_tipo.findData(TipoPausa.ALMUERZO.value)
+    dlg.combo_tipo.setCurrentIndex(idx_almuerzo)
+    assert dlg.widget_avance.isVisible() is False
+
+    # Botón rápido de baño/pausa personal cierra el diálogo con PERSONAL y sin % de avance
+    dlg._pausa_rapida(TipoPausa.PERSONAL, "Baño / pausa breve")
+    assert dlg.tipo_pausa == TipoPausa.PERSONAL.value
+    assert dlg.avance_pct is None
+    dlg.close()
+

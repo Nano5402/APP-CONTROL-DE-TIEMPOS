@@ -1,19 +1,21 @@
 """Pantalla 3: Actividad extra (urgencias y solicitudes) — RF-03.
 
-Captura:
-- Solicitante (o creación rápida de un nuevo solicitante: compañero / tercero).
-- Motivo de la urgencia, canal de solicitud, fecha/hora límite opcional y descripción.
-- Si el solicitante es jefe o doctora (prioridad máxima), permite **"Crear e iniciar ya"**
-  (pausando automáticamente la actividad en curso).
-- Si es compañero o tercero, queda bloqueada hasta la aprobación del ingeniero, o
-  permite marcar que ya cuenta con aprobación previa del ingeniero.
+Diseño intuitivo con revelación progresiva:
+- El selector de solicitante muestra claramente a quiénes tienen prioridad máxima
+  (Ing. Luis Eduardo y Doctoras).
+- El formulario para crear un solicitante nuevo permanece **oculto** hasta pulsar
+  «+ Otra persona».
+- La casilla de «Ya cuenta con aprobación previa del Ing. Luis Eduardo» permanece
+  **oculta** cuando quien pide es el Jefe o una Doctora (porque no requieren aprobación).
+- El selector de fecha/hora límite permanece **oculto** salvo que el usuario marque
+  «Tiene fecha/hora límite».
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtCore import QDateTime
+from PySide6.QtCore import QDateTime, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -40,7 +42,7 @@ from services.cronometro import AccionSobreActiva, ServicioCronometro
 
 
 class PantallaExtra(QWidget):
-    """Formulario rápido para registrar actividades extra."""
+    """Formulario guiado para registrar actividades extra."""
 
     def __init__(
         self,
@@ -54,12 +56,18 @@ class PantallaExtra(QWidget):
         self.al_crear_extra = al_crear_extra
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(24, 18, 24, 18)
         layout.setSpacing(12)
 
         lbl_tit = QLabel("Registrar Actividad Extra", self)
         lbl_tit.setObjectName("tituloPantalla")
+        lbl_sub = QLabel(
+            "Usa esta pantalla cuando alguien te pida una tarea adicional que no estaba en tu plan de la mañana.",
+            self,
+        )
+        lbl_sub.setObjectName("subtitulo")
         layout.addWidget(lbl_tit)
+        layout.addWidget(lbl_sub)
 
         card = QFrame(self)
         card.setProperty("card", True)
@@ -69,74 +77,100 @@ class PantallaExtra(QWidget):
         self.txt_nombre = QLineEdit(self)
         self.txt_nombre.setPlaceholderText("Ej. Flyer urgente vacante, Ajuste presentación...")
 
-        # Selector de solicitante + alta rápida de solicitante nuevo
+        # Selector limpio de solicitante + botón opcional para agregar una persona nueva
         fila_sol = QHBoxLayout()
         self.combo_solicitante = QComboBox(self)
         self.combo_solicitante.currentIndexChanged.connect(self._al_cambiar_solicitante)
-        self.txt_nuevo_sol = QLineEdit(self)
-        self.txt_nuevo_sol.setPlaceholderText("Nuevo solicitante (ej. Dr. Pérez, Compañero)")
-        self.combo_tipo_nuevo_sol = QComboBox(self)
+        self.btn_mostrar_nuevo_sol = QPushButton("➕ Registrar otra persona", self)
+        self.btn_mostrar_nuevo_sol.setProperty("rol", "secundario")
+        self.btn_mostrar_nuevo_sol.setCheckable(True)
+        self.btn_mostrar_nuevo_sol.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        fila_sol.addWidget(self.combo_solicitante, 1)
+        fila_sol.addWidget(self.btn_mostrar_nuevo_sol)
+
+        # Panel desplegable para dar de alta un nuevo solicitante (oculto por defecto)
+        self.panel_nuevo_sol = QWidget(self)
+        fila_nuevo_sol = QHBoxLayout(self.panel_nuevo_sol)
+        fila_nuevo_sol.setContentsMargins(0, 0, 0, 0)
+        self.txt_nuevo_sol = QLineEdit(self.panel_nuevo_sol)
+        self.txt_nuevo_sol.setPlaceholderText("Nombre de la persona (ej. Carlos, Cliente X...)")
+        self.combo_tipo_nuevo_sol = QComboBox(self.panel_nuevo_sol)
         for ts in (TipoSolicitante.COMPANERO, TipoSolicitante.TERCERO, TipoSolicitante.DOCTORA):
             self.combo_tipo_nuevo_sol.addItem(ts.etiqueta(), ts.value)
-        self.btn_crear_sol = QPushButton("+ Añadir solicitante", self)
-        self.btn_crear_sol.setProperty("rol", "secundario")
+        self.btn_crear_sol = QPushButton("Guardar persona", self.panel_nuevo_sol)
         self.btn_crear_sol.clicked.connect(self.accion_crear_solicitante)
-
-        fila_sol.addWidget(self.combo_solicitante, 2)
-        fila_sol.addWidget(self.txt_nuevo_sol, 2)
-        fila_sol.addWidget(self.combo_tipo_nuevo_sol, 1)
-        fila_sol.addWidget(self.btn_crear_sol)
+        fila_nuevo_sol.addWidget(self.txt_nuevo_sol, 2)
+        fila_nuevo_sol.addWidget(self.combo_tipo_nuevo_sol, 1)
+        fila_nuevo_sol.addWidget(self.btn_crear_sol)
+        self.panel_nuevo_sol.setVisible(False)
+        self.btn_mostrar_nuevo_sol.toggled.connect(self.panel_nuevo_sol.setVisible)
 
         self.lbl_regla_prioridad = QLabel("", self)
-        self.lbl_regla_prioridad.setObjectName("subtitulo")
+        self.lbl_regla_prioridad.setWordWrap(True)
+        self.lbl_regla_prioridad.setStyleSheet(
+            "background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 6px; padding: 6px 10px;"
+        )
+
+        # Solo visible cuando quien solicita es compañero o tercero
+        self.chk_aprobada_ing = QCheckBox(
+            "✔ El Ing. Luis Eduardo ya autorizó esta solicitud", self
+        )
+        self.chk_aprobada_ing.setVisible(False)
 
         self.combo_canal = QComboBox(self)
         for c in CanalSolicitud:
             self.combo_canal.addItem(c.etiqueta(), c.value)
 
         self.txt_motivo_urgencia = QLineEdit(self)
-        self.txt_motivo_urgencia.setPlaceholderText("¿Por qué es urgente o extraordinaria?")
+        self.txt_motivo_urgencia.setPlaceholderText("¿Por qué la necesitan hoy? (ej. Reunión, publicación urgente...)")
 
         self.txt_categoria = QLineEdit(self)
-        self.txt_categoria.setPlaceholderText("Categoría (opcional)")
+        self.txt_categoria.setPlaceholderText("Categoría (opcional, ej. Flyers)")
 
         self.spin_estimado = QSpinBox(self)
         self.spin_estimado.setRange(0, 600)
         self.spin_estimado.setSuffix(" min")
         self.spin_estimado.setSpecialValueText("Sin estimado")
 
-        self.chk_tiene_limite = QCheckBox("Tiene fecha/hora límite", self)
+        # Fecha límite oculta salvo que marque la casilla
+        fila_lim = QHBoxLayout()
+        self.chk_tiene_limite = QCheckBox("Tiene hora o fecha límite de entrega", self)
         self.dt_limite = QDateTimeEdit(QDateTime.currentDateTime().addSecs(3600), self)
         self.dt_limite.setDisplayFormat("dd/MM/yyyy HH:mm")
-        self.dt_limite.setEnabled(False)
-        self.chk_tiene_limite.toggled.connect(self.dt_limite.setEnabled)
-
-        self.chk_aprobada_ing = QCheckBox(
-            "Ya cuenta con aprobación previa del Ing. Luis Eduardo", self
-        )
+        self.dt_limite.setVisible(False)
+        self.chk_tiene_limite.toggled.connect(self.dt_limite.setVisible)
+        fila_lim.addWidget(self.chk_tiene_limite)
+        fila_lim.addWidget(self.dt_limite)
+        fila_lim.addStretch()
 
         self.txt_descripcion = QPlainTextEdit(self)
         self.txt_descripcion.setPlaceholderText(
-            "Describe en qué consiste la actividad para evaluar el tiempo invertido..."
+            "Describe brevemente qué pidieron hacer..."
         )
-        self.txt_descripcion.setMaximumHeight(90)
+        self.txt_descripcion.setMaximumHeight(85)
 
-        form.addRow("Nombre de la actividad*:", self.txt_nombre)
-        form.addRow("Solicitante*:", fila_sol)
-        form.addRow("Regla aplicada:", self.lbl_regla_prioridad)
-        form.addRow("Canal de solicitud*:", self.combo_canal)
-        form.addRow("Motivo de la urgencia*:", self.txt_motivo_urgencia)
+        form.addRow("¿Qué actividad te pidieron?*:", self.txt_nombre)
+        form.addRow("¿Quién la solicita?*:", fila_sol)
+        form.addRow("", self.panel_nuevo_sol)
+        form.addRow("Prioridad asignada:", self.lbl_regla_prioridad)
+        form.addRow("", self.chk_aprobada_ing)
+        form.addRow("¿Por qué medio la pidieron?*:", self.combo_canal)
+        form.addRow("Motivo de la solicitud*:", self.txt_motivo_urgencia)
         form.addRow("Categoría:", self.txt_categoria)
         form.addRow("Tiempo estimado:", self.spin_estimado)
-        form.addRow(self.chk_tiene_limite, self.dt_limite)
-        form.addRow("", self.chk_aprobada_ing)
-        form.addRow("Descripción detallada*:", self.txt_descripcion)
+        form.addRow("Fecha límite:", fila_lim)
+        form.addRow("Descripción breve*:", self.txt_descripcion)
         layout.addWidget(card)
 
         fila_btn = QHBoxLayout()
-        self.btn_guardar = QPushButton("Guardar actividad extra", self)
-        self.btn_guardar_iniciar = QPushButton("⚡ Guardar e iniciar ahora", self)
+        self.btn_guardar = QPushButton("📌 Guardar en mi lista de hoy", self)
+        self.btn_guardar.setProperty("rol", "secundario")
+        self.btn_guardar_iniciar = QPushButton("⚡ Guardar y empezar ahora mismo", self)
         self.btn_guardar_iniciar.setProperty("rol", "exito")
+
+        for b in (self.btn_guardar, self.btn_guardar_iniciar):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.btn_guardar.clicked.connect(lambda: self._guardar(iniciar_ya=False))
         self.btn_guardar_iniciar.clicked.connect(lambda: self._guardar(iniciar_ya=True))
@@ -171,17 +205,18 @@ class PantallaExtra(QWidget):
                 return
             if sol.requiere_aprobacion:
                 self.lbl_regla_prioridad.setText(
-                    f"Prioridad {sol.prioridad_defecto}: requiere aprobación del ingeniero "
-                    "(quedará bloqueada salvo que marques aprobación previa)."
+                    f"🔒 Solicitud de {sol.tipo}: requiere autorización del Ing. Luis Eduardo. "
+                    "Si aún no te la ha aprobado, quedará en espera en la pantalla Hoy."
                 )
+                self.chk_aprobada_ing.setVisible(True)
                 self.chk_aprobada_ing.setEnabled(True)
             else:
                 self.lbl_regla_prioridad.setText(
-                    f"Prioridad {sol.prioridad_defecto.upper()}: se puede iniciar de inmediato "
-                    "y cuenta como cumplimiento."
+                    "🔴 Prioridad MÁXIMA: no requiere aprobación, puedes iniciarla de inmediato "
+                    "(pausará lo que tengas en curso) y suma a tu Cumplimiento."
                 )
                 self.chk_aprobada_ing.setChecked(False)
-                self.chk_aprobada_ing.setEnabled(False)
+                self.chk_aprobada_ing.setVisible(False)
 
     def accion_crear_solicitante(self) -> None:
         nombre = self.txt_nuevo_sol.text().strip()
@@ -192,6 +227,7 @@ class PantallaExtra(QWidget):
             nuevo = RepoSolicitantes(s).crear(nombre, tipo)
             nuevo_id = nuevo.id
         self.txt_nuevo_sol.clear()
+        self.btn_mostrar_nuevo_sol.setChecked(False)
         self.refrescar()
         idx = self.combo_solicitante.findData(nuevo_id)
         if idx >= 0:
@@ -207,7 +243,7 @@ class PantallaExtra(QWidget):
             QMessageBox.warning(
                 self,
                 "Datos incompletos",
-                "Completa el nombre, solicitante, motivo de la urgencia y descripción.",
+                "Completa el nombre, solicitante, motivo de la solicitud y descripción.",
             )
             return
 
@@ -243,9 +279,9 @@ class PantallaExtra(QWidget):
                 if sol.requiere_aprobacion and not aprobada_prev:
                     QMessageBox.information(
                         self,
-                        "Guardada como bloqueada",
+                        "Guardada en espera de aprobación",
                         "La solicitud requiere aprobación del Ing. Luis Eduardo. "
-                        "Quedó registrada como bloqueada en la pantalla Hoy.",
+                        "Quedó registrada en la pantalla Hoy para desbloquearla cuando te confirme.",
                     )
                 else:
                     ServicioCronometro(s).iniciar(

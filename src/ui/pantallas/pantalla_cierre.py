@@ -1,20 +1,18 @@
 """Pantalla 4: Cierre de jornada — RF-06, RF-10.
 
-Contiene:
-- Asistente para resolver las actividades abiertas del día (Finalizar, Arrastrar
-  con motivo y % de avance, o Aplazar).
-- Tarjeta con el **Porcentaje de productividad**, semáforo visual, desglose
-  (Cumplimiento, Eficiencia, Foco), meta de tiempo efectivo y datos de referencia.
-- Botón **"Cerrar jornada"** (que ejecuta la copia de seguridad diaria) y botón
-  permanente **"📋 Copiar resumen para WhatsApp"**.
+Diseño claro y sin ruido visual:
+- Si todas las actividades ya están cerradas, muestra un aviso verde directo
+  y oculta la tabla de pendientes.
+- En la tabla de actividades abiertas, el campo de ``% de avance`` permanece
+  **oculto** salvo que el usuario seleccione «Arrastrar para mañana (% avance)».
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-
 from pathlib import Path
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QFrame,
@@ -61,20 +59,20 @@ class PantallaCierre(QWidget):
         self._ultimo_pdf: Path | None = None
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 16, 20, 16)
+        layout.setContentsMargins(24, 18, 24, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel("Cierre de Jornada y Productividad", self)
+        lbl_tit = QLabel("Cierre de Jornada y Resumen del Día", self)
         lbl_tit.setObjectName("tituloPantalla")
         layout.addWidget(lbl_tit)
 
         # Tarjeta de indicadores del día
         card_ind = QFrame(self)
-        card_ind.setProperty("card", True)
+        card_ind.setObjectName("heroCronometro")
         capa_ind = QHBoxLayout(card_ind)
 
         self.lbl_semaforo = QLabel("—", self)
-        self.lbl_semaforo.setStyleSheet("font-size: 24px; font-weight: bold;")
+        self.lbl_semaforo.setStyleSheet("font-size: 22px; font-weight: bold;")
         self.lbl_desglose = QLabel("", self)
         self.lbl_tiempos = QLabel("", self)
         self.lbl_tiempos.setObjectName("subtitulo")
@@ -85,44 +83,60 @@ class PantallaCierre(QWidget):
         col_ind.addWidget(self.lbl_tiempos)
         capa_ind.addLayout(col_ind, 1)
 
-        self.btn_cerrar_jornada = QPushButton("🔒 Cerrar jornada y guardar copia", self)
+        self.btn_cerrar_jornada = QPushButton("🏁  Cerrar jornada, guardar copia y generar PDF", self)
         self.btn_cerrar_jornada.setProperty("rol", "exito")
+        self.btn_cerrar_jornada.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cerrar_jornada.clicked.connect(self.accion_cerrar_jornada)
         capa_ind.addWidget(self.btn_cerrar_jornada)
         layout.addWidget(card_ind)
 
         # Asistente de actividades abiertas
-        card_asist = QFrame(self)
-        card_asist.setProperty("card", True)
-        col_asist = QVBoxLayout(card_asist)
-        col_asist.addWidget(
-            QLabel(
-                "<b>1. Asistente de cierre — Actividades abiertas</b> "
-                "(elige qué hacer con cada una antes de cerrar):"
-            )
+        self.card_asist = QFrame(self)
+        self.card_asist.setProperty("card", True)
+        col_asist = QVBoxLayout(self.card_asist)
+        self.lbl_titulo_asist = QLabel(
+            "<b>1. Tienes actividades abiertas — indica qué pasó con cada una antes de cerrar:</b>",
+            self,
         )
+        col_asist.addWidget(self.lbl_titulo_asist)
+
+        self.lbl_todo_resuelto = QLabel(
+            "✔ Todas las actividades del día están completadas o resueltas. Ya puedes pulsar «🏁 Cerrar jornada».",
+            self,
+        )
+        self.lbl_todo_resuelto.setStyleSheet(
+            "color: #15803D; font-weight: 600; padding: 6px 2px;"
+        )
+        col_asist.addWidget(self.lbl_todo_resuelto)
+
         self.tabla_abiertas = QTableWidget(0, 4, self)
         self.tabla_abiertas.setHorizontalHeaderLabels(
-            ["Actividad", "Acción al cerrar", "% Avance (si se arrastra)", "Motivo / Nota"]
+            ["Actividad abierta", "¿Qué deseas hacer?", "% de avance hoy", "Motivo o nota"]
         )
+        self.tabla_abiertas.setShowGrid(False)
+        self.tabla_abiertas.verticalHeader().setVisible(False)
+        self.tabla_abiertas.verticalHeader().setDefaultSectionSize(42)
         self.tabla_abiertas.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.tabla_abiertas.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla_abiertas.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         col_asist.addWidget(self.tabla_abiertas)
-        layout.addWidget(card_asist, 1)
+        layout.addWidget(self.card_asist, 1)
 
         # Resumen para WhatsApp
         card_wa = QFrame(self)
         card_wa.setProperty("card", True)
         col_wa = QVBoxLayout(card_wa)
-        col_wa.addWidget(QLabel("<b>2. Resumen del día para WhatsApp</b>"))
+        col_wa.addWidget(QLabel("<b>2. Resumen listo para enviar por WhatsApp</b>"))
         self.txt_resumen_wa = QPlainTextEdit(self)
         col_wa.addWidget(self.txt_resumen_wa, 1)
 
         fila_wa = QHBoxLayout()
-        self.btn_abrir_carpeta_pdf = QPushButton("📂 Abrir carpeta del PDF", self)
+        self.btn_abrir_carpeta_pdf = QPushButton("📂  Abrir carpeta del PDF", self)
         self.btn_abrir_carpeta_pdf.setProperty("rol", "secundario")
+        self.btn_abrir_carpeta_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_abrir_carpeta_pdf.clicked.connect(self.accion_abrir_carpeta_pdf)
-        self.btn_copiar_wa = QPushButton("📋 Copiar resumen para WhatsApp", self)
+        self.btn_copiar_wa = QPushButton("📋  Copiar resumen para WhatsApp", self)
+        self.btn_copiar_wa.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_copiar_wa.clicked.connect(self.accion_copiar_resumen)
         fila_wa.addStretch()
         fila_wa.addWidget(self.btn_abrir_carpeta_pdf)
@@ -166,26 +180,49 @@ class PantallaCierre(QWidget):
             self._ids_abiertas = [a.id for a in abiertas]
             self.tabla_abiertas.setRowCount(len(abiertas))
 
+            hay_abiertas = len(abiertas) > 0
+            self.lbl_titulo_asist.setVisible(hay_abiertas)
+            self.tabla_abiertas.setVisible(hay_abiertas)
+            self.lbl_todo_resuelto.setVisible(not hay_abiertas)
+
             for i, act in enumerate(abiertas):
                 self.tabla_abiertas.setItem(i, 0, QTableWidgetItem(act.nombre))
 
                 combo = QComboBox(self.tabla_abiertas)
-                combo.addItem("Finalizar (100 % completada)", AccionCierreActividad.FINALIZAR.value)
-                combo.addItem("Arrastrar para mañana (% avance)", AccionCierreActividad.ARRASTRAR.value)
-                combo.addItem("Aplazar", AccionCierreActividad.APLAZAR.value)
+                combo.addItem("✔ Ya la terminé hoy (100 %)", AccionCierreActividad.FINALIZAR.value)
+                combo.addItem(
+                    "🟣 Dejar para continuar mañana (% avance)",
+                    AccionCierreActividad.ARRASTRAR.value,
+                )
+                combo.addItem("📅 Aplazar", AccionCierreActividad.APLAZAR.value)
                 self.tabla_abiertas.setCellWidget(i, 1, combo)
 
                 spin = QSpinBox(self.tabla_abiertas)
                 spin.setRange(0, 99)
                 spin.setValue(act.avance_pct or 50)
                 spin.setSuffix(" %")
+                # Oculto por defecto porque la primera opción es "Ya la terminé hoy (100 %)"
+                spin.setVisible(False)
                 self.tabla_abiertas.setCellWidget(i, 2, spin)
 
                 txt = QLineEdit(self.tabla_abiertas)
-                txt.setPlaceholderText("Motivo si se arrastra o nota final...")
+                txt.setPlaceholderText("Nota opcional...")
                 self.tabla_abiertas.setCellWidget(i, 3, txt)
 
+                combo.currentIndexChanged.connect(
+                    lambda _idx, c=combo, sp=spin, tx=txt: self._al_cambiar_accion_fila(c, sp, tx)
+                )
+
             self.txt_resumen_wa.setPlainText(srv_wa.generar_texto_resumen(jornada, res))
+
+    @staticmethod
+    def _al_cambiar_accion_fila(combo: QComboBox, spin: QSpinBox, txt: QLineEdit) -> None:
+        es_arrastrar = combo.currentData() == AccionCierreActividad.ARRASTRAR.value
+        spin.setVisible(es_arrastrar)
+        if es_arrastrar:
+            txt.setPlaceholderText("Obligatorio: ¿por qué queda pendiente para mañana?")
+        else:
+            txt.setPlaceholderText("Nota opcional...")
 
     def accion_cerrar_jornada(self) -> None:
         decisiones: list[DecisionActividadCierre] = []

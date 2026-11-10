@@ -1,14 +1,13 @@
 """Pantalla 1: Hoy (principal) — RF-02, RF-03, RF-03b, RF-03c, RF-07, RF-10.
 
-Contiene:
-- Tarjeta Hero superior de **Actividad en curso** con cronómetro grande (`HH:MM:SS`) y
-  botones directos: **Iniciar**, **Pausar**, **Reanudar**, **Finalizar** y
-  **"Finalizar y empezar siguiente"** (flujo en máximo 2 clics).
-- Barra de progreso de **Meta de tiempo efectivo del día** y datos de referencia.
-- Tarjeta de **Inicio rápido de actividad no planeada** para empezar en 1 clic sin plan previo.
-- Tabla moderna de actividades del día (más las arrastradas pendientes de días anteriores)
-  con botones de acción para **Aprobar/Rechazar (ingeniero)**, **Revisión**,
-  **Reasignar** y **Corregir registro**.
+Diseño guiado y contextual:
+- Si **no hay actividad en curso**, muestra únicamente el botón grande
+  **▶ Iniciar / Reanudar** (ocultando Pausar, Finalizar y Siguiente para no confundir).
+- Si **hay una actividad en curso**, muestra los botones **⏸ Pausar**, **⏹ Finalizar**
+  y **⏭ Terminar esta y empezar siguiente**.
+- En la barra inferior de la tabla, los botones especiales (**✔/✖ Decisión ingeniero**
+  y **🔄 Reabrir como Revisión**) solo aparecen cuando la actividad seleccionada
+  realmente aplica (bloqueada o completada).
 """
 
 from __future__ import annotations
@@ -124,7 +123,7 @@ class PantallaHoy(QWidget):
         fila_enc.addWidget(self.lbl_resumen_dia)
         layout.addLayout(fila_enc)
 
-        # Tarjeta Hero de cronómetro activo y controles en 1 clic
+        # Tarjeta Hero de cronómetro activo y controles contextuales
         card_cron = QFrame(self)
         card_cron.setObjectName("heroCronometro")
         capa_cron = QHBoxLayout(card_cron)
@@ -134,7 +133,7 @@ class PantallaHoy(QWidget):
         col_info.setSpacing(4)
 
         fila_badge = QHBoxLayout()
-        self.lbl_badge_activa = QLabel("EN ESPERA", self)
+        self.lbl_badge_activa = QLabel("⚪ SIN ACTIVIDAD EN CURSO", self)
         self.lbl_badge_activa.setObjectName("badgeActiva")
         fila_badge.addWidget(self.lbl_badge_activa)
         fila_badge.addStretch()
@@ -143,7 +142,7 @@ class PantallaHoy(QWidget):
         self.lbl_activa_titulo = QLabel("Ninguna actividad en curso", self)
         self.lbl_activa_titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.lbl_activa_detalle = QLabel(
-            "Selecciona una actividad de la tabla y pulsa «Iniciar / Reanudar» o haz doble clic sobre ella.",
+            "Elige una actividad de la tabla de abajo y pulsa «Iniciar», o escribe una rápida.",
             self,
         )
         self.lbl_activa_detalle.setObjectName("subtitulo")
@@ -152,12 +151,12 @@ class PantallaHoy(QWidget):
 
         col_botones = QHBoxLayout()
         col_botones.setSpacing(8)
-        self.btn_iniciar = QPushButton("▶  Iniciar / Reanudar", self)
+        self.btn_iniciar = QPushButton("▶  Iniciar / Reanudar seleccionada", self)
         self.btn_pausar = QPushButton("⏸  Pausar", self)
         self.btn_pausar.setProperty("rol", "advertencia")
-        self.btn_finalizar = QPushButton("⏹  Finalizar", self)
+        self.btn_finalizar = QPushButton("⏹  Ya terminé (Finalizar)", self)
         self.btn_finalizar.setProperty("rol", "exito")
-        self.btn_siguiente = QPushButton("⏭  Finalizar y empezar siguiente", self)
+        self.btn_siguiente = QPushButton("⏭  Terminar esta y empezar siguiente pieza", self)
 
         for b in (self.btn_iniciar, self.btn_pausar, self.btn_finalizar, self.btn_siguiente):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -184,7 +183,7 @@ class PantallaHoy(QWidget):
         col_reloj = QVBoxLayout(caja_reloj)
         col_reloj.setContentsMargins(16, 8, 16, 8)
         col_reloj.setSpacing(2)
-        lbl_cap_reloj = QLabel("TIEMPO DE LA ACTIVIDAD", caja_reloj)
+        lbl_cap_reloj = QLabel("CRONÓMETRO", caja_reloj)
         lbl_cap_reloj.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl_cap_reloj.setStyleSheet("font-size: 10px; font-weight: bold; letter-spacing: 1px;")
         self.lbl_reloj = QLabel("00:00:00", caja_reloj)
@@ -217,14 +216,14 @@ class PantallaHoy(QWidget):
         capa_meta.addLayout(fila_barra)
 
         fila_rapida = QHBoxLayout()
-        lbl_rap = QLabel("💡 Inicio rápido (sin plan):", self)
+        lbl_rap = QLabel("💡 Empezar algo rápido (sin planear):", self)
         lbl_rap.setStyleSheet("font-weight: 600;")
         self.txt_no_planeada = QLineEdit(self)
         self.txt_no_planeada.setPlaceholderText(
-            "Escribe una actividad imprevista por iniciativa propia y pulsa Enter..."
+            "Escribe qué vas a hacer ahora mismo y pulsa Enter..."
         )
         self.txt_no_planeada.returnPressed.connect(self.accion_iniciar_no_planeada_rapida)
-        self.btn_no_planeada = QPushButton("▶ Empezar ahora", self)
+        self.btn_no_planeada = QPushButton("▶ Empezar ya", self)
         self.btn_no_planeada.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_no_planeada.clicked.connect(self.accion_iniciar_no_planeada_rapida)
         fila_rapida.addWidget(lbl_rap)
@@ -234,11 +233,24 @@ class PantallaHoy(QWidget):
 
         layout.addWidget(card_meta)
 
+        # Guía amistosa cuando aún no hay actividades en el día
+        self.lbl_guia_vacia = QLabel(
+            "👋 Aún no tienes actividades en tu lista de hoy. Ve a «📋 Planear el día» en el menú izquierdo "
+            "para armar tu plan de la mañana, o escribe arriba en «Empezar algo rápido».",
+            self,
+        )
+        self.lbl_guia_vacia.setWordWrap(True)
+        self.lbl_guia_vacia.setStyleSheet(
+            "background-color: #EFF6FF; color: #1E3A8A; border: 1px solid #BFDBFE; "
+            "border-radius: 8px; padding: 10px 14px; font-weight: 500;"
+        )
+        layout.addWidget(self.lbl_guia_vacia)
+
         # Tabla de actividades del día
         self.tabla = QTableWidget(0, 7, self)
         self.tabla.setHorizontalHeaderLabels(
             [
-                "Actividad",
+                "Actividad (doble clic para iniciar)",
                 "Tipo / Solicitante",
                 "Prioridad",
                 "Estado",
@@ -258,20 +270,24 @@ class PantallaHoy(QWidget):
         self.tabla.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla.itemDoubleClicked.connect(lambda _item: self.accion_iniciar_seleccionada())
+        self.tabla.itemSelectionChanged.connect(self._actualizar_acciones_segun_seleccion)
         layout.addWidget(self.tabla, 1)
 
-        # Barra inferior de acciones secundarias sobre la fila seleccionada
+        # Barra inferior contextual: solo muestra lo que aplica a la fila seleccionada
         fila_sec = QHBoxLayout()
         fila_sec.setSpacing(8)
-        self.btn_aprobacion = QPushButton("✔/✖  Decisión ingeniero", self)
-        self.btn_aprobacion.setProperty("rol", "secundario")
-        self.btn_revision = QPushButton("🔄  Nueva revisión", self)
+        self.lbl_acciones_fila = QLabel("Opciones de la actividad seleccionada:", self)
+        self.lbl_acciones_fila.setObjectName("subtitulo")
+
+        self.btn_aprobacion = QPushButton("✔/✖  Aprobar / Rechazar (Ingeniero)", self)
+        self.btn_aprobacion.setProperty("rol", "advertencia")
+        self.btn_revision = QPushButton("🔄  Pidieron cambios (Nueva revisión)", self)
         self.btn_revision.setProperty("rol", "secundario")
-        self.btn_reasignar = QPushButton("↗  Reasignar", self)
+        self.btn_reasignar = QPushButton("↗  Pasar a otro compañero", self)
         self.btn_reasignar.setProperty("rol", "secundario")
-        self.btn_corregir = QPushButton("✏  Corregir registro", self)
+        self.btn_corregir = QPushButton("✏  Corregir tiempo o nombre", self)
         self.btn_corregir.setProperty("rol", "secundario")
-        self.btn_eliminar = QPushButton("🗑  Eliminar", self)
+        self.btn_eliminar = QPushButton("🗑  Quitar de la lista", self)
         self.btn_eliminar.setProperty("rol", "secundario")
 
         for b in (
@@ -289,6 +305,7 @@ class PantallaHoy(QWidget):
         self.btn_corregir.clicked.connect(self.accion_corregir)
         self.btn_eliminar.clicked.connect(self.accion_eliminar)
 
+        fila_sec.addWidget(self.lbl_acciones_fila)
         fila_sec.addWidget(self.btn_aprobacion)
         fila_sec.addWidget(self.btn_revision)
         fila_sec.addWidget(self.btn_reasignar)
@@ -300,7 +317,7 @@ class PantallaHoy(QWidget):
         self.refrescar()
 
     # ------------------------------------------------------------------
-    # Refresco y reloj en vivo
+    # Refresco, botones contextuales y reloj en vivo
     # ------------------------------------------------------------------
 
     def actividad_seleccionada_id(self) -> int | None:
@@ -310,31 +327,81 @@ class PantallaHoy(QWidget):
         item = self.tabla.item(fila, 0)
         return int(item.data(Qt.ItemDataRole.UserRole)) if item else None
 
+    def _actualizar_acciones_segun_seleccion(self) -> None:
+        """Muestra u oculta botones según el estado de la fila seleccionada."""
+        act_id = self.actividad_seleccionada_id()
+        if act_id is None:
+            self.lbl_acciones_fila.setVisible(False)
+            self.btn_aprobacion.setVisible(False)
+            self.btn_revision.setVisible(False)
+            self.btn_reasignar.setVisible(False)
+            self.btn_corregir.setVisible(False)
+            self.btn_eliminar.setVisible(False)
+            return
+
+        with self.bd.sesion() as s:
+            act = s.get(Actividad, act_id)
+            if act is None:
+                return
+            es_bloqueada = (
+                act.estado == EstadoActividad.BLOQUEADA.value
+                or act.aprobacion_estado == EstadoAprobacion.PENDIENTE.value
+            )
+            raiz = act.actividad_padre or act
+            es_completada = raiz.estado == EstadoActividad.COMPLETADA.value
+            en_curso = act.estado == EstadoActividad.EN_CURSO.value
+            es_pausada = act.estado in (
+                EstadoActividad.PAUSADA.value,
+                EstadoActividad.ARRASTRADA.value,
+            )
+            nombre_corto = act.nombre if len(act.nombre) <= 28 else act.nombre[:27] + "…"
+
+        self.lbl_acciones_fila.setVisible(True)
+        self.btn_aprobacion.setVisible(es_bloqueada)
+        self.btn_revision.setVisible(es_completada)
+        self.btn_reasignar.setVisible(not es_completada)
+        self.btn_corregir.setVisible(True)
+        self.btn_eliminar.setVisible(not en_curso)
+
+        if en_curso:
+            self.btn_iniciar.setVisible(False)
+        else:
+            self.btn_iniciar.setVisible(True)
+            verbo = "Reanudar" if es_pausada else "Iniciar"
+            self.btn_iniciar.setText(f"▶  {verbo} «{nombre_corto}»")
+
     def actualizar_reloj_en_vivo(self) -> tuple[str | None, int]:
-        """Actualiza únicamente el contador de segundos en vivo y devuelve ``(nombre, seg)``."""
+        """Actualiza el cronómetro en vivo y muestra solo los controles pertinentes."""
         with self.bd.sesion() as s:
             cron = ServicioCronometro(s)
             activa = cron.actividad_en_curso()
             if activa is None:
                 self.lbl_reloj.setText("00:00:00")
-                self.lbl_badge_activa.setText("⚪ EN ESPERA")
+                self.lbl_badge_activa.setText("⚪ SIN ACTIVIDAD EN CURSO")
                 self.lbl_activa_titulo.setText("Ninguna actividad en curso")
                 self.lbl_activa_detalle.setText(
-                    "Selecciona una actividad de la tabla y pulsa «Iniciar / Reanudar» o haz doble clic sobre ella."
+                    "Selecciona una actividad de la tabla y pulsa el botón azul «▶ Iniciar» (o haz doble clic)."
                 )
+                self.btn_pausar.setVisible(False)
+                self.btn_finalizar.setVisible(False)
+                self.btn_siguiente.setVisible(False)
                 self.btn_pausar.setEnabled(False)
                 self.btn_finalizar.setEnabled(False)
                 self.btn_siguiente.setEnabled(False)
+                self.btn_iniciar.setVisible(self.tabla.rowCount() > 0)
                 return None, 0
 
             seg = cron.segundos_trabajados(activa)
             self.lbl_reloj.setText(formatear_reloj_hms(seg))
-            self.lbl_badge_activa.setText("🟢 EN CURSO")
+            self.lbl_badge_activa.setText("🟢 EN CURSO AHORA")
             self.lbl_activa_titulo.setText(activa.nombre)
             cat_txt = activa.categoria.nombre if activa.categoria else "Sin categoría"
             self.lbl_activa_detalle.setText(
                 f"Categoría: {cat_txt}  ·  Prioridad: {_etiqueta_prioridad_visual(activa.prioridad)}"
             )
+            self.btn_pausar.setVisible(True)
+            self.btn_finalizar.setVisible(True)
+            self.btn_siguiente.setVisible(True)
             self.btn_pausar.setEnabled(True)
             self.btn_finalizar.setEnabled(True)
             self.btn_siguiente.setEnabled(True)
@@ -355,6 +422,7 @@ class PantallaHoy(QWidget):
 
             res_prod = srv_prod.calcular_jornada(jornada)
 
+            self.lbl_guia_vacia.setVisible(len(todas) == 0)
             self.tabla.setRowCount(len(todas))
             fila_seleccionar = -1
 
@@ -418,6 +486,7 @@ class PantallaHoy(QWidget):
                 self.lbl_resumen_dia.setText("⚪ Día no laboral (solo registro de tiempo)")
 
         self.actualizar_reloj_en_vivo()
+        self._actualizar_acciones_segun_seleccion()
         if self.al_cambiar_estado:
             self.al_cambiar_estado()
 
