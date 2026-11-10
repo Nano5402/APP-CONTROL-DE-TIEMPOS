@@ -45,7 +45,7 @@ from data.models import Usuario
 from data.repositorios.catalogos import RepoCategorias, RepoPlantillas
 from data.repositorios.configuracion import RepoConfiguracion
 from services.backups import ServicioBackups
-from services.inicio_windows import ServicioInicioWindows
+from services.inicio_windows import ServicioInicioWindows, crear_accesos_directos_usuario
 from services.seguridad_pin import ServicioPIN
 from ui.temas import TEMAS
 
@@ -281,6 +281,14 @@ class PantallaConfiguracion(QWidget):
         )
         col_win.addWidget(self.chk_autostart)
         col_win.addWidget(self.chk_iniciar_oculta)
+
+        self.btn_crear_acceso_directo = QPushButton(
+            "📌  Crear acceso directo con logo en el Escritorio y Menú Inicio", card_win
+        )
+        self.btn_crear_acceso_directo.setProperty("rol", "secundario")
+        self.btn_crear_acceso_directo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_crear_acceso_directo.clicked.connect(self.accion_crear_accesos_directos)
+        col_win.addWidget(self.btn_crear_acceso_directo)
         col.addWidget(card_win)
 
         col.addStretch()
@@ -706,6 +714,23 @@ class PantallaConfiguracion(QWidget):
         )
         if archivo:
             self.txt_logo_ruta.setText(archivo)
+
+    def accion_crear_accesos_directos(self) -> None:
+        creados = crear_accesos_directos_usuario()
+        if creados:
+            rutas_txt = "\n".join(f"• {r}" for r in creados)
+            QMessageBox.information(
+                self,
+                "Accesos directos creados",
+                "Se crearon los accesos directos con el logo de la app en:\n\n"
+                f"{rutas_txt}\n\n"
+                "Para anclarla a la barra de tareas: abre la app desde ese icono, "
+                "haz clic derecho sobre su icono en la barra de tareas y elige «Anclar a la barra de tareas».",
+            )
+        else:
+            QMessageBox.warning(
+                self, "Aviso", "No se pudieron crear los accesos directos automáticamente."
+            )
 
     def accion_crear_plantilla(self) -> None:
         nombre = self.txt_plant_nombre.text().strip()

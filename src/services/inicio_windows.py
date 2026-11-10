@@ -11,6 +11,8 @@ inicie minimizada en la bandeja del sistema.
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Protocol
@@ -116,3 +118,72 @@ class ServicioInicioWindows:
             return True
         self.desactivar()
         return False
+
+
+def crear_acceso_directo_lnk(ruta_lnk: Path) -> Path:
+    """Crea un acceso directo ``.lnk`` de Windows con el logo corporativo ``icono_app.ico``."""
+    es_congelado = getattr(sys, "frozen", False)
+    exe = Path(sys.executable).resolve()
+    if es_congelado:
+        target = str(exe)
+        argumentos = ""
+        workdir = str(exe.parent)
+    else:
+        pythonw = exe.with_name("pythonw.exe")
+        target = str(pythonw if pythonw.exists() else exe)
+        main_py = Path(__file__).resolve().parents[1] / "main.py"
+        argumentos = f'"{main_py}"'
+        workdir = str(main_py.parents[1])
+
+    ruta_icono = rutas.carpeta_assets() / "icono_app.ico"
+    ruta_lnk.parent.mkdir(parents=True, exist_ok=True)
+
+    script_ps = (
+        "$ws = New-Object -ComObject WScript.Shell; "
+        f"$s = $ws.CreateShortcut('{ruta_lnk}'); "
+        f"$s.TargetPath = '{target}'; "
+        f"$s.Arguments = '{argumentos}'; "
+        f"$s.WorkingDirectory = '{workdir}'; "
+        f"$s.IconLocation = '{ruta_icono},0'; "
+        "$s.Description = 'Control de Tiempos — Gente Util'; "
+        "$s.Save()"
+    )
+    subprocess.run(
+        ["powershell", "-NoProfile", "-NonInteractive", "-Command", script_ps],
+        check=True,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    return ruta_lnk
+
+
+def crear_accesos_directos_usuario() -> list[Path]:
+    """Crea el acceso directo con logo en el Escritorio, Menú Inicio y carpeta del proyecto."""
+    nombre_lnk = "Control de Tiempos - Gente Util.lnk"
+    destinos: list[Path] = []
+
+    escritorio = Path.home() / "Desktop" / nombre_lnk
+    destinos.append(escritorio)
+
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        menu_inicio = (
+            Path(appdata)
+            / "Microsoft"
+            / "Windows"
+            / "Start Menu"
+            / "Programs"
+            / nombre_lnk
+        )
+        destinos.append(menu_inicio)
+
+    raiz_proy = Path(__file__).resolve().parents[2] / nombre_lnk
+    destinos.append(raiz_proy)
+
+    creados: list[Path] = []
+    for d in destinos:
+        try:
+            crear_acceso_directo_lnk(d)
+            creados.append(d)
+        except Exception:
+            pass
+    return creados
