@@ -61,6 +61,12 @@ CONFIGURACION_POR_DEFECTO: dict[str, str] = {
     # Sistema
     "sistema.inicio_con_windows": "1",
     "sistema.iniciar_minimizada_bandeja": "0",
+    # Gráficos y pantalla
+    "graficos.resolucion": "1180x740",
+    "graficos.modo_ventana": "ventana",
+    "graficos.tamano_fuente": "13",
+    "graficos.mini_tamano": "normal",
+    "graficos.mini_opacidad": "95",
     # Atajos de teclado (RF-12): desactivados (vacíos) por defecto para no interferir
     # mientras el usuario trabaja en otros programas; cada persona los define a su gusto.
     "atajo.iniciar_pausar": "",

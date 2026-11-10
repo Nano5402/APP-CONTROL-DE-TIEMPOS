@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
     QWidget,
@@ -162,6 +163,7 @@ class VentanaPrincipal(QMainWindow):
             bd,
             al_cambiar_tema=self.aplicar_tema,
             al_cambiar_atajos=self.recargar_atajos,
+            al_cambiar_graficos=self.aplicar_graficos,
             parent=self.paginas,
         )
 
@@ -173,6 +175,16 @@ class VentanaPrincipal(QMainWindow):
         self.paginas.addWidget(self.pantalla_reportes)
         self.paginas.addWidget(self.pantalla_estadisticas)
         self.paginas.addWidget(self.pantalla_config)
+
+        # Evita que etiquetas largas fuercen un ancho mínimo mayor a la pantalla del portátil
+        self.paginas.setSizePolicy(
+            QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored
+        )
+        self.paginas.setMinimumSize(640, 440)
+        self.setMinimumSize(900, 580)
+        for lbl in self.paginas.findChildren(QLabel):
+            if len(lbl.text()) > 32:
+                lbl.setWordWrap(True)
 
         layout_raiz.addWidget(sidebar)
         layout_raiz.addWidget(self.paginas, 1)
@@ -190,11 +202,8 @@ class VentanaPrincipal(QMainWindow):
         self.timer_reloj.timeout.connect(self._tick_reloj)
         self.timer_reloj.start()
 
-        # Aplicar el tema guardado por el usuario
-        with self.bd.sesion() as s:
-            usr = s.scalar(select(Usuario).limit(1))
-            tema_inicial = usr.tema if usr and usr.tema else "gente_util"
-        self.aplicar_tema(tema_inicial)
+        # Aplicar el tema, resolución y preferencias gráficas guardadas por el usuario
+        self.aplicar_graficos()
         self._tick_reloj()
 
     def _crear_boton_nav(self, texto: str, indice: int, parent: QWidget) -> QPushButton:
@@ -211,14 +220,52 @@ class VentanaPrincipal(QMainWindow):
         if hasattr(widget, "refrescar"):
             widget.refrescar()
 
-    def aplicar_tema(self, codigo_tema: str) -> None:
-        qss = generar_qss(codigo_tema)
+    def aplicar_tema(self, codigo_tema: str, *, tamano_fuente_px: int = 13) -> None:
+        qss = generar_qss(codigo_tema, tamano_fuente_px=tamano_fuente_px)
         app = QApplication.instance()
         if app is not None:
             app.setStyleSheet(qss)
         else:
             self.setStyleSheet(qss)
         self.mini_widget.setStyleSheet(qss)
+
+    def aplicar_graficos(self) -> None:
+        """Aplica tema, tamaño de letra, resolución, modo de ventana y mini-ventana."""
+        with self.bd.sesion() as s:
+            usr = s.scalar(select(Usuario).limit(1))
+            tema_actual = usr.tema if usr and usr.tema else "gente_util"
+            cfg = RepoConfiguracion(s)
+            resolucion = cfg.obtener("graficos.resolucion", "1180x740") or "1180x740"
+            modo_ventana = cfg.obtener("graficos.modo_ventana", "ventana") or "ventana"
+            tam_fuente = cfg.obtener_int("graficos.tamano_fuente", 13)
+            mini_tamano = cfg.obtener("graficos.mini_tamano", "normal") or "normal"
+            mini_opacidad = cfg.obtener_int("graficos.mini_opacidad", 95)
+
+        self.aplicar_tema(tema_actual, tamano_fuente_px=tam_fuente)
+        self.mini_widget.aplicar_preferencias_visuales(mini_tamano, mini_opacidad)
+
+        try:
+            ancho_s, alto_s = resolucion.lower().split("x")
+            ancho, alto = max(900, int(ancho_s)), max(620, int(alto_s))
+        except Exception:
+            ancho, alto = 1180, 740
+
+        if modo_ventana == "pantalla_completa":
+            if self.isVisible():
+                self.showFullScreen()
+            else:
+                self.setWindowState(Qt.WindowState.WindowFullScreen)
+        elif modo_ventana == "maximizada":
+            if self.isVisible():
+                self.showMaximized()
+            else:
+                self.setWindowState(Qt.WindowState.WindowMaximized)
+        else:
+            if self.isMaximized() or self.isFullScreen():
+                self.showNormal()
+            else:
+                self.setWindowState(Qt.WindowState.WindowNoState)
+            self.resize(ancho, alto)
 
     def mostrar_ocultar_mini_widget(self, visible: bool) -> None:
         self.btn_toggle_mini.blockSignals(True)

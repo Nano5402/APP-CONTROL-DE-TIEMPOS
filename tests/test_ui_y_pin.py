@@ -107,7 +107,21 @@ def test_ventana_principal_pantallas_y_mini_widget_offscreen(bd, monkeypatch):
     assert "Flyer 1" in ventana.pantalla_cierre.txt_resumen_wa.toPlainText()
     assert "Flyer 2" in ventana.pantalla_cierre.txt_resumen_wa.toPlainText()
 
-    # 4. Cambiar de tema en vivo
+    # 4. Verificar pestañas segmentadas de Configuración y sección de Gráficos
+    ventana.cambiar_pagina(7)
+    assert ventana.pantalla_config.tabs_config.count() == 5
+    assert "Gráficos" in ventana.pantalla_config.tabs_config.tabText(0)
+    with bd.sesion() as s:
+        cfg = RepoConfiguracion(s)
+        cfg.guardar("graficos.resolucion", "1280x800")
+        cfg.guardar("graficos.tamano_fuente", 15)
+        cfg.guardar("graficos.mini_tamano", "grande")
+    ventana.aplicar_graficos()
+    assert ventana.width() == 1280
+    assert ventana.height() == 800
+    assert ventana.mini_widget.width() == 420
+
+    # 5. Cambiar de tema en vivo
     ventana.aplicar_tema("oscuro")
     ventana.mostrar_ocultar_mini_widget(False)
     ventana.close()

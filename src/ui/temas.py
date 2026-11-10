@@ -152,20 +152,49 @@ def obtener_paleta(codigo: str | None) -> PaletaTema:
     return TEMAS.get(codigo or "claro", TEMAS["claro"])
 
 
-def generar_qss(codigo: str | None = "claro") -> str:
-    """Construye la hoja de estilo QSS completa para el tema indicado."""
+def generar_qss(codigo: str | None = "claro", *, tamano_fuente_px: int = 13) -> str:
+    """Construye la hoja de estilo QSS completa para el tema y escala indicados."""
     t = obtener_paleta(codigo)
+    f_base = max(11, min(20, int(tamano_fuente_px)))
+    f_sub = max(10, f_base - 1)
+    f_tit = f_base + 9
+    f_reloj = f_base + 27
     return f"""
     QMainWindow, QDialog {{
         background-color: {t.fondo_ventana};
         color: {t.texto_principal};
         font-family: "Segoe UI", Arial, sans-serif;
-        font-size: 13px;
+        font-size: {f_base}px;
     }}
     QWidget {{
         color: {t.texto_principal};
         font-family: "Segoe UI", Arial, sans-serif;
-        font-size: 13px;
+        font-size: {f_base}px;
+    }}
+    /* Pestañas segmentadas (Configuración, etc.) */
+    QTabWidget::pane {{
+        background-color: transparent;
+        border: none;
+        margin-top: 8px;
+    }}
+    QTabBar::tab {{
+        background-color: {t.fondo_panel};
+        color: {t.texto_secundario};
+        border: 1px solid {t.borde_fuerte};
+        border-radius: 8px;
+        padding: 9px 16px;
+        margin-right: 6px;
+        font-weight: 600;
+    }}
+    QTabBar::tab:hover {{
+        color: {t.texto_principal};
+        border-color: {t.acento};
+    }}
+    QTabBar::tab:selected {{
+        background-color: {t.acento};
+        color: #FFFFFF;
+        border-color: {t.acento};
+        font-weight: bold;
     }}
     /* Barra lateral */
     QFrame#sidebar {{
@@ -245,14 +274,14 @@ def generar_qss(codigo: str | None = "claro") -> str:
         padding: 10px 18px;
     }}
     QLabel#relojGrande {{
-        font-size: 40px;
+        font-size: {f_reloj}px;
         font-weight: bold;
         color: {t.acento};
         font-family: "Cascadia Mono", "Consolas", "Segoe UI", monospace;
         background: transparent;
     }}
     QLabel#relojMini {{
-        font-size: 20px;
+        font-size: {f_base + 7}px;
         font-weight: bold;
         color: {t.acento};
         font-family: "Cascadia Mono", "Consolas", "Segoe UI", monospace;
@@ -275,13 +304,13 @@ def generar_qss(codigo: str | None = "claro") -> str:
         padding: 3px 8px;
     }}
     QLabel#tituloPantalla {{
-        font-size: 22px;
+        font-size: {f_tit}px;
         font-weight: bold;
         color: {t.texto_principal};
     }}
     QLabel#subtitulo {{
         color: {t.texto_secundario};
-        font-size: 12px;
+        font-size: {f_sub}px;
     }}
     /* Botones */
     QPushButton {{

@@ -120,3 +120,17 @@ class MiniWidgetCronometro(QWidget):
             self.btn_siguiente.setEnabled(activa)
             if nombre_siguiente:
                 self.btn_siguiente.setToolTip(f"Terminar e iniciar «{nombre_siguiente}»")
+
+    def aplicar_preferencias_visuales(
+        self, tamano: str = "normal", opacidad_pct: int = 95
+    ) -> None:
+        """Ajusta el tamaño y la opacidad de la mini-ventana flotante."""
+        dimensiones = {
+            "compacta": (310, 118),
+            "normal": (348, 130),
+            "grande": (420, 152),
+        }
+        ancho, alto = dimensiones.get(tamano, (348, 130))
+        self.setFixedSize(ancho, alto)
+        opacidad = max(0.60, min(1.0, int(opacidad_pct) / 100.0))
+        self.setWindowOpacity(opacidad)
