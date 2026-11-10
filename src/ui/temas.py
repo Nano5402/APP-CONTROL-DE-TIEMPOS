@@ -175,8 +175,8 @@ def obtener_paleta(codigo: str | None) -> PaletaTema:
 def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13) -> str:
     """Construye la hoja de estilo QSS completa con tipografía Montserrat y efecto Glassmorphism."""
     t = obtener_paleta(codigo)
-    f_base = max(11, min(20, int(tamano_fuente_px)))
-    f_sub = max(10, f_base - 1)
+    f_base = max(13, min(20, int(tamano_fuente_px)))
+    f_sub = max(12, f_base - 1)
     f_tit = f_base + 9
     f_reloj = f_base + 26
     color_reloj = t.acento
@@ -190,11 +190,16 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         color: {t.texto_principal};
         font-family: {fuente_familia};
         font-size: {f_base}px;
+        font-weight: 500;
     }}
     QWidget {{
         color: {t.texto_principal};
         font-family: {fuente_familia};
         font-size: {f_base}px;
+        font-weight: 500;
+    }}
+    QLabel {{
+        color: {t.texto_principal};
     }}
     /* Pestañas segmentadas en estilo cápsula de vidrio */
     QTabWidget::pane {{
@@ -410,11 +415,11 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         background-color: {t.fondo_panel};
         color: {t.texto_principal};
         border: 1px solid {t.borde_fuerte};
-        border-radius: 14px;
-        padding: 4px 12px;
-        font-size: 11px;
+        border-radius: 8px;
+        padding: 6px 14px;
+        font-size: 13px;
         font-weight: 600;
-        min-height: 20px;
+        min-height: 28px;
     }}
     QPushButton[chip="true"]:hover {{
         background-color: {t.acento};
@@ -424,11 +429,11 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
     QLabel#chipMetricaPlan {{
         background-color: {t.acento_suave};
         color: {t.acento};
-        border: 1px solid {t.borde_fuerte};
+        border: 1.5px solid rgba(0, 61, 149, 0.28);
         border-radius: 8px;
-        padding: 4px 10px;
-        font-size: 11px;
-        font-weight: 600;
+        padding: 6px 14px;
+        font-size: 13px;
+        font-weight: 700;
     }}
     /* Entradas de formulario Glass */
     QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox,
@@ -438,8 +443,10 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         border: 1px solid {t.borde_fuerte};
         border-radius: 9px;
         padding: 8px 12px;
-        min-height: 22px;
+        min-height: 24px;
         font-family: {fuente_familia};
+        font-size: {f_base}px;
+        font-weight: 500;
     }}
     QLineEdit:focus, QTextEdit:focus, QPlainTextEdit:focus, QComboBox:focus,
     QSpinBox:focus, QDateEdit:focus, QDateTimeEdit:focus, QKeySequenceEdit:focus {{
@@ -458,10 +465,13 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         selection-color: {t.texto_seleccion};
         outline: none;
         font-family: {fuente_familia};
+        font-size: {f_base}px;
     }}
     QTableWidget::item {{
-        padding: 7px 10px;
+        padding: 8px 12px;
         border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+        color: {t.texto_principal};
+        font-size: {f_base}px;
     }}
     QTableWidget::item:selected, QListWidget::item:selected {{
         background-color: {t.seleccion_tabla};
@@ -470,14 +480,14 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
     }}
     QHeaderView::section {{
         background-color: {t.fondo_hero};
-        color: {t.texto_secundario};
+        color: {t.texto_principal};
         font-weight: 700;
-        font-size: 11px;
-        letter-spacing: 0.8px;
+        font-size: 13px;
+        letter-spacing: 0.5px;
         text-transform: uppercase;
         border: none;
-        border-bottom: 2px solid {t.borde_fuerte};
-        padding: 11px 10px;
+        border-bottom: 2px solid {t.acento};
+        padding: 10px 12px;
         font-family: {fuente_familia};
     }}
     /* Barra de progreso */

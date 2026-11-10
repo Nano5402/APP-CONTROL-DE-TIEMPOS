@@ -315,4 +315,44 @@ def test_pantalla_planear_mejoras_chips_reordenar_editar_e_iniciar(bd, monkeypat
     ventana.close()
 
 
+def test_pantalla_planear_limpiar_todo_el_plan(bd, monkeypatch):
+    """Verifica que el botón 'Limpiar todo el plan' vacía la lista completa tras confirmación."""
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QMessageBox
+    from ui.ventana_principal import VentanaPrincipal
+
+    _app = QApplication.instance() or QApplication([])
+    ventana = VentanaPrincipal(bd)
+    ventana.show()
+    plan = ventana.pantalla_planear
+
+    # Navegar a Planear el día
+    ventana.cambiar_pagina(1)
+    assert plan.tabla_planeadas.rowCount() == 0
+    assert plan.btn_limpiar_todo.isEnabled() is False
+
+    # Agregar 3 tareas
+    plan.btn_chip_flyers.click()
+    plan.btn_chip_redes.click()
+    plan.btn_chip_video.click()
+    assert plan.tabla_planeadas.rowCount() == 3
+    assert plan.btn_limpiar_todo.isEnabled() is True
+    assert "3 actividades" in plan.lbl_chip_total.text()
+
+    # Si el usuario responde No a la confirmación, no se borra nada
+    monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.No)
+    plan.accion_limpiar_todo_el_plan()
+    assert plan.tabla_planeadas.rowCount() == 3
+
+    # Si el usuario responde Yes, se vacía toda la lista
+    monkeypatch.setattr(QMessageBox, "question", lambda *args, **kwargs: QMessageBox.StandardButton.Yes)
+    plan.accion_limpiar_todo_el_plan()
+    assert plan.tabla_planeadas.rowCount() == 0
+    assert "0 actividades" in plan.lbl_chip_total.text()
+    assert plan.btn_limpiar_todo.isEnabled() is False
+
+    ventana.close()
+
+
+
 

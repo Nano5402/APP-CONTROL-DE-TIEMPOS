@@ -14,6 +14,7 @@ from collections.abc import Callable
 from datetime import date
 
 from PySide6.QtCore import QStringListModel, Qt, QTimer
+from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -266,7 +267,7 @@ class PantallaPlanear(QWidget):
         fila_chips = QHBoxLayout()
         fila_chips.setSpacing(8)
         lbl_frec = QLabel("⚡ Tareas frecuentes (1 clic):", self)
-        lbl_frec.setStyleSheet("color: #64748B; font-weight: 600; font-size: 11px;")
+        lbl_frec.setStyleSheet("font-weight: 700; font-size: 13px; padding-right: 4px;")
         fila_chips.addWidget(lbl_frec)
 
         self.btn_chip_flyers = QPushButton("  + Flyers", self)
@@ -343,15 +344,15 @@ class PantallaPlanear(QWidget):
         self.tabla_planeadas.setAlternatingRowColors(True)
         self.tabla_planeadas.setShowGrid(False)
         self.tabla_planeadas.verticalHeader().setVisible(False)
-        self.tabla_planeadas.verticalHeader().setDefaultSectionSize(36)
+        self.tabla_planeadas.verticalHeader().setDefaultSectionSize(40)
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        self.tabla_planeadas.setColumnWidth(0, 36)
-        self.tabla_planeadas.setColumnWidth(3, 85)
-        self.tabla_planeadas.setColumnWidth(4, 85)
+        self.tabla_planeadas.setColumnWidth(0, 42)
+        self.tabla_planeadas.setColumnWidth(3, 95)
+        self.tabla_planeadas.setColumnWidth(4, 95)
         self.tabla_planeadas.itemSelectionChanged.connect(self._actualizar_estado_botones)
         self.tabla_planeadas.cellDoubleClicked.connect(self.accion_editar_planeada)
         col_tabla.addWidget(self.tabla_planeadas, 1)
@@ -391,6 +392,13 @@ class PantallaPlanear(QWidget):
         configurar_boton(self.btn_quitar_planeada, "trash", color="#0F172A", tamano=12)
         self.btn_quitar_planeada.clicked.connect(self.accion_quitar_planeada)
 
+        self.btn_limpiar_todo = QPushButton("  Limpiar todo el plan", self)
+        self.btn_limpiar_todo.setProperty("rol", "secundario")
+        self.btn_limpiar_todo.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_limpiar_todo.setToolTip("Vacía todas las actividades planeadas de hoy para empezar de cero")
+        configurar_boton(self.btn_limpiar_todo, "trash-2", color="#DC2626", tamano=12)
+        self.btn_limpiar_todo.clicked.connect(self.accion_limpiar_todo_el_plan)
+
         self.btn_iniciar_ahora = QPushButton("  ▶ Iniciar tarea ya", self)
         self.btn_iniciar_ahora.setProperty("rol", "exito")
         self.btn_iniciar_ahora.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -401,6 +409,7 @@ class PantallaPlanear(QWidget):
         fila_acciones.addWidget(self.btn_bajar)
         fila_acciones.addWidget(self.btn_editar)
         fila_acciones.addWidget(self.btn_quitar_planeada)
+        fila_acciones.addWidget(self.btn_limpiar_todo)
         fila_acciones.addStretch()
         fila_acciones.addWidget(self.btn_iniciar_ahora)
         col_tabla.addLayout(fila_acciones)
@@ -479,6 +488,7 @@ class PantallaPlanear(QWidget):
         self.btn_bajar.setEnabled(has_sel and row < count - 1)
         self.btn_editar.setEnabled(has_sel)
         self.btn_quitar_planeada.setEnabled(has_sel)
+        self.btn_limpiar_todo.setEnabled(count > 0)
         self.btn_iniciar_ahora.setEnabled(has_sel)
 
     def refrescar(self) -> None:
@@ -542,6 +552,9 @@ class PantallaPlanear(QWidget):
                 item_num.setData(Qt.ItemDataRole.UserRole, act.id)
 
                 item_nom = QTableWidgetItem(act.nombre)
+                f_nom = item_nom.font()
+                f_nom.setWeight(QFont.Weight.DemiBold)
+                item_nom.setFont(f_nom)
 
                 cat_nom = act.categoria.nombre if act.categoria else "Sin categoría"
                 item_cat = QTableWidgetItem(cat_nom)
@@ -653,6 +666,44 @@ class PantallaPlanear(QWidget):
                 ServicioActividades(s).cambiar_estado_manual(
                     act, EstadoActividad.ELIMINADA, motivo="Quitada del plan por el usuario"
                 )
+        self.refrescar()
+        if self.al_cambiar_plan:
+            self.al_cambiar_plan()
+
+    def accion_limpiar_todo_el_plan(self) -> None:
+        """Vacía en 1 clic todas las actividades planeadas del día tras confirmación."""
+        count = self.tabla_planeadas.rowCount()
+        if count == 0:
+            QMessageBox.information(
+                self,
+                "Plan vacío",
+                "No tienes actividades en tu plan de hoy para limpiar.",
+            )
+            return
+
+        resp = QMessageBox.question(
+            self,
+            "Limpiar todo el plan",
+            f"¿Deseas vaciar las {count} actividades de tu plan de hoy para comenzar de cero?\n\n"
+            "Esta acción quitará todas las tareas de la lista y del mensaje de WhatsApp.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if resp != QMessageBox.StandardButton.Yes:
+            return
+
+        with self.bd.sesion() as s:
+            jornada = RepoJornadas(s).obtener_o_crear()
+            srv_act = ServicioActividades(s)
+            visibles = [
+                a
+                for a in srv_act.listar_visibles_jornada(jornada.id)
+                if a.tipo == TipoActividad.PLANEADA.value and not a.es_revision
+            ]
+            for act in visibles:
+                srv_act.cambiar_estado_manual(
+                    act, EstadoActividad.ELIMINADA, motivo="Plan vaciado por el usuario"
+                )
+
         self.refrescar()
         if self.al_cambiar_plan:
             self.al_cambiar_plan()
