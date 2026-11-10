@@ -242,4 +242,77 @@ def test_modos_visualizacion_configuracion_y_pantalla_completa(bd, monkeypatch):
     ventana.close()
 
 
+def test_pantalla_planear_mejoras_chips_reordenar_editar_e_iniciar(bd, monkeypatch):
+    """Verifica las mejoras de PantallaPlanear: chips de 1 clic, reordenamiento, inicio directo y copia."""
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication
+    from ui.ventana_principal import VentanaPrincipal
+
+    _app = QApplication.instance() or QApplication([])
+    ventana = VentanaPrincipal(bd)
+    ventana.show()
+    plan = ventana.pantalla_planear
+
+    # 1. Navegar a Planear el día
+    ventana.cambiar_pagina(1)
+    assert plan.tabla_planeadas.rowCount() == 0
+
+    # 2. Agregar tareas con chips de 1 clic
+    plan.btn_chip_flyers.click()
+    assert plan.tabla_planeadas.rowCount() == 1
+    assert plan.tabla_planeadas.item(0, 1).text() == "Flyers"
+    assert plan.tabla_planeadas.item(0, 2).text() == "Flyers"
+
+    plan.btn_chip_redes.click()
+    assert plan.tabla_planeadas.rowCount() == 2
+    assert "redes" in plan.tabla_planeadas.item(1, 1).text().lower()
+
+    # 3. Agregar tarea manual con tiempo estimado
+    plan.txt_nombre.setText("Video institucional")
+    plan.txt_categoria.setText("Videos")
+    plan.spin_estimado.setValue(45)
+    plan.accion_agregar_planeada()
+    assert plan.tabla_planeadas.rowCount() == 3
+
+    # 4. Verificar métricas del encabezado
+    assert "3 actividades" in plan.lbl_chip_total.text()
+    assert "45 min" in plan.lbl_chip_tiempo.text()
+
+    # 5. Reordenar tareas (subir la segunda tarea para que quede de primera)
+    plan.tabla_planeadas.selectRow(1)
+    plan.accion_subir_planeada()
+
+    # Ahora la fila 0 debe ser la de redes y la 1 la de flyers
+    assert "redes" in plan.tabla_planeadas.item(0, 1).text().lower()
+    assert plan.tabla_planeadas.item(1, 1).text() == "Flyers"
+    wa_texto = plan.txt_plan_whatsapp.toPlainText()
+    assert "1. Posts de redes sociales" in wa_texto
+    assert "2. Flyers" in wa_texto
+
+    # 6. Iniciar directamente una tarea desde la tabla de planeadas
+    plan.tabla_planeadas.setCurrentCell(0, 1)
+    plan.tabla_planeadas.selectRow(0)
+    assert plan.btn_iniciar_ahora.isEnabled() is True
+    plan.accion_iniciar_planeada()
+
+    # Debe haber saltado automáticamente a la página de Hoy y el reloj estar activo
+    assert ventana.paginas.currentIndex() == 0
+    nombre_activo, _ = ventana.pantalla_hoy.actualizar_reloj_en_vivo()
+    assert "redes" in nombre_activo.lower()
+
+    # Pausar en BD antes de cerrar para evitar el diálogo interactivo de cierre con tarea activa
+    from services.cronometro import ServicioCronometro
+    with bd.sesion() as s:
+        cron = ServicioCronometro(s)
+        act = cron.actividad_en_curso()
+        if act:
+            cron.pausar(act, motivo="Pausa de prueba")
+
+    # 7. Copiar para WhatsApp y verificar feedback visual
+    plan.accion_copiar_whatsapp()
+    assert "✓" in plan.btn_copiar_wa.text()
+
+    ventana.close()
+
+
 

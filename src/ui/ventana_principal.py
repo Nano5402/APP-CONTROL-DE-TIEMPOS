@@ -275,7 +275,10 @@ class VentanaPrincipal(QMainWindow):
             bd, al_cambiar_estado=self._sincronizar_vistas, parent=self.paginas
         )
         self.pantalla_planear = PantallaPlanear(
-            bd, al_cambiar_plan=self._al_actualizar_datos, parent=self.paginas
+            bd,
+            al_cambiar_plan=self._al_actualizar_datos,
+            al_ir_a_hoy=self._ir_a_hoy_y_refrescar,
+            parent=self.paginas,
         )
         self.pantalla_extra = PantallaExtra(
             bd, al_crear_extra=self._ir_a_hoy_y_refrescar, parent=self.paginas

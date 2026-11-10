@@ -406,6 +406,30 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         border-color: {t.acento};
         color: {t.acento};
     }}
+    QPushButton[chip="true"] {{
+        background-color: {t.fondo_panel};
+        color: {t.texto_principal};
+        border: 1px solid {t.borde_fuerte};
+        border-radius: 14px;
+        padding: 4px 12px;
+        font-size: 11px;
+        font-weight: 600;
+        min-height: 20px;
+    }}
+    QPushButton[chip="true"]:hover {{
+        background-color: {t.acento};
+        color: #FFFFFF;
+        border-color: {t.acento};
+    }}
+    QLabel#chipMetricaPlan {{
+        background-color: {t.acento_suave};
+        color: {t.acento};
+        border: 1px solid {t.borde_fuerte};
+        border-radius: 8px;
+        padding: 4px 10px;
+        font-size: 11px;
+        font-weight: 600;
+    }}
     /* Entradas de formulario Glass */
     QLineEdit, QTextEdit, QPlainTextEdit, QComboBox, QSpinBox, QDoubleSpinBox,
     QTimeEdit, QDateEdit, QDateTimeEdit, QKeySequenceEdit {{
