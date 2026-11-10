@@ -92,9 +92,22 @@ def main(argv: list[str] | None = None) -> int:
             except Exception as exc:
                 log.warning("No se pudo sincronizar el inicio automático con Windows: %s", exc)
 
+        # En Windows 10/11 asigna un AppUserModelID propio antes de crear QApplication
+        # para que la barra de tareas muestre el logo de Control de Tiempos en lugar del icono de Python.
+        if sys.platform == "win32":
+            try:
+                import ctypes
+
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+                    f"GenteUtil.ControlTiempos.Desktop.{rutas.VERSION}"
+                )
+            except Exception:
+                pass
+
         app = QApplication(sys.argv)
         app.setApplicationName(rutas.NOMBRE_VISIBLE)
-        app.setWindowIcon(crear_icono_app())
+        icono_app = crear_icono_app()
+        app.setWindowIcon(icono_app)
         app.setQuitOnLastWindowClosed(False)
 
         ocultar_ventana_al_arrancar = bool(args.bandeja and iniciar_oculta)

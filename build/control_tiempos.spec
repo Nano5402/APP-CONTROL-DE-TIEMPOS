@@ -52,6 +52,7 @@ exe = EXE(
     upx=False,
     console=False,
     disable_windowed_traceback=False,
+    icon=str(SRC / "assets" / "icono_app.ico"),
     uac_admin=False,
     uac_uiaccess=False,
 )

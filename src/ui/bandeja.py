@@ -10,8 +10,8 @@ Incluye:
 
 from __future__ import annotations
 
-from PySide6.QtCore import QObject, QTimer
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtCore import QObject, Qt, QTimer
+from PySide6.QtGui import QAction, QColor, QIcon, QLinearGradient, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QMainWindow, QMenu, QSystemTrayIcon
 
 from config import rutas
@@ -23,20 +23,85 @@ from ui.dialogo_recordatorio import DialogoRecordatorio
 from ui.sonido import reproducir_tono_aviso
 
 
-def crear_icono_app() -> QIcon:
-    """Genera un icono limpio en memoria (reloj azul neutro) sin depender de archivos externos."""
-    pix = QPixmap(64, 64)
+def _dibujar_pixmap_icono(tamano: int) -> QPixmap:
+    """Dibuja el logo corporativo de Control de Tiempos (cronómetro Gente Util) a cualquier resolución."""
+    pix = QPixmap(tamano, tamano)
     pix.fill(QColor(0, 0, 0, 0))
     p = QPainter(pix)
     p.setRenderHint(QPainter.RenderHint.Antialiasing)
-    p.setBrush(QColor("#2563EB"))
-    p.setPen(QColor("#1E40AF"))
-    p.drawEllipse(4, 4, 56, 56)
-    p.setPen(QColor("#FFFFFF"))
-    p.drawLine(32, 32, 32, 16)
-    p.drawLine(32, 32, 46, 32)
+
+    s = float(tamano)
+    margen = max(2.0, s * 0.06)
+    lado = s - 2.0 * margen
+    radio = s * 0.24
+
+    # Fondo redondeado con degradado azul corporativo Gente Util
+    grad = QLinearGradient(0, margen, 0, s - margen)
+    grad.setColorAt(0.0, QColor("#1D4ED8"))
+    grad.setColorAt(1.0, QColor("#0A2E52"))
+    p.setBrush(grad)
+    p.setPen(QPen(QColor("#60A5FA"), max(1.0, s * 0.03)))
+    p.drawRoundedRect(int(margen), int(margen), int(lado), int(lado), radio, radio)
+
+    # Corona superior del cronómetro en ámbar
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor("#F59E0B"))
+    corona_w = max(4.0, s * 0.22)
+    corona_h = max(2.0, s * 0.08)
+    p.drawRoundedRect(
+        int((s - corona_w) / 2.0),
+        int( s * 0.13),
+        int(corona_w),
+        int(corona_h),
+        2.0,
+        2.0,
+    )
+
+    # Aro blanco del reloj
+    cx = s / 2.0
+    cy = s * 0.54
+    r_aro = s * 0.29
+    pen_aro = QPen(QColor("#FFFFFF"), max(1.8, s * 0.07))
+    pen_aro.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen_aro)
+    p.setBrush(QColor(15, 23, 42, 95))
+    p.drawEllipse(int(cx - r_aro), int(cy - r_aro), int(r_aro * 2), int(r_aro * 2))
+
+    # Manecillas del cronómetro (minuto arriba, hora/avance en verde/ámbar)
+    pen_min = QPen(QColor("#FFFFFF"), max(1.6, s * 0.065))
+    pen_min.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen_min)
+    p.drawLine(int(cx), int(cy), int(cx), int(cy - r_aro * 0.62))
+
+    pen_seg = QPen(QColor("#34D399"), max(1.6, s * 0.065))
+    pen_seg.setCapStyle(Qt.PenCapStyle.RoundCap)
+    p.setPen(pen_seg)
+    p.drawLine(int(cx), int(cy), int(cx + r_aro * 0.56), int(cy + r_aro * 0.22))
+
+    # Punto central
+    r_centro = max(1.5, s * 0.05)
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor("#F59E0B"))
+    p.drawEllipse(
+        int(cx - r_centro), int(cy - r_centro), int(r_centro * 2), int(r_centro * 2)
+    )
+
     p.end()
-    return QIcon(pix)
+    return pix
+
+
+def crear_icono_app() -> QIcon:
+    """Genera el icono multi-resolución para la barra de tareas de Windows, ventana y bandeja."""
+    ruta_ico = rutas.carpeta_assets() / "icono_app.ico"
+    icono = QIcon()
+    for tam in (16, 24, 32, 48, 64, 128, 256):
+        icono.addPixmap(_dibujar_pixmap_icono(tam))
+    if not ruta_ico.exists():
+        try:
+            _dibujar_pixmap_icono(256).save(str(ruta_ico), "ICO")
+        except Exception:
+            pass
+    return icono
 
 
 class IconoBandeja(QSystemTrayIcon):

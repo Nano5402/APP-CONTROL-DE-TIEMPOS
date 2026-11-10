@@ -25,6 +25,7 @@ from config import rutas
 from data.db import BaseDatos
 from data.models import Usuario
 from data.repositorios.configuracion import RepoConfiguracion
+from ui.bandeja import crear_icono_app
 from ui.mini_widget import MiniWidgetCronometro, formatear_reloj_hms
 from ui.pantallas.pantalla_cierre import PantallaCierre
 from ui.pantallas.pantalla_configuracion import PantallaConfiguracion
@@ -47,6 +48,8 @@ class VentanaPrincipal(QMainWindow):
         self._atajos_activos: list[QShortcut] = []
 
         self.setWindowTitle(f"{rutas.NOMBRE_VISIBLE} — Gente Util v{rutas.VERSION}")
+        icono_corporativo = crear_icono_app()
+        self.setWindowIcon(icono_corporativo)
         self.resize(1180, 740)
 
         # Mini-widget flotante siempre visible
@@ -55,6 +58,7 @@ class VentanaPrincipal(QMainWindow):
             al_finalizar=self._atajo_finalizar,
             al_siguiente_pieza=self._atajo_siguiente_pieza,
         )
+        self.mini_widget.setWindowIcon(icono_corporativo)
 
         contenedor = QWidget(self)
         layout_raiz = QHBoxLayout(contenedor)

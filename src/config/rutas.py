@@ -98,10 +98,13 @@ def carpeta_reportes() -> Path:
     return ruta
 
 
+def carpeta_assets() -> Path:
+    """Devuelve la carpeta de recursos gráficos (`src/assets`)."""
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(getattr(sys, "_MEIPASS")) / "assets"
+    return Path(__file__).resolve().parents[1] / "assets"
+
+
 def ruta_logo_por_defecto() -> Path:
     """Devuelve la ruta del logo corporativo por defecto de Gente Util."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        base = Path(getattr(sys, "_MEIPASS")) / "assets"
-    else:
-        base = Path(__file__).resolve().parents[1] / "assets"
-    return base / "logo_gente_util.svg"
+    return carpeta_assets() / "logo_gente_util.svg"
