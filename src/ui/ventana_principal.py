@@ -45,6 +45,7 @@ class VentanaPrincipal(QMainWindow):
         super().__init__()
         self.bd = bd
         self.coordinador_recordatorios = None
+        self.icono_bandeja = None
         self._atajos_activos: list[QShortcut] = []
 
         self.setWindowTitle(f"{rutas.NOMBRE_VISIBLE} — Gente Util v{rutas.VERSION}")
@@ -371,3 +372,97 @@ class VentanaPrincipal(QMainWindow):
 
     def _atajo_siguiente_pieza(self) -> None:
         self.pantalla_hoy.accion_finalizar_y_siguiente()
+
+    # ------------------------------------------------------------------
+    # Cierre seguro de la aplicación (evita procesos y sonidos zombis)
+    # ------------------------------------------------------------------
+
+    def closeEvent(self, event) -> None:
+        """Maneja el evento de cierre al hacer clic en la «X».
+
+        Si la opción 'minimizar_al_cerrar' no está activa (por defecto),
+        cierra y finaliza la aplicación por completo, deteniendo timers,
+        avisos sonoros y ocultando el icono de la bandeja.
+        """
+        from data.repositorios.configuracion import RepoConfiguracion
+        from services.cronometro import ServicioCronometro
+
+        with self.bd.sesion() as s:
+            cfg = RepoConfiguracion(s)
+            minimizar_al_cerrar = cfg.obtener_bool("sistema.minimizar_al_cerrar", False)
+            cron = ServicioCronometro(s)
+            activa = cron.actividad_en_curso()
+
+        # Si el usuario configuró explícitamente mantener en segundo plano
+        if (
+            minimizar_al_cerrar
+            and hasattr(self, "icono_bandeja")
+            and self.icono_bandeja
+            and self.icono_bandeja.isSystemTrayAvailable()
+        ):
+            event.ignore()
+            self.hide()
+            self.icono_bandeja.showMessage(
+                rutas.NOMBRE_VISIBLE,
+                "La aplicación sigue activa en la bandeja del reloj. Para salir por completo, clic derecho y «Salir por completo».",
+            )
+            return
+
+        # Si hay una actividad en curso con el cronómetro corriendo
+        if activa is not None:
+            from PySide6.QtWidgets import QMessageBox
+
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Actividad en curso")
+            msg.setIcon(QMessageBox.Icon.Question)
+            msg.setText(f"Tienes la actividad «{activa.nombre}» en curso.")
+            msg.setInformativeText(
+                "¿Deseas pausar la actividad y salir por completo, o minimizar la app en la bandeja del reloj?"
+            )
+            btn_salir = msg.addButton(
+                "Pausar y Salir por completo", QMessageBox.ButtonRole.AcceptRole
+            )
+            btn_min = msg.addButton(
+                "Minimizar a la bandeja", QMessageBox.ButtonRole.ActionRole
+            )
+            btn_cancel = msg.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+            msg.setDefaultButton(btn_salir)
+            msg.exec()
+
+            clic = msg.clickedButton()
+            if clic == btn_cancel:
+                event.ignore()
+                return
+            if clic == btn_min:
+                event.ignore()
+                self.hide()
+                if (
+                    hasattr(self, "icono_bandeja")
+                    and self.icono_bandeja
+                    and self.icono_bandeja.isSystemTrayAvailable()
+                ):
+                    self.icono_bandeja.showMessage(
+                        rutas.NOMBRE_VISIBLE,
+                        "El cronómetro sigue activo en segundo plano en la bandeja del reloj.",
+                    )
+                return
+
+            # Si eligió salir por completo con actividad en curso, la pausamos de forma limpia
+            with self.bd.sesion() as s:
+                cron = ServicioCronometro(s)
+                activa_ahora = cron.actividad_en_curso()
+                if activa_ahora is not None:
+                    cron.pausar(activa_ahora, motivo="Cierre de la aplicación")
+
+        # Cierre definitivo: detener timers, ocultar bandeja y cerrar proceso
+        if hasattr(self, "coordinador_recordatorios") and self.coordinador_recordatorios:
+            self.coordinador_recordatorios.detener()
+        if hasattr(self, "reloj_timer") and self.reloj_timer:
+            self.reloj_timer.stop()
+        if hasattr(self, "mini_widget") and self.mini_widget:
+            self.mini_widget.close()
+        if hasattr(self, "icono_bandeja") and self.icono_bandeja:
+            self.icono_bandeja.hide()
+
+        event.accept()
+        QApplication.quit()

@@ -279,8 +279,14 @@ class PantallaConfiguracion(QWidget):
             "(desmarca esta opción para que la ventana principal se abra en pantalla)",
             card_win,
         )
+        self.chk_minimizar_al_cerrar = QCheckBox(
+            "Al hacer clic en la «X» de la ventana, mantener la app en segundo plano en la bandeja "
+            "(desmarcado: cerrar la ventana cierra la aplicación por completo)",
+            card_win,
+        )
         col_win.addWidget(self.chk_autostart)
         col_win.addWidget(self.chk_iniciar_oculta)
+        col_win.addWidget(self.chk_minimizar_al_cerrar)
 
         self.btn_crear_acceso_directo = QPushButton(
             "📌  Crear acceso directo con logo en el Escritorio y Menú Inicio", card_win
@@ -577,6 +583,9 @@ class PantallaConfiguracion(QWidget):
             self.chk_iniciar_oculta.setChecked(
                 cfg.obtener_bool("sistema.iniciar_minimizada_bandeja", False)
             )
+            self.chk_minimizar_al_cerrar.setChecked(
+                cfg.obtener_bool("sistema.minimizar_al_cerrar", False)
+            )
 
             self.key_iniciar_pausar.setKeySequence(
                 QKeySequence(cfg.obtener("atajo.iniciar_pausar", "") or "")
@@ -654,6 +663,9 @@ class PantallaConfiguracion(QWidget):
 
             cfg.guardar("sistema.inicio_con_windows", autostart)
             cfg.guardar("sistema.iniciar_minimizada_bandeja", iniciar_oculta)
+            cfg.guardar(
+                "sistema.minimizar_al_cerrar", self.chk_minimizar_al_cerrar.isChecked()
+            )
 
             cfg.guardar(
                 "atajo.iniciar_pausar", self.key_iniciar_pausar.keySequence().toString()

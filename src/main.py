@@ -129,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
         coordinador = CoordinadorRecordatoriosUI(bd, ventana, bandeja)
         coordinador.iniciar()
         ventana.coordinador_recordatorios = coordinador
+        ventana.icono_bandeja = bandeja
 
         if not ocultar_ventana_al_arrancar:
             ventana.show()

@@ -164,3 +164,29 @@ def test_dialogo_pausa_y_visibilidad_contextual(monkeypatch):
     assert dlg.avance_pct is None
     dlg.close()
 
+
+def test_cierre_ventana_detiene_timers_y_cierra_por_completo(bd, monkeypatch):
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtGui import QCloseEvent
+    from PySide6.QtWidgets import QApplication
+
+    from ui.bandeja import CoordinadorRecordatoriosUI, IconoBandeja
+    from ui.ventana_principal import VentanaPrincipal
+
+    _app = QApplication.instance() or QApplication([])
+    ventana = VentanaPrincipal(bd)
+    bandeja = IconoBandeja(ventana)
+    coordinador = CoordinadorRecordatoriosUI(bd, ventana, bandeja)
+    coordinador.iniciar()
+    ventana.coordinador_recordatorios = coordinador
+    ventana.icono_bandeja = bandeja
+
+    assert coordinador.timer.isActive() is True
+
+    # Al cerrar la ventana, el coordinador se detiene y no quedan timers sonando
+    evento = QCloseEvent()
+    ventana.closeEvent(evento)
+    assert evento.isAccepted() is True
+    assert coordinador.timer.isActive() is False
+
+
