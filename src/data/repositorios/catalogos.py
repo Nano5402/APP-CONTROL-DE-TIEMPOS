@@ -11,11 +11,52 @@ from data.enums import Prioridad, Recurrencia, TipoSolicitante
 from data.models import Categoria, Plantilla, Solicitante
 
 
+CATEGORIAS_BASE: list[tuple[str, str]] = [
+    ("Flyers", "#003D95"),
+    ("Videos / Reels", "#0284C7"),
+    ("Redes Sociales", "#7C3AED"),
+    ("Banners / Pendones", "#D97706"),
+    ("Comunicados", "#15803D"),
+    ("Soporte / Ajustes", "#475569"),
+]
+
+
 class RepoCategorias:
     """Gestión de categorías libres creadas por el usuario (RF-01)."""
 
     def __init__(self, s: Session) -> None:
         self.s = s
+
+    def asegurar_categorias_base(self) -> list[Categoria]:
+        """Garantiza que las categorías iniciales (incluyendo ``Flyers``) existan si el catálogo está vacío."""
+        from data.models import Configuracion
+
+        clave = "catalogos.categorias_base_cargadas"
+        ya_cargadas = self.s.get(Configuracion, clave)
+        if not ya_cargadas:
+            for nombre, color in CATEGORIAS_BASE:
+                if self.buscar_por_nombre(nombre) is None:
+                    self.s.add(
+                        Categoria(
+                            nombre=nombre,
+                            color=color,
+                            activo=True,
+                        )
+                    )
+            self.s.add(Configuracion(clave=clave, valor="1"))
+            self.s.flush()
+        else:
+            # Asegura siempre que Flyers exista
+            if self.buscar_por_nombre("Flyers") is None:
+                self.s.add(Categoria(nombre="Flyers", color="#003D95", activo=True))
+                self.s.flush()
+        return self.listar_activas()
+
+    def desactivar(self, categoria_id: int) -> None:
+        cat = self.s.get(Categoria, categoria_id)
+        if cat is not None:
+            cat.activo = False
+            self.s.flush()
 
     def listar_activas(self) -> list[Categoria]:
         consulta = select(Categoria).where(Categoria.activo.is_(True)).order_by(Categoria.nombre)

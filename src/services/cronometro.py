@@ -408,6 +408,91 @@ class ServicioCronometro:
 
         return None, None
 
+    @staticmethod
+    def es_actividad_flyer(actividad: Actividad | None) -> bool:
+        """Indica si ``actividad`` pertenece a la categoría ``Flyers`` (la única que ofrece iniciar otro al terminar)."""
+        if actividad is None:
+            return False
+        if actividad.categoria and "flyer" in actividad.categoria.nombre.strip().lower():
+            return True
+        nom = actividad.nombre.strip().lower()
+        return nom == "flyer" or nom == "flyers" or nom.startswith("flyer ")
+
+    def siguiente_nombre_flyer_del_dia(self, jornada_id: int) -> str:
+        """Calcula el nombre numerado del siguiente Flyer en ``jornada_id`` (ej. ``Flyer 1``, ``Flyer 2``...)."""
+        from data.repositorios.catalogos import RepoCategorias
+
+        cat_flyers = RepoCategorias(self.s).obtener_o_crear("Flyers", "#003D95")
+        existentes = list(
+            self.s.scalars(
+                select(Actividad).where(
+                    Actividad.jornada_id == jornada_id,
+                    Actividad.estado != EstadoActividad.ELIMINADA.value,
+                    Actividad.es_revision.is_(False),
+                )
+            )
+        )
+        flyers_hoy = [
+            a
+            for a in existentes
+            if a.categoria_id == cat_flyers.id or self.es_actividad_flyer(a)
+        ]
+        max_num = 0
+        for a in flyers_hoy:
+            _base, num = separar_base_y_numero(a.nombre)
+            if num is not None and num > max_num:
+                max_num = num
+        siguiente_num = max(max_num + 1, len(flyers_hoy) + 1)
+        return f"Flyer {siguiente_num}"
+
+    def finalizar_e_iniciar_otro_flyer(
+        self,
+        actividad_actual: Actividad,
+        *,
+        nombre_nuevo: str | None = None,
+        descripcion_actual: str | None = None,
+        lugar: Lugar | str = Lugar.OFICINA,
+        momento: datetime | None = None,
+    ) -> Actividad:
+        """Finaliza el Flyer actual e inicia de inmediato otro Flyer (RF-02).
+
+        Si ya hay otro Flyer ``pendiente`` en la lista de hoy, inicia ese; de lo
+        contrario, crea el siguiente ``Flyer N`` bajo la categoría ``Flyers`` y lo inicia.
+        """
+        from data.repositorios.catalogos import RepoCategorias
+
+        instante = momento or ahora()
+        cat_flyers = RepoCategorias(self.s).obtener_o_crear("Flyers", "#003D95")
+        if actividad_actual.categoria_id is None:
+            actividad_actual.categoria_id = cat_flyers.id
+
+        self.finalizar(actividad_actual, descripcion=descripcion_actual, momento=instante)
+
+        # Si el usuario no especificó nombre y ya hay otro Flyer pendiente en la lista, usarlo
+        if not (nombre_nuevo and nombre_nuevo.strip()):
+            pendiente_flyer = self.s.scalar(
+                select(Actividad)
+                .where(
+                    Actividad.jornada_id == actividad_actual.jornada_id,
+                    Actividad.id != actividad_actual.id,
+                    Actividad.estado == EstadoActividad.PENDIENTE.value,
+                    Actividad.categoria_id == cat_flyers.id,
+                )
+                .order_by(Actividad.id)
+            )
+            if pendiente_flyer is not None:
+                return self.iniciar(pendiente_flyer, lugar=lugar, momento=instante)
+
+        nombre_obj = (
+            nombre_nuevo.strip()
+            if (nombre_nuevo and nombre_nuevo.strip())
+            else self.siguiente_nombre_flyer_del_dia(actividad_actual.jornada_id)
+        )
+        nueva = self._clonar_pieza(actividad_actual, nombre_obj, instante)
+        nueva.categoria_id = cat_flyers.id
+        self.s.flush()
+        return self.iniciar(nueva, lugar=lugar, momento=instante)
+
     def finalizar_y_empezar_siguiente(
         self,
         actividad_actual: Actividad,

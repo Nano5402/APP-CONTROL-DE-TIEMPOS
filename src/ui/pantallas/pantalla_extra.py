@@ -123,8 +123,11 @@ class PantallaExtra(QWidget):
         self.txt_motivo_urgencia = QLineEdit(self)
         self.txt_motivo_urgencia.setPlaceholderText("¿Por qué la necesitan hoy? (ej. Reunión, publicación urgente...)")
 
-        self.txt_categoria = QLineEdit(self)
-        self.txt_categoria.setPlaceholderText("Categoría (opcional, ej. Flyers)")
+        self.combo_categoria = QComboBox(self)
+        self.combo_categoria.setEditable(True)
+        self.txt_categoria = self.combo_categoria.lineEdit()
+        if self.txt_categoria is not None:
+            self.txt_categoria.setPlaceholderText("Elige o escribe categoría (ej. Flyers)")
 
         self.spin_estimado = QSpinBox(self)
         self.spin_estimado.setRange(0, 600)
@@ -155,7 +158,7 @@ class PantallaExtra(QWidget):
         form.addRow("", self.chk_aprobada_ing)
         form.addRow("¿Por qué medio la pidieron?*:", self.combo_canal)
         form.addRow("Motivo de la solicitud*:", self.txt_motivo_urgencia)
-        form.addRow("Categoría:", self.txt_categoria)
+        form.addRow("Categoría:", self.combo_categoria)
         form.addRow("Tiempo estimado:", self.spin_estimado)
         form.addRow("Fecha límite:", fila_lim)
         form.addRow("Descripción breve*:", self.txt_descripcion)
@@ -182,8 +185,10 @@ class PantallaExtra(QWidget):
         self.refrescar()
 
     def refrescar(self) -> None:
+        cat_actual = self.combo_categoria.currentText().strip()
         with self.bd.sesion() as s:
             solicitantes = RepoSolicitantes(s).listar_activos()
+            categorias = RepoCategorias(s).asegurar_categorias_base()
             self.combo_solicitante.blockSignals(True)
             self.combo_solicitante.clear()
             for sol in solicitantes:
@@ -191,6 +196,16 @@ class PantallaExtra(QWidget):
                     f"{sol.nombre} ({sol.tipo})", sol.id
                 )
             self.combo_solicitante.blockSignals(False)
+
+            self.combo_categoria.blockSignals(True)
+            self.combo_categoria.clear()
+            self.combo_categoria.addItem("Flyers")
+            for c in categorias:
+                if c.nombre.strip().lower() != "flyers":
+                    self.combo_categoria.addItem(c.nombre)
+            if cat_actual:
+                self.combo_categoria.setCurrentText(cat_actual)
+            self.combo_categoria.blockSignals(False)
         self._al_cambiar_solicitante()
 
     def _al_cambiar_solicitante(self) -> None:
@@ -246,7 +261,7 @@ class PantallaExtra(QWidget):
             return
 
         canal = str(self.combo_canal.currentData())
-        cat_txt = self.txt_categoria.text().strip()
+        cat_txt = self.combo_categoria.currentText().strip()
         estimado = int(self.spin_estimado.value()) or None
         limite = (
             self.dt_limite.dateTime().toPython().replace(microsecond=0)

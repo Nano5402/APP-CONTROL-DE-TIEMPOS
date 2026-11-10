@@ -101,6 +101,13 @@ def test_ventana_principal_pantallas_y_mini_widget_offscreen(bd, monkeypatch):
     nombre_activo_3, _ = ventana.pantalla_hoy.actualizar_reloj_en_vivo()
     assert nombre_activo_3 is None
 
+    # Verificar que otra categoría (no Flyers) NO muestra el botón de iniciar otro Flyer
+    ventana.pantalla_hoy.txt_no_planeada.setText("Edición de video institucional")
+    ventana.pantalla_hoy.accion_iniciar_no_planeada_rapida()
+    ventana.pantalla_hoy.actualizar_reloj_en_vivo()
+    assert ventana.pantalla_hoy.btn_siguiente.isVisible() is False
+    ventana.pantalla_hoy.accion_finalizar_activa()
+
     # 3. Cambiar a Cierre de jornada y verificar que las dos están completadas
     ventana.cambiar_pagina(3)
     assert ventana.pantalla_cierre.tabla_abiertas.rowCount() == 0
