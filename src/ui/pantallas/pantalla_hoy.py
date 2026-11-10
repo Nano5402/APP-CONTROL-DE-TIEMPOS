@@ -235,12 +235,18 @@ class PantallaHoy(QWidget):
         capa_meta.addLayout(fila_barra)
 
         fila_rapida = QHBoxLayout()
-        lbl_rap = QLabel("Iniciar tarea rápida:", self)
+        self.btn_iniciar_flyer_barra = QPushButton("  + Iniciar siguiente Flyer", self)
+        self.btn_iniciar_flyer_barra.setProperty("rol", "exito")
+        self.btn_iniciar_flyer_barra.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_iniciar_flyer_barra, "zap")
+        self.btn_iniciar_flyer_barra.clicked.connect(self.accion_iniciar_flyer_rapido)
+
+        lbl_rap = QLabel("O tarea rápida:", self)
         lbl_rap.setStyleSheet("font-weight: 600;")
 
         self.txt_no_planeada = QLineEdit(self)
         self.txt_no_planeada.setPlaceholderText(
-            "Escribe una actividad que surgió de momento y pulsa Enter..."
+            "Escribe otra actividad que surgió de momento y pulsa Enter..."
         )
         self.txt_no_planeada.returnPressed.connect(self.accion_iniciar_no_planeada_rapida)
 
@@ -252,6 +258,7 @@ class PantallaHoy(QWidget):
         configurar_boton(self.btn_no_planeada, "play")
         self.btn_no_planeada.clicked.connect(self.accion_iniciar_no_planeada_rapida)
 
+        fila_rapida.addWidget(self.btn_iniciar_flyer_barra)
         fila_rapida.addWidget(lbl_rap)
         fila_rapida.addWidget(self.txt_no_planeada, 1)
         fila_rapida.addWidget(self.combo_cat_rapida)
@@ -413,7 +420,7 @@ class PantallaHoy(QWidget):
                 self.lbl_badge_activa.setText("SIN ACTIVIDAD EN CURSO")
                 self.lbl_activa_titulo.setText("Ninguna actividad en curso")
                 self.lbl_activa_detalle.setText(
-                    f"Selecciona una actividad de la tabla y pulsa «Iniciar», o empieza directamente con «Iniciar siguiente Flyer ({sig_flyer})»."
+                    f"Selecciona una actividad de la tabla y pulsa «Iniciar», o empieza directamente con «Iniciar {sig_flyer}»."
                 )
                 self.btn_pausar.setVisible(False)
                 self.btn_finalizar.setVisible(False)
@@ -422,19 +429,25 @@ class PantallaHoy(QWidget):
                 self.btn_finalizar.setEnabled(False)
                 self.btn_siguiente.setEnabled(False)
                 self.btn_iniciar.setVisible(self.tabla.rowCount() > 0)
-                self.btn_iniciar_flyer.setText(f"  Iniciar siguiente Flyer ({sig_flyer})")
+                self.btn_iniciar_flyer.setText(f"  Iniciar {sig_flyer}")
+                self.btn_iniciar_flyer.setToolTip(f"Inicia de inmediato {sig_flyer} bajo la categoría Flyers")
                 configurar_boton(self.btn_iniciar_flyer, "zap")
                 self.btn_iniciar_flyer.setVisible(True)
                 self.btn_iniciar_flyer.setEnabled(True)
+                self.btn_iniciar_flyer_barra.setText(f"  + Iniciar {sig_flyer}")
+                self.btn_iniciar_flyer_barra.setToolTip(f"Inicia de inmediato {sig_flyer} bajo la categoría Flyers")
                 return None, 0
 
             seg = cron.segundos_trabajados(activa)
             es_flyer = cron.es_actividad_flyer(activa)
-            if es_flyer:
-                nombre_sig = cron.siguiente_nombre_flyer_del_dia(activa.jornada_id)
-            else:
-                nombre_sig = None
+            sig_flyer = cron.siguiente_nombre_flyer_del_dia(activa.jornada_id)
+            nombre_sig = sig_flyer if es_flyer else None
             self.nombre_siguiente_sugerido = nombre_sig
+
+            self.btn_iniciar_flyer_barra.setText(f"  + Iniciar {sig_flyer}")
+            self.btn_iniciar_flyer_barra.setToolTip(
+                f"Inicia de inmediato {sig_flyer} bajo la categoría Flyers (pausará la actividad actual)"
+            )
 
             self.lbl_reloj.setText(formatear_reloj_hms(seg))
             self.lbl_badge_activa.setText("EN CURSO AHORA")
@@ -455,13 +468,16 @@ class PantallaHoy(QWidget):
             # Regla solicitada: SOLO la categoría Flyers muestra la opción de iniciar otro Flyer al terminar
             if es_flyer and nombre_sig:
                 self.btn_finalizar.setText("  Terminar este Flyer")
+                self.btn_finalizar.setToolTip("Finaliza este Flyer y detiene el reloj (úselo si por ahora no han enviado más flyers)")
                 configurar_boton(self.btn_finalizar, "stop")
-                self.btn_siguiente.setText(f"  Terminar e iniciar otro Flyer ({nombre_sig})")
+                self.btn_siguiente.setText(f"  Terminar e iniciar {nombre_sig}")
+                self.btn_siguiente.setToolTip(f"Finaliza este Flyer e inicia de inmediato {nombre_sig} (ideal para cuando llegaron varios seguidos)")
                 configurar_boton(self.btn_siguiente, "skip-forward")
                 self.btn_siguiente.setVisible(True)
                 self.btn_siguiente.setEnabled(True)
             else:
                 self.btn_finalizar.setText("  Finalizar actividad")
+                self.btn_finalizar.setToolTip("Finaliza la actividad activa")
                 configurar_boton(self.btn_finalizar, "stop")
                 self.btn_siguiente.setVisible(False)
                 self.btn_siguiente.setEnabled(False)

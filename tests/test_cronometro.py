@@ -325,3 +325,41 @@ def test_flujo_flyers_dinamicos_encadenados(s):
     # El siguiente nuevo flyer sería el 4
     assert cron.siguiente_nombre_flyer_del_dia(jornada.id) == "Flyer 4"
 
+
+def test_flujo_flyers_no_consecutivos_con_otras_tareas(s):
+    """Verifica el caso donde se hace un flyer, no envían más, se hace otra tarea y más tarde envían el siguiente."""
+    from data.repositorios.catalogos import RepoCategorias
+    from data.repositorios.jornadas import RepoJornadas
+
+    jornada = RepoJornadas(s).obtener_o_crear(datetime(2026, 11, 10).date())
+    cat_flyers = RepoCategorias(s).obtener_o_crear("Flyers", "#003D95")
+    srv_act = ServicioActividades(s)
+    cron = ServicioCronometro(s)
+
+    # 1. Llega un flyer temprano (Flyer 1)
+    f1 = srv_act.crear_planeada("Flyer 1", categoria_id=cat_flyers.id, momento=datetime(2026, 11, 10, 8, 0))
+    cron.iniciar(f1, momento=datetime(2026, 11, 10, 8, 0))
+    cron.finalizar(f1, momento=datetime(2026, 11, 10, 8, 20))
+    assert f1.estado == EstadoActividad.COMPLETADA.value
+    assert cron.actividad_en_curso() is None
+
+    # 2. No han enviado más flyers: hace otra actividad distinta
+    otra = srv_act.crear_planeada("Diseño de banner web", momento=datetime(2026, 11, 10, 8, 30))
+    cron.iniciar(otra, momento=datetime(2026, 11, 10, 8, 30))
+    cron.finalizar(otra, momento=datetime(2026, 11, 10, 9, 30))
+    assert cron.actividad_en_curso() is None
+
+    # 3. Dos horas después envían el segundo flyer: el sistema calcula automáticamente 'Flyer 2'
+    sig_nombre = cron.siguiente_nombre_flyer_del_dia(jornada.id)
+    assert sig_nombre == "Flyer 2"
+
+    f2 = srv_act.crear_planeada(sig_nombre, categoria_id=cat_flyers.id, momento=datetime(2026, 11, 10, 11, 0))
+    cron.iniciar(f2, momento=datetime(2026, 11, 10, 11, 0))
+    assert f2.nombre == "Flyer 2"
+    assert cron.actividad_en_curso() == f2
+
+    # 4. Termina Flyer 2 y detiene el reloj
+    cron.finalizar(f2, momento=datetime(2026, 11, 10, 11, 25))
+    assert cron.actividad_en_curso() is None
+    assert cron.siguiente_nombre_flyer_del_dia(jornada.id) == "Flyer 3"
+
