@@ -343,12 +343,12 @@ class ServicioReportesPDF:
     def _datos_cabecera(self) -> tuple[str, str, str, str, str | None]:
         usr = self.s.scalar(select(Usuario).limit(1))
         nombre_usr = usr.nombre.strip() if usr and usr.nombre else ""
-        partes_cargo = [
-            p.strip()
-            for p in ((usr.rol if usr else "") or "", (usr.area if usr else "") or "")
-            if p and p.strip()
-        ]
-        cargo_area = " · ".join(partes_cargo) if partes_cargo else "Diseño y Comunicaciones"
+        cargo_cfg = self.config.obtener("usuario.cargo", "") or ""
+        area_cfg = self.config.obtener("usuario.area", "") or ""
+        partes_cargo = [p.strip() for p in (cargo_cfg, area_cfg) if p and p.strip()]
+        cargo_area = (
+            " · ".join(partes_cargo) if partes_cargo else "Diseño y Comunicaciones"
+        )
         empresa = (
             self.config.obtener("empresa.nombre", "Gente Util S.A.") or "Gente Util S.A."
         )

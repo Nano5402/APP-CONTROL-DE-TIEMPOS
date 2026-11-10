@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QDate
+from PySide6.QtCore import QDate, Qt
 from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -64,6 +64,7 @@ class PantallaReportes(QWidget):
         self.dt_dia.setCalendarPopup(True)
         self.dt_dia.setDisplayFormat("dd/MM/yyyy")
         self.btn_pdf_dia = QPushButton("📄 Generar PDF del día", self)
+        self.btn_pdf_dia.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf_dia.clicked.connect(self.accion_pdf_dia)
         fila_dia.addWidget(self.dt_dia)
         fila_dia.addStretch()
@@ -77,6 +78,8 @@ class PantallaReportes(QWidget):
         fila_per.addWidget(QLabel("<b>2. Reportes ejecutivos con tendencia:</b>"))
         self.btn_pdf_semana = QPushButton("📊 Generar PDF de esta semana", self)
         self.btn_pdf_mes = QPushButton("📆 Generar PDF de este mes", self)
+        self.btn_pdf_semana.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pdf_mes.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf_semana.clicked.connect(self.accion_pdf_semana)
         self.btn_pdf_mes.clicked.connect(self.accion_pdf_mes)
         fila_per.addStretch()
@@ -111,6 +114,7 @@ class PantallaReportes(QWidget):
 
         self.btn_pdf_especifico = QPushButton("🎯 Generar PDF específico", self)
         self.btn_pdf_especifico.setProperty("rol", "exito")
+        self.btn_pdf_especifico.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf_especifico.clicked.connect(self.accion_pdf_especifico)
 
         form_esp.addRow("Rango de fechas:", fila_rango)
@@ -163,48 +167,60 @@ class PantallaReportes(QWidget):
         QMessageBox.information(self, "PDF generado", f"Reporte guardado en:\n{ruta}")
 
     def accion_pdf_dia(self) -> None:
-        fecha = self.dt_dia.date().toPython()
-        with self.bd.sesion() as s:
-            jornada = RepoJornadas(s).obtener_o_crear(fecha)
-            ruta = ServicioReportesPDF(s).generar_pdf_jornada(jornada)
-        self._notificar_pdf(ruta)
+        try:
+            fecha = self.dt_dia.date().toPython()
+            with self.bd.sesion() as s:
+                jornada = RepoJornadas(s).obtener_o_crear(fecha)
+                ruta = ServicioReportesPDF(s).generar_pdf_jornada(jornada)
+            self._notificar_pdf(ruta)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al generar PDF", f"No se pudo crear el PDF:\n{exc}")
 
     def accion_pdf_semana(self) -> None:
-        ini, fin = rango_semana(self.dt_dia.date().toPython())
-        with self.bd.sesion() as s:
-            ruta = ServicioReportesPDF(s).generar_pdf_periodo(
-                ini, fin, etiqueta_periodo="Semanal"
-            )
-        self._notificar_pdf(ruta)
+        try:
+            ini, fin = rango_semana(self.dt_dia.date().toPython())
+            with self.bd.sesion() as s:
+                ruta = ServicioReportesPDF(s).generar_pdf_periodo(
+                    ini, fin, etiqueta_periodo="Semanal"
+                )
+            self._notificar_pdf(ruta)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al generar PDF", f"No se pudo crear el PDF:\n{exc}")
 
     def accion_pdf_mes(self) -> None:
-        ini, fin = rango_mes(self.dt_dia.date().toPython())
-        with self.bd.sesion() as s:
-            ruta = ServicioReportesPDF(s).generar_pdf_periodo(
-                ini, fin, etiqueta_periodo="Mensual"
-            )
-        self._notificar_pdf(ruta)
+        try:
+            ini, fin = rango_mes(self.dt_dia.date().toPython())
+            with self.bd.sesion() as s:
+                ruta = ServicioReportesPDF(s).generar_pdf_periodo(
+                    ini, fin, etiqueta_periodo="Mensual"
+                )
+            self._notificar_pdf(ruta)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al generar PDF", f"No se pudo crear el PDF:\n{exc}")
 
     def accion_pdf_especifico(self) -> None:
-        filtros = FiltrosHistorial(
-            fecha_desde=self.dt_esp_desde.date().toPython(),
-            fecha_hasta=self.dt_esp_hasta.date().toPython(),
-            categoria_id=self.combo_categoria.currentData(),
-            solicitante_id=self.combo_solicitante.currentData(),
-            tipo=self.combo_tipo.currentData(),
-        )
-        partes = ["Reporte específico"]
-        if self.combo_categoria.currentData() is not None:
-            partes.append(f"Categoría: {self.combo_categoria.currentText()}")
-        if self.combo_solicitante.currentData() is not None:
-            partes.append(f"Solicitante: {self.combo_solicitante.currentText()}")
-        titulo = " — ".join(partes)
-
-        with self.bd.sesion() as s:
-            ruta = ServicioReportesPDF(s).generar_pdf_especifico(
-                filtros, titulo_filtro=titulo
+        try:
+            filtros = FiltrosHistorial(
+                fecha_desde=self.dt_esp_desde.date().toPython(),
+                fecha_hasta=self.dt_esp_hasta.date().toPython(),
+                categoria_id=self.combo_categoria.currentData(),
+                solicitante_id=self.combo_solicitante.currentData(),
+                tipo=self.combo_tipo.currentData(),
             )
-        self._notificar_pdf(ruta)
+            partes = ["Reporte específico"]
+            if self.combo_categoria.currentData() is not None:
+                partes.append(f"Categoría: {self.combo_categoria.currentText()}")
+            if self.combo_solicitante.currentData() is not None:
+                partes.append(f"Solicitante: {self.combo_solicitante.currentText()}")
+            titulo = " — ".join(partes)
+
+            with self.bd.sesion() as s:
+                ruta = ServicioReportesPDF(s).generar_pdf_especifico(
+                    filtros, titulo_filtro=titulo
+                )
+            self._notificar_pdf(ruta)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al generar PDF", f"No se pudo crear el PDF:\n{exc}")
 
     def accion_abrir_carpeta(self) -> None:
         objetivo = self._ultimo_pdf if self._ultimo_pdf else rutas.carpeta_reportes()

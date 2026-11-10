@@ -131,6 +131,9 @@ class PantallaCierre(QWidget):
         col_wa.addWidget(self.txt_resumen_wa, 1)
 
         fila_wa = QHBoxLayout()
+        self.btn_generar_pdf_ahora = QPushButton("📄  Generar / Ver PDF del día", self)
+        self.btn_generar_pdf_ahora.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_generar_pdf_ahora.clicked.connect(self.accion_generar_pdf_ahora)
         self.btn_abrir_carpeta_pdf = QPushButton("📂  Abrir carpeta del PDF", self)
         self.btn_abrir_carpeta_pdf.setProperty("rol", "secundario")
         self.btn_abrir_carpeta_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -139,6 +142,7 @@ class PantallaCierre(QWidget):
         self.btn_copiar_wa.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_copiar_wa.clicked.connect(self.accion_copiar_resumen)
         fila_wa.addStretch()
+        fila_wa.addWidget(self.btn_generar_pdf_ahora)
         fila_wa.addWidget(self.btn_abrir_carpeta_pdf)
         fila_wa.addWidget(self.btn_copiar_wa)
         col_wa.addLayout(fila_wa)
@@ -268,6 +272,19 @@ class PantallaCierre(QWidget):
             "Jornada cerrada",
             f"Jornada cerrada correctamente.{pdf_txt}\n\nCopia de seguridad guardada en:\n{ruta_copia}",
         )
+
+    def accion_generar_pdf_ahora(self) -> None:
+        from services.reportes_pdf import ServicioReportesPDF
+
+        try:
+            with self.bd.sesion() as s:
+                jornada = RepoJornadas(s).obtener_o_crear()
+                ruta = ServicioReportesPDF(s).generar_pdf_jornada(jornada)
+            self._ultimo_pdf = ruta
+            abrir_archivo_pdf(ruta)
+            QMessageBox.information(self, "PDF generado", f"Reporte PDF generado en:\n{ruta}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Error al generar PDF", f"No se pudo crear el PDF:\n{exc}")
 
     def accion_abrir_carpeta_pdf(self) -> None:
         from config import rutas

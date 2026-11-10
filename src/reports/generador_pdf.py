@@ -23,6 +23,17 @@ def renderizar_html_a_pdf(html: str, ruta_destino: Path | str) -> Path:
 
     destino = Path(ruta_destino)
     destino.parent.mkdir(parents=True, exist_ok=True)
+    # Si el archivo PDF anterior está abierto y bloqueado por un visor externo en Windows,
+    # escribimos en un nombre con marca de hora para que nunca falle al hacer clic.
+    if destino.exists():
+        try:
+            with open(destino, "ab"):
+                pass
+        except OSError:
+            from datetime import datetime
+
+            marca = datetime.now().strftime("%H%M%S")
+            destino = destino.with_name(f"{destino.stem}_{marca}{destino.suffix}")
 
     writer = QPdfWriter(str(destino))
     writer.setPageSize(QPageSize(QPageSize.PageSizeId.Letter))
