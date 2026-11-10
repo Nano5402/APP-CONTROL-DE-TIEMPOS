@@ -5,7 +5,7 @@ personalizables (desactivados por defecto) y sincronización con el mini-widget 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QKeySequence, QShortcut
+from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -73,18 +73,35 @@ class VentanaPrincipal(QMainWindow):
         col_nav.setContentsMargins(14, 16, 14, 16)
         col_nav.setSpacing(4)
 
-        # Bloque de marca corporativa
+        # Bloque de marca corporativa con el escudo oficial de Gente Util S.A.
         marca = QFrame(sidebar)
         marca.setObjectName("marcaSidebar")
-        col_marca = QVBoxLayout(marca)
-        col_marca.setContentsMargins(10, 8, 10, 8)
-        col_marca.setSpacing(2)
-        lbl_app = QLabel("⏱ GENTE UTIL", marca)
+        fila_marca = QHBoxLayout(marca)
+        fila_marca.setContentsMargins(8, 6, 8, 6)
+        fila_marca.setSpacing(10)
+
+        lbl_logo = QLabel(marca)
+        ruta_emb = rutas.carpeta_assets() / "icono_emblema.png"
+        if ruta_emb.is_file():
+            pix_logo = QPixmap(str(ruta_emb)).scaled(
+                38,
+                38,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            lbl_logo.setPixmap(pix_logo)
+        lbl_logo.setStyleSheet("background: transparent;")
+        fila_marca.addWidget(lbl_logo)
+
+        col_marca = QVBoxLayout()
+        col_marca.setSpacing(1)
+        lbl_app = QLabel("GENTE UTIL S.A.", marca)
         lbl_app.setObjectName("tituloSidebar")
         lbl_sub = QLabel(f"Control de Tiempos · v{rutas.VERSION}", marca)
         lbl_sub.setObjectName("subtituloSidebar")
         col_marca.addWidget(lbl_app)
         col_marca.addWidget(lbl_sub)
+        fila_marca.addLayout(col_marca, 1)
         col_nav.addWidget(marca)
 
         # Indicador de estado en vivo en la barra lateral

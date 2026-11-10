@@ -106,5 +106,8 @@ def carpeta_assets() -> Path:
 
 
 def ruta_logo_por_defecto() -> Path:
-    """Devuelve la ruta del logo corporativo por defecto de Gente Util."""
+    """Devuelve la ruta del logo corporativo oficial de Gente Util."""
+    png = carpeta_assets() / "logo_gente_util.png"
+    if png.is_file():
+        return png
     return carpeta_assets() / "logo_gente_util.svg"

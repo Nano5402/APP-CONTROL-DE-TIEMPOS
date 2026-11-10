@@ -1,7 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 60" width="240" height="60">
-  <rect x="2" y="6" width="48" height="48" rx="10" fill="#003D95" />
-  <circle cx="26" cy="30" r="14" fill="none" stroke="#F59E0B" stroke-width="3.5" />
-  <path d="M26 21 V30 L32 34" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" />
-  <text x="62" y="31" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="bold" fill="#003D95">GENTE UTIL</text>
-  <text x="63" y="47" font-family="Segoe UI, Arial, sans-serif" font-size="11" font-weight="600" fill="#475569">CONTROL DE TIEMPOS Y PRODUCTIVIDAD</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 96" width="320" height="96">
+  <!-- Escudo oficial Gente Util (#003D95) -->
+  <path d="M8 6 H80 V52 C80 74 63 90 44 90 C25 90 8 74 8 52 Z" fill="none" stroke="#003D95" stroke-width="9" stroke-linejoin="round" />
+  <path d="M44 62 V28 H80" fill="none" stroke="#003D95" stroke-width="8" stroke-linecap="square" stroke-linejoin="miter" />
+  <circle cx="28" cy="46" r="6.5" fill="#003D95" />
+  <circle cx="60" cy="46" r="6.5" fill="#003D95" />
+  <!-- Tipografía corporativa -->
+  <text x="98" y="42" font-family="Segoe UI, Arial Black, sans-serif" font-size="34" font-weight="900" fill="#003D95">GENTE</text>
+  <text x="98" y="75" font-family="Segoe UI, Arial Black, sans-serif" font-size="34" font-weight="900" fill="#003D95">UTIL</text>
+  <text x="196" y="75" font-family="Segoe UI, Arial, sans-serif" font-size="12" font-weight="700" fill="#003D95">S.A</text>
+  <text x="98" y="91" font-family="Segoe UI, Arial, sans-serif" font-size="10.5" font-weight="700" letter-spacing="0.6" fill="#003D95">EMPRESA DE SERVICIOS TEMPORALES</text>
 </svg>

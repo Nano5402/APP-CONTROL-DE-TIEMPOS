@@ -91,8 +91,24 @@ def _dibujar_pixmap_icono(tamano: int) -> QPixmap:
 
 
 def crear_icono_app() -> QIcon:
-    """Genera el icono multi-resolución para la barra de tareas de Windows, ventana y bandeja."""
+    """Carga el icono corporativo oficial de Gente Util (o lo genera si no existe en disco)."""
+    ruta_emblema = rutas.carpeta_assets() / "icono_emblema.png"
     ruta_ico = rutas.carpeta_assets() / "icono_app.ico"
+    if ruta_emblema.is_file():
+        base_pix = QPixmap(str(ruta_emblema))
+        if not base_pix.isNull():
+            icono = QIcon()
+            for tam in (16, 24, 32, 48, 64, 128, 256):
+                icono.addPixmap(
+                    base_pix.scaled(
+                        tam,
+                        tam,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+            return icono
+
     icono = QIcon()
     for tam in (16, 24, 32, 48, 64, 128, 256):
         icono.addPixmap(_dibujar_pixmap_icono(tam))
