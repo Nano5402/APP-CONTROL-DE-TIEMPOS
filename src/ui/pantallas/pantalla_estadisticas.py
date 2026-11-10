@@ -228,7 +228,7 @@ class PantallaEstadisticas(QWidget):
             else "ninguna en el periodo"
         )
         self.lbl_revisiones.setText(
-            f"🔄 Revisiones en el periodo: {rev.total_revisiones} "
+            f"Revisiones en el periodo: {rev.total_revisiones} "
             f"(tiempo dedicado: {formatear_duracion_corta(rev.segundos_totales)})  ·  "
             f"Motivos: {motivos_txt}"
         )

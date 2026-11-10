@@ -40,6 +40,7 @@ from services.cierre_jornada import (
 )
 from services.productividad import ServicioProductividad
 from services.whatsapp import ServicioWhatsApp, copiar_al_portapapeles, formatear_duracion_corta
+from ui.iconos import configurar_boton
 
 
 class PantallaCierre(QWidget):
@@ -83,9 +84,10 @@ class PantallaCierre(QWidget):
         col_ind.addWidget(self.lbl_tiempos)
         capa_ind.addLayout(col_ind, 1)
 
-        self.btn_cerrar_jornada = QPushButton("🏁  Cerrar jornada, guardar copia y generar PDF", self)
+        self.btn_cerrar_jornada = QPushButton("  Cerrar jornada, guardar copia y generar PDF", self)
         self.btn_cerrar_jornada.setProperty("rol", "exito")
         self.btn_cerrar_jornada.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_cerrar_jornada, "flag")
         self.btn_cerrar_jornada.clicked.connect(self.accion_cerrar_jornada)
         capa_ind.addWidget(self.btn_cerrar_jornada)
         layout.addWidget(card_ind)
@@ -101,7 +103,7 @@ class PantallaCierre(QWidget):
         col_asist.addWidget(self.lbl_titulo_asist)
 
         self.lbl_todo_resuelto = QLabel(
-            "✔ Todas las actividades del día están completadas o resueltas. Ya puedes pulsar «🏁 Cerrar jornada».",
+            "Todas las actividades del día están completadas o resueltas. Ya puedes pulsar «Cerrar jornada».",
             self,
         )
         self.lbl_todo_resuelto.setStyleSheet(
@@ -131,15 +133,18 @@ class PantallaCierre(QWidget):
         col_wa.addWidget(self.txt_resumen_wa, 1)
 
         fila_wa = QHBoxLayout()
-        self.btn_generar_pdf_ahora = QPushButton("📄  Generar / Ver PDF del día", self)
+        self.btn_generar_pdf_ahora = QPushButton("  Generar / Ver PDF del día", self)
         self.btn_generar_pdf_ahora.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_generar_pdf_ahora, "file-text")
         self.btn_generar_pdf_ahora.clicked.connect(self.accion_generar_pdf_ahora)
-        self.btn_abrir_carpeta_pdf = QPushButton("📂  Abrir carpeta del PDF", self)
+        self.btn_abrir_carpeta_pdf = QPushButton("  Abrir carpeta del PDF", self)
         self.btn_abrir_carpeta_pdf.setProperty("rol", "secundario")
         self.btn_abrir_carpeta_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_abrir_carpeta_pdf, "archive", color="#0F172A")
         self.btn_abrir_carpeta_pdf.clicked.connect(self.accion_abrir_carpeta_pdf)
-        self.btn_copiar_wa = QPushButton("📋  Copiar resumen para WhatsApp", self)
+        self.btn_copiar_wa = QPushButton("  Copiar resumen para WhatsApp", self)
         self.btn_copiar_wa.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_copiar_wa, "copy")
         self.btn_copiar_wa.clicked.connect(self.accion_copiar_resumen)
         fila_wa.addStretch()
         fila_wa.addWidget(self.btn_generar_pdf_ahora)
@@ -170,7 +175,7 @@ class PantallaCierre(QWidget):
                     f"Cumplimiento: {c_txt}  ·  Eficiencia: {e_txt}  ·  Foco: {f_txt}"
                 )
             else:
-                self.lbl_semaforo.setText("⚪ Día no laboral (sin porcentaje de productividad)")
+                self.lbl_semaforo.setText("Día no laboral (sin porcentaje de productividad)")
                 self.lbl_desglose.setText("Todo el tiempo se registra como fuera de horario.")
 
             self.lbl_tiempos.setText(
@@ -193,12 +198,12 @@ class PantallaCierre(QWidget):
                 self.tabla_abiertas.setItem(i, 0, QTableWidgetItem(act.nombre))
 
                 combo = QComboBox(self.tabla_abiertas)
-                combo.addItem("✔ Ya la terminé hoy (100 %)", AccionCierreActividad.FINALIZAR.value)
+                combo.addItem("Ya la terminé hoy (100 %)", AccionCierreActividad.FINALIZAR.value)
                 combo.addItem(
-                    "🟣 Dejar para continuar mañana (% avance)",
+                    "Dejar para continuar mañana (% avance)",
                     AccionCierreActividad.ARRASTRAR.value,
                 )
-                combo.addItem("📅 Aplazar", AccionCierreActividad.APLAZAR.value)
+                combo.addItem("Aplazar", AccionCierreActividad.APLAZAR.value)
                 self.tabla_abiertas.setCellWidget(i, 1, combo)
 
                 spin = QSpinBox(self.tabla_abiertas)

@@ -21,6 +21,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from ui.iconos import configurar_boton
+
 
 def formatear_reloj_hms(segundos: int) -> str:
     seg = max(0, int(segundos))
@@ -60,8 +62,8 @@ class MiniWidgetCronometro(QWidget):
         capa_marco.setSpacing(8)
 
         fila_sup = QHBoxLayout()
-        self.lbl_actividad = QLabel("⚪ Sin actividad en curso", self)
-        self.lbl_actividad.setStyleSheet("font-weight: bold; font-size: 13px;")
+        self.lbl_actividad = QLabel("Sin actividad en curso", self)
+        self.lbl_actividad.setStyleSheet("font-weight: 700; font-size: 13px;")
         self.lbl_reloj = QLabel("00:00:00", self)
         self.lbl_reloj.setObjectName("relojMini")
         fila_sup.addWidget(self.lbl_actividad, 1)
@@ -70,12 +72,15 @@ class MiniWidgetCronometro(QWidget):
 
         fila_btn = QHBoxLayout()
         fila_btn.setSpacing(6)
-        self.btn_pausar = QPushButton("⏸ Pausar", self)
+        self.btn_pausar = QPushButton("  Pausar", self)
         self.btn_pausar.setProperty("rol", "advertencia")
-        self.btn_finalizar = QPushButton("⏹ Finalizar", self)
+        configurar_boton(self.btn_pausar, "pause", tamano=14)
+        self.btn_finalizar = QPushButton("  Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
-        self.btn_siguiente = QPushButton("⏭ Siguiente", self)
+        configurar_boton(self.btn_finalizar, "stop", tamano=14)
+        self.btn_siguiente = QPushButton("  Siguiente", self)
         self.btn_siguiente.setToolTip("Terminar esta actividad y empezar la siguiente")
+        configurar_boton(self.btn_siguiente, "skip-forward", tamano=14)
 
         for b in (self.btn_pausar, self.btn_finalizar, self.btn_siguiente):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -105,9 +110,9 @@ class MiniWidgetCronometro(QWidget):
         activa = bool(nombre_actividad)
         if nombre_actividad:
             corto = nombre_actividad if len(nombre_actividad) <= 22 else nombre_actividad[:21] + "…"
-            self.lbl_actividad.setText(f"🟢 {corto}")
+            self.lbl_actividad.setText(corto)
         else:
-            self.lbl_actividad.setText("⚪ Sin actividad en curso")
+            self.lbl_actividad.setText("Sin actividad en curso")
         self.lbl_reloj.setText(formatear_reloj_hms(segundos))
         self.btn_pausar.setEnabled(activa)
         self.btn_finalizar.setEnabled(activa)

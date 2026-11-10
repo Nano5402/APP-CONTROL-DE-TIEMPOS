@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
 
 from data.enums import CanalSolicitud, MotivoRevision, TipoPausa, TipoRevision
 from data.models import Actividad, Solicitante
+from ui.iconos import configurar_boton
 
 
 class DialogoPIN(QDialog):
@@ -46,7 +47,7 @@ class DialogoPIN(QDialog):
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel("🔒 Acceso protegido con PIN", self)
+        lbl_tit = QLabel("Acceso protegido con PIN", self)
         lbl_tit.setStyleSheet("font-size: 16px; font-weight: bold;")
         layout.addWidget(lbl_tit)
 
@@ -87,7 +88,7 @@ class DialogoPausa(QDialog):
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel(f"⏸ Pausar «{nombre_actividad}»", self)
+        lbl_tit = QLabel(f"Pausar «{nombre_actividad}»", self)
         lbl_tit.setStyleSheet("font-size: 16px; font-weight: bold;")
         lbl_tit.setWordWrap(True)
         layout.addWidget(lbl_tit)
@@ -96,8 +97,10 @@ class DialogoPausa(QDialog):
         layout.addWidget(lbl_rap)
 
         fila_rap1 = QHBoxLayout()
-        btn_bano = QPushButton("🚻 Baño / Pausa personal", self)
-        btn_almuerzo = QPushButton("🍽 Hora de almuerzo", self)
+        btn_bano = QPushButton("  Baño / Pausa personal", self)
+        btn_almuerzo = QPushButton("  Hora de almuerzo", self)
+        configurar_boton(btn_bano, "user", color="#0F172A")
+        configurar_boton(btn_almuerzo, "clock", color="#0F172A")
         for b in (btn_bano, btn_almuerzo):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_bano.clicked.connect(lambda: self._pausa_rapida(TipoPausa.PERSONAL, "Baño / pausa breve"))
@@ -107,9 +110,10 @@ class DialogoPausa(QDialog):
         layout.addLayout(fila_rap1)
 
         fila_rap2 = QHBoxLayout()
-        btn_internet = QPushButton("🌐 Falla de internet / luz (Causa externa)", self)
+        btn_internet = QPushButton("  Falla de internet / luz (Causa externa)", self)
         btn_internet.setProperty("rol", "advertencia")
         btn_internet.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(btn_internet, "zap", color="#FFFFFF")
         btn_internet.clicked.connect(
             lambda: self._pausa_rapida(TipoPausa.EXTERNA, "Falla de internet o energía")
         )
@@ -124,12 +128,12 @@ class DialogoPausa(QDialog):
         form.addRow(QLabel("<b>O indica otro motivo / fin de jornada:</b>"))
 
         self.combo_tipo = QComboBox(self)
-        self.combo_tipo.addItem("🚻 Necesidad personal (baño, agua, etc.)", TipoPausa.PERSONAL.value)
-        self.combo_tipo.addItem("🌐 Causa externa (luz, internet, equipo lento)", TipoPausa.EXTERNA.value)
-        self.combo_tipo.addItem("🍽 Almuerzo", TipoPausa.ALMUERZO.value)
-        self.combo_tipo.addItem("💬 Otro motivo", TipoPausa.OTRO.value)
+        self.combo_tipo.addItem("Necesidad personal (baño, agua, etc.)", TipoPausa.PERSONAL.value)
+        self.combo_tipo.addItem("Causa externa (luz, internet, equipo lento)", TipoPausa.EXTERNA.value)
+        self.combo_tipo.addItem("Almuerzo", TipoPausa.ALMUERZO.value)
+        self.combo_tipo.addItem("Otro motivo", TipoPausa.OTRO.value)
         self.combo_tipo.addItem(
-            "🌙 Fin de jornada (dejar para continuar mañana)", TipoPausa.FIN_JORNADA.value
+            "Fin de jornada (dejar para continuar mañana)", TipoPausa.FIN_JORNADA.value
         )
 
         self.txt_motivo = QLineEdit(self)
@@ -229,7 +233,7 @@ class DialogoRevision(QDialog):
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel(f"🔄 Registrar revisión de «{nombre_original}»", self)
+        lbl_tit = QLabel(f"Registrar revisión de «{nombre_original}»", self)
         lbl_tit.setStyleSheet("font-size: 16px; font-weight: bold;")
         lbl_tit.setWordWrap(True)
         layout.addWidget(lbl_tit)
@@ -311,7 +315,7 @@ class DialogoReasignar(QDialog):
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel(f"↗ Reasignar «{nombre_actividad}»", self)
+        lbl_tit = QLabel(f"Reasignar «{nombre_actividad}»", self)
         lbl_tit.setStyleSheet("font-size: 16px; font-weight: bold;")
         lbl_tit.setWordWrap(True)
         layout.addWidget(lbl_tit)
@@ -374,7 +378,7 @@ class DialogoCorregirActividad(QDialog):
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel(f"✏ Corregir «{actividad.nombre}»", self)
+        lbl_tit = QLabel(f"Corregir «{actividad.nombre}»", self)
         lbl_tit.setStyleSheet("font-size: 16px; font-weight: bold;")
         lbl_tit.setWordWrap(True)
         layout.addWidget(lbl_tit)
@@ -497,7 +501,7 @@ class DialogoAprobacionIngeniero(QDialog):
         layout.setContentsMargins(20, 18, 20, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel(f"✔/✖ Decisión sobre «{nombre_actividad}»", self)
+        lbl_tit = QLabel(f"Decisión sobre «{nombre_actividad}»", self)
         lbl_tit.setStyleSheet("font-size: 16px; font-weight: bold;")
         lbl_tit.setWordWrap(True)
         layout.addWidget(lbl_tit)
@@ -506,8 +510,8 @@ class DialogoAprobacionIngeniero(QDialog):
         form.setSpacing(10)
 
         self.combo_decision = QComboBox(self)
-        self.combo_decision.addItem("✔ Aprobada por el Ing. Luis Eduardo (desbloquear)", True)
-        self.combo_decision.addItem("✖ Rechazada por el Ing. Luis Eduardo", False)
+        self.combo_decision.addItem("Aprobada por el Ing. Luis Eduardo (desbloquear)", True)
+        self.combo_decision.addItem("Rechazada por el Ing. Luis Eduardo", False)
 
         self.combo_canal = QComboBox(self)
         for c in CanalSolicitud:

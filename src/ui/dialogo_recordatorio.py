@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from data.enums import RespuestaRecordatorio, TipoPausa
 from services.recordatorios import AvisoRecordatorio, TipoAviso
+from ui.iconos import configurar_boton
 
 
 class DialogoRecordatorio(QDialog):
@@ -47,7 +48,7 @@ class DialogoRecordatorio(QDialog):
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(12)
 
-        lbl_titulo = QLabel(f"🔔 {aviso.titulo}", self)
+        lbl_titulo = QLabel(aviso.titulo, self)
         lbl_titulo.setStyleSheet("font-size: 17px; font-weight: bold;")
         lbl_mensaje = QLabel(aviso.mensaje, self)
         lbl_mensaje.setWordWrap(True)
@@ -74,11 +75,15 @@ class DialogoRecordatorio(QDialog):
         self.spin_ajuste_min.setSpecialValueText("Terminé justo ahora (0 min)")
 
         if aviso.tipo == TipoAviso.CONTINUIDAD:
-            self.btn_si = QPushButton("✅  Sí, sigo en esto", self)
+            self.btn_si = QPushButton("  Sí, sigo en esto", self)
             self.btn_si.setProperty("rol", "exito")
-            self.btn_no = QPushButton("⏹  No, ya terminé", self)
-            self.btn_pausar = QPushButton("⏸  Pausar", self)
+            self.btn_no = QPushButton("  No, ya terminé", self)
+            self.btn_pausar = QPushButton("  Pausar", self)
             self.btn_pausar.setProperty("rol", "advertencia")
+
+            configurar_boton(self.btn_si, "check", color="#FFFFFF")
+            configurar_boton(self.btn_no, "stop", color="#FFFFFF")
+            configurar_boton(self.btn_pausar, "pause", color="#FFFFFF")
 
             for b in (self.btn_si, self.btn_no, self.btn_pausar):
                 b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -97,10 +102,11 @@ class DialogoRecordatorio(QDialog):
 
             # Botón discreto para mostrar opciones avanzadas solo si hace falta
             self.btn_opciones = QPushButton(
-                "⚙ ¿Terminaste hace unos minutos o quieres indicar motivo de pausa?", self
+                "  ¿Terminaste hace unos minutos o quieres indicar motivo de pausa?", self
             )
             self.btn_opciones.setProperty("rol", "secundario")
             self.btn_opciones.setCheckable(True)
+            configurar_boton(self.btn_opciones, "settings", color="#0F172A")
             layout.addWidget(self.btn_opciones)
 
             self.panel_extra = QFrame(self)
@@ -123,8 +129,9 @@ class DialogoRecordatorio(QDialog):
             self.combo_tipo_pausa.setVisible(False)
             self.txt_motivo.setVisible(False)
             self.spin_ajuste_min.setVisible(False)
-            btn_entendido = QPushButton("✔ Entendido", self)
+            btn_entendido = QPushButton("  Entendido", self)
             btn_entendido.setDefault(True)
+            configurar_boton(btn_entendido, "check", color="#FFFFFF")
             btn_entendido.clicked.connect(self.accept)
             layout.addWidget(btn_entendido)
 

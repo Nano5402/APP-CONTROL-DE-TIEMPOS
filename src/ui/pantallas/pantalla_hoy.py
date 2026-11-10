@@ -53,6 +53,7 @@ from ui.dialogos import (
     DialogoReasignar,
     DialogoRevision,
 )
+from ui.iconos import configurar_boton, obtener_icono
 from ui.mini_widget import formatear_reloj_hms
 
 
@@ -61,34 +62,34 @@ def _etiqueta_estado_visual(act: Actividad) -> str:
         act.estado == EstadoActividad.BLOQUEADA.value
         or act.aprobacion_estado == EstadoAprobacion.PENDIENTE.value
     ):
-        return "🔒 Bloqueada (esperando ing.)"
+        return "Bloqueada (espera ing.)"
     mapa = {
-        EstadoActividad.EN_CURSO.value: "🟢 En curso",
-        EstadoActividad.PAUSADA.value: "🟠 Pausada",
-        EstadoActividad.COMPLETADA.value: "✔ Completada",
-        EstadoActividad.PENDIENTE.value: "⏳ Pendiente",
-        EstadoActividad.ARRASTRADA.value: "🟣 Arrastrada",
-        EstadoActividad.REASIGNADA.value: "↗ Reasignada",
-        EstadoActividad.RECHAZADA.value: "✖ Rechazada",
-        EstadoActividad.APLAZADA.value: "📅 Aplazada",
+        EstadoActividad.EN_CURSO.value: "En curso",
+        EstadoActividad.PAUSADA.value: "Pausada",
+        EstadoActividad.COMPLETADA.value: "Completada",
+        EstadoActividad.PENDIENTE.value: "Pendiente",
+        EstadoActividad.ARRASTRADA.value: "Arrastrada",
+        EstadoActividad.REASIGNADA.value: "Reasignada",
+        EstadoActividad.RECHAZADA.value: "Rechazada",
+        EstadoActividad.APLAZADA.value: "Aplazada",
     }
     return mapa.get(act.estado, act.estado)
 
 
 def _etiqueta_prioridad_visual(prioridad: str) -> str:
     mapa = {
-        Prioridad.MAXIMA.value: "🔴 Máxima",
-        Prioridad.NORMAL.value: "🔵 Normal",
-        Prioridad.MINIMA.value: "⚪ Mínima",
+        Prioridad.MAXIMA.value: "Máxima",
+        Prioridad.NORMAL.value: "Normal",
+        Prioridad.MINIMA.value: "Baja",
     }
     return mapa.get(prioridad, prioridad)
 
 
 def _etiqueta_tipo_visual(act: Actividad) -> str:
     mapa = {
-        TipoActividad.PLANEADA.value: "📋 Planeada",
-        TipoActividad.EXTRA.value: "⚡ Extra",
-        TipoActividad.NO_PLANEADA.value: "💡 No planeada",
+        TipoActividad.PLANEADA.value: "Planeada",
+        TipoActividad.EXTRA.value: "Extra",
+        TipoActividad.NO_PLANEADA.value: "Rápida",
     }
     base = mapa.get(act.tipo, act.tipo)
     if act.solicitante:
@@ -136,7 +137,7 @@ class PantallaHoy(QWidget):
         col_info.setSpacing(4)
 
         fila_badge = QHBoxLayout()
-        self.lbl_badge_activa = QLabel("⚪ SIN ACTIVIDAD EN CURSO", self)
+        self.lbl_badge_activa = QLabel("SIN ACTIVIDAD EN CURSO", self)
         self.lbl_badge_activa.setObjectName("badgeActiva")
         fila_badge.addWidget(self.lbl_badge_activa)
         fila_badge.addStretch()
@@ -154,14 +155,19 @@ class PantallaHoy(QWidget):
 
         col_botones = QHBoxLayout()
         col_botones.setSpacing(8)
-        self.btn_iniciar = QPushButton("▶  Iniciar / Reanudar seleccionada", self)
-        self.btn_iniciar_flyer = QPushButton("⚡  Iniciar siguiente Flyer", self)
+        self.btn_iniciar = QPushButton("  Iniciar seleccionada", self)
+        configurar_boton(self.btn_iniciar, "play")
+        self.btn_iniciar_flyer = QPushButton("  Iniciar siguiente Flyer", self)
         self.btn_iniciar_flyer.setProperty("rol", "exito")
-        self.btn_pausar = QPushButton("⏸  Pausar", self)
+        configurar_boton(self.btn_iniciar_flyer, "zap")
+        self.btn_pausar = QPushButton("  Pausar", self)
         self.btn_pausar.setProperty("rol", "advertencia")
-        self.btn_finalizar = QPushButton("⏹  Ya terminé (Finalizar)", self)
+        configurar_boton(self.btn_pausar, "pause")
+        self.btn_finalizar = QPushButton("  Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
-        self.btn_siguiente = QPushButton("⏭  Terminar esta y empezar siguiente pieza", self)
+        configurar_boton(self.btn_finalizar, "stop")
+        self.btn_siguiente = QPushButton("  Siguiente Flyer", self)
+        configurar_boton(self.btn_siguiente, "skip-forward")
 
         for b in (
             self.btn_iniciar,
@@ -229,7 +235,7 @@ class PantallaHoy(QWidget):
         capa_meta.addLayout(fila_barra)
 
         fila_rapida = QHBoxLayout()
-        lbl_rap = QLabel("💡 Iniciar tarea rápida:", self)
+        lbl_rap = QLabel("Iniciar tarea rápida:", self)
         lbl_rap.setStyleSheet("font-weight: 600;")
 
         self.txt_no_planeada = QLineEdit(self)
@@ -241,8 +247,9 @@ class PantallaHoy(QWidget):
         self.combo_cat_rapida = QComboBox(self)
         self.combo_cat_rapida.setMinimumWidth(150)
 
-        self.btn_no_planeada = QPushButton("▶ Empezar ya", self)
+        self.btn_no_planeada = QPushButton("  Empezar ya", self)
         self.btn_no_planeada.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_no_planeada, "play")
         self.btn_no_planeada.clicked.connect(self.accion_iniciar_no_planeada_rapida)
 
         fila_rapida.addWidget(lbl_rap)
@@ -255,8 +262,8 @@ class PantallaHoy(QWidget):
 
         # Guía amistosa cuando aún no hay actividades en el día
         self.lbl_guia_vacia = QLabel(
-            "👋 Aún no tienes actividades en tu lista de hoy. Ve a «📋 Planear el día» en el menú izquierdo "
-            "para armar tu plan de la mañana, o escribe arriba en «Empezar algo rápido».",
+            "Aún no tienes actividades en tu lista de hoy. Ve a «Planear el día» en el menú izquierdo "
+            "para armar tu plan de la mañana, o escribe arriba en «Iniciar tarea rápida».",
             self,
         )
         self.lbl_guia_vacia.setWordWrap(True)
@@ -296,16 +303,21 @@ class PantallaHoy(QWidget):
         self.lbl_acciones_fila = QLabel("Opciones de la actividad seleccionada:", self)
         self.lbl_acciones_fila.setObjectName("subtitulo")
 
-        self.btn_aprobacion = QPushButton("✔/✖  Aprobar / Rechazar (Ingeniero)", self)
+        self.btn_aprobacion = QPushButton("  Aprobar / Rechazar", self)
         self.btn_aprobacion.setProperty("rol", "advertencia")
-        self.btn_revision = QPushButton("🔄  Pidieron cambios (Nueva revisión)", self)
+        configurar_boton(self.btn_aprobacion, "check")
+        self.btn_revision = QPushButton("  Nueva revisión", self)
         self.btn_revision.setProperty("rol", "secundario")
-        self.btn_reasignar = QPushButton("↗  Pasar a otro compañero", self)
+        configurar_boton(self.btn_revision, "refresh-cw", color="#0F172A")
+        self.btn_reasignar = QPushButton("  Reasignar", self)
         self.btn_reasignar.setProperty("rol", "secundario")
-        self.btn_corregir = QPushButton("✏  Corregir tiempo o nombre", self)
+        configurar_boton(self.btn_reasignar, "share", color="#0F172A")
+        self.btn_corregir = QPushButton("  Corregir", self)
         self.btn_corregir.setProperty("rol", "secundario")
-        self.btn_eliminar = QPushButton("🗑  Quitar de la lista", self)
+        configurar_boton(self.btn_corregir, "edit", color="#0F172A")
+        self.btn_eliminar = QPushButton("  Quitar", self)
         self.btn_eliminar.setProperty("rol", "secundario")
+        configurar_boton(self.btn_eliminar, "trash", color="#0F172A")
 
         for b in (
             self.btn_aprobacion,
@@ -385,7 +397,8 @@ class PantallaHoy(QWidget):
         else:
             self.btn_iniciar.setVisible(True)
             verbo = "Reanudar" if es_pausada else "Iniciar"
-            self.btn_iniciar.setText(f"▶  {verbo} «{nombre_corto}»")
+            self.btn_iniciar.setText(f"  {verbo} «{nombre_corto}»")
+            configurar_boton(self.btn_iniciar, "play")
 
     def actualizar_reloj_en_vivo(self) -> tuple[str | None, int]:
         """Actualiza el cronómetro en vivo y muestra solo los controles pertinentes."""
@@ -397,10 +410,10 @@ class PantallaHoy(QWidget):
                 sig_flyer = cron.siguiente_nombre_flyer_del_dia(jornada.id)
                 self.nombre_siguiente_sugerido = sig_flyer
                 self.lbl_reloj.setText("00:00:00")
-                self.lbl_badge_activa.setText("⚪ SIN ACTIVIDAD EN CURSO")
+                self.lbl_badge_activa.setText("SIN ACTIVIDAD EN CURSO")
                 self.lbl_activa_titulo.setText("Ninguna actividad en curso")
                 self.lbl_activa_detalle.setText(
-                    f"Selecciona una actividad de la tabla y pulsa «▶ Iniciar», o empieza directamente con «⚡ Iniciar siguiente Flyer ({sig_flyer})»."
+                    f"Selecciona una actividad de la tabla y pulsa «Iniciar», o empieza directamente con «Iniciar siguiente Flyer ({sig_flyer})»."
                 )
                 self.btn_pausar.setVisible(False)
                 self.btn_finalizar.setVisible(False)
@@ -409,7 +422,8 @@ class PantallaHoy(QWidget):
                 self.btn_finalizar.setEnabled(False)
                 self.btn_siguiente.setEnabled(False)
                 self.btn_iniciar.setVisible(self.tabla.rowCount() > 0)
-                self.btn_iniciar_flyer.setText(f"⚡ Iniciar siguiente Flyer ({sig_flyer})")
+                self.btn_iniciar_flyer.setText(f"  Iniciar siguiente Flyer ({sig_flyer})")
+                configurar_boton(self.btn_iniciar_flyer, "zap")
                 self.btn_iniciar_flyer.setVisible(True)
                 self.btn_iniciar_flyer.setEnabled(True)
                 return None, 0
@@ -423,7 +437,7 @@ class PantallaHoy(QWidget):
             self.nombre_siguiente_sugerido = nombre_sig
 
             self.lbl_reloj.setText(formatear_reloj_hms(seg))
-            self.lbl_badge_activa.setText("🟢 EN CURSO AHORA")
+            self.lbl_badge_activa.setText("EN CURSO AHORA")
             self.lbl_activa_titulo.setText(activa.nombre)
             cat_txt = activa.categoria.nombre if activa.categoria else "Sin categoría"
             self.lbl_activa_detalle.setText(
@@ -436,15 +450,19 @@ class PantallaHoy(QWidget):
             self.btn_finalizar.setVisible(True)
             self.btn_pausar.setEnabled(True)
             self.btn_finalizar.setEnabled(True)
+            configurar_boton(self.btn_pausar, "pause")
 
             # Regla solicitada: SOLO la categoría Flyers muestra la opción de iniciar otro Flyer al terminar
             if es_flyer and nombre_sig:
-                self.btn_finalizar.setText("⏹  Terminar este Flyer")
-                self.btn_siguiente.setText(f"⏭  Terminar e iniciar otro Flyer ({nombre_sig})")
+                self.btn_finalizar.setText("  Terminar este Flyer")
+                configurar_boton(self.btn_finalizar, "stop")
+                self.btn_siguiente.setText(f"  Terminar e iniciar otro Flyer ({nombre_sig})")
+                configurar_boton(self.btn_siguiente, "skip-forward")
                 self.btn_siguiente.setVisible(True)
                 self.btn_siguiente.setEnabled(True)
             else:
-                self.btn_finalizar.setText("⏹  Ya terminé (Finalizar)")
+                self.btn_finalizar.setText("  Finalizar actividad")
+                configurar_boton(self.btn_finalizar, "stop")
                 self.btn_siguiente.setVisible(False)
                 self.btn_siguiente.setEnabled(False)
 
@@ -466,7 +484,7 @@ class PantallaHoy(QWidget):
             self.combo_cat_rapida.clear()
             self.combo_cat_rapida.addItem("Sin categoría", None)
             for c in categorias:
-                self.combo_cat_rapida.addItem(f"🏷 {c.nombre}", c.id)
+                self.combo_cat_rapida.addItem(c.nombre, c.id)
             idx_cat = self.combo_cat_rapida.findData(cat_sel)
             if idx_cat >= 0:
                 self.combo_cat_rapida.setCurrentIndex(idx_cat)
@@ -504,12 +522,12 @@ class PantallaHoy(QWidget):
                 it_tiempo.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
 
                 cambios_txt = (
-                    f"🔁 {desglose.cantidad_revisiones} rev."
+                    f"{desglose.cantidad_revisiones} rev."
                     if desglose.solicitaron_cambios
                     else "—"
                 )
                 if act.reasignada_a:
-                    cambios_txt = f"↗ A: {act.reasignada_a}"
+                    cambios_txt = f"A: {act.reasignada_a}"
                 it_cambios = QTableWidgetItem(cambios_txt)
 
                 self.tabla.setItem(i, 0, it_nom)
@@ -528,7 +546,7 @@ class PantallaHoy(QWidget):
             self.barra_meta.setValue(int(round(res_prod.progreso_meta_pct)))
             ef_min = res_prod.tiempo_efectivo_seg // 60
             meta_min = res_prod.meta_tiempo_seg // 60
-            self.lbl_meta.setText(f"⏱ Tiempo efectivo hoy: {ef_min} / {meta_min} min")
+            self.lbl_meta.setText(f"Tiempo efectivo hoy: {ef_min} / {meta_min} min")
             if res_prod.datos_referencia:
                 self.lbl_referencia.setText(res_prod.datos_referencia[0].mensaje)
             else:
@@ -536,10 +554,10 @@ class PantallaHoy(QWidget):
 
             if res_prod.productividad_pct is not None:
                 self.lbl_resumen_dia.setText(
-                    f"{res_prod.semaforo.emoji()} Productividad parcial: {res_prod.productividad_pct:.1f}% ({res_prod.semaforo.etiqueta()})"
+                    f"Productividad parcial: {res_prod.productividad_pct:.1f}% ({res_prod.semaforo.etiqueta()})"
                 )
             else:
-                self.lbl_resumen_dia.setText("⚪ Día no laboral (solo registro de tiempo)")
+                self.lbl_resumen_dia.setText("Día no laboral (solo registro de tiempo)")
 
         self.actualizar_reloj_en_vivo()
         self._actualizar_acciones_segun_seleccion()

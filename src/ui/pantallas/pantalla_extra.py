@@ -39,6 +39,7 @@ from data.models import Solicitante
 from data.repositorios.catalogos import RepoCategorias, RepoSolicitantes
 from services.actividades import ServicioActividades
 from services.cronometro import AccionSobreActiva, ServicioCronometro
+from ui.iconos import configurar_boton
 
 
 class PantallaExtra(QWidget):
@@ -81,10 +82,11 @@ class PantallaExtra(QWidget):
         fila_sol = QHBoxLayout()
         self.combo_solicitante = QComboBox(self)
         self.combo_solicitante.currentIndexChanged.connect(self._al_cambiar_solicitante)
-        self.btn_mostrar_nuevo_sol = QPushButton("➕ Registrar otra persona", self)
+        self.btn_mostrar_nuevo_sol = QPushButton("  Registrar otra persona", self)
         self.btn_mostrar_nuevo_sol.setProperty("rol", "secundario")
         self.btn_mostrar_nuevo_sol.setCheckable(True)
         self.btn_mostrar_nuevo_sol.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_mostrar_nuevo_sol, "plus", color="#0F172A")
 
         fila_sol.addWidget(self.combo_solicitante, 1)
         fila_sol.addWidget(self.btn_mostrar_nuevo_sol)
@@ -112,7 +114,7 @@ class PantallaExtra(QWidget):
 
         # Solo visible cuando quien solicita es compañero o tercero
         self.chk_aprobada_ing = QCheckBox(
-            "✔ El Ing. Luis Eduardo ya autorizó esta solicitud", self
+            "El Ing. Luis Eduardo ya autorizó esta solicitud", self
         )
         self.chk_aprobada_ing.setVisible(False)
 
@@ -165,10 +167,12 @@ class PantallaExtra(QWidget):
         layout.addWidget(card)
 
         fila_btn = QHBoxLayout()
-        self.btn_guardar = QPushButton("📌 Guardar en mi lista de hoy", self)
+        self.btn_guardar = QPushButton("  Guardar en mi lista", self)
         self.btn_guardar.setProperty("rol", "secundario")
-        self.btn_guardar_iniciar = QPushButton("⚡ Guardar y empezar ahora mismo", self)
+        configurar_boton(self.btn_guardar, "plus", color="#0F172A")
+        self.btn_guardar_iniciar = QPushButton("  Guardar y empezar ahora", self)
         self.btn_guardar_iniciar.setProperty("rol", "exito")
+        configurar_boton(self.btn_guardar_iniciar, "play")
 
         for b in (self.btn_guardar, self.btn_guardar_iniciar):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -218,14 +222,14 @@ class PantallaExtra(QWidget):
                 return
             if sol.requiere_aprobacion:
                 self.lbl_regla_prioridad.setText(
-                    f"🔒 Solicitud de {sol.tipo}: requiere autorización del Ing. Luis Eduardo. "
+                    f"Solicitud de {sol.tipo}: requiere autorización del Ing. Luis Eduardo. "
                     "Si aún no te la ha aprobado, quedará en espera en la pantalla Hoy."
                 )
                 self.chk_aprobada_ing.setVisible(True)
                 self.chk_aprobada_ing.setEnabled(True)
             else:
                 self.lbl_regla_prioridad.setText(
-                    "🔴 Prioridad MÁXIMA: no requiere aprobación, puedes iniciarla de inmediato "
+                    "Prioridad MÁXIMA: no requiere aprobación, puedes iniciarla de inmediato "
                     "(pausará lo que tengas en curso) y suma a tu Cumplimiento."
                 )
                 self.chk_aprobada_ing.setChecked(False)

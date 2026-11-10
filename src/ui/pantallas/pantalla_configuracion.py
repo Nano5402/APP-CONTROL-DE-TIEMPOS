@@ -47,6 +47,7 @@ from data.repositorios.configuracion import RepoConfiguracion
 from services.backups import ServicioBackups
 from services.inicio_windows import ServicioInicioWindows, crear_accesos_directos_usuario
 from services.seguridad_pin import ServicioPIN
+from ui.iconos import configurar_boton, obtener_icono
 from ui.temas import TEMAS
 
 RESOLUCIONES_DISPONIBLES: list[tuple[str, str]] = [
@@ -59,9 +60,9 @@ RESOLUCIONES_DISPONIBLES: list[tuple[str, str]] = [
 ]
 
 MODOS_VENTANA: list[tuple[str, str]] = [
-    ("🪟 Ventana normal (usar la resolución elegida)", "ventana"),
-    ("🗖 Maximizada (ajustada a toda la pantalla)", "maximizada"),
-    ("🖥 Pantalla completa (sin bordes)", "pantalla_completa"),
+    ("Ventana normal (resolución elegida)", "ventana"),
+    ("Maximizada (ajustada a la pantalla)", "maximizada"),
+    ("Pantalla completa", "pantalla_completa"),
 ]
 
 ESCALAS_FUENTE: list[tuple[str, int]] = [
@@ -103,7 +104,7 @@ class PantallaConfiguracion(QWidget):
         lbl_tit = QLabel("Configuración y Personalización", self)
         lbl_tit.setObjectName("tituloPantalla")
         lbl_sub = QLabel(
-            "Elige una pestaña según lo que quieras ajustar y pulsa «💾 Guardar y aplicar cambios» abajo.",
+            "Elige una pestaña según lo que quieras ajustar y pulsa «Guardar cambios» abajo.",
             self,
         )
         lbl_sub.setObjectName("subtitulo")
@@ -113,23 +114,28 @@ class PantallaConfiguracion(QWidget):
         self.tabs_config = QTabWidget(self)
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_graficos()),
-            "🖥  Gráficos y Pantalla",
+            obtener_icono("palette", color="#003D95", tamano=16),
+            "Gráficos y Pantalla",
         )
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_general()),
-            "👤  General y Sistema",
+            obtener_icono("user", color="#003D95", tamano=16),
+            "General y Sistema",
         )
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_recordatorios()),
-            "⏱  Recordatorios y Meta",
+            obtener_icono("bell", color="#003D95", tamano=16),
+            "Recordatorios y Meta",
         )
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_atajos_y_plantillas()),
-            "⌨  Atajos y Plantillas",
+            obtener_icono("keyboard", color="#003D95", tamano=16),
+            "Atajos y Plantillas",
         )
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_seguridad()),
-            "🔒  Seguridad y Copias",
+            obtener_icono("database", color="#003D95", tamano=16),
+            "Seguridad y Copias",
         )
         layout.addWidget(self.tabs_config, 1)
 
@@ -139,13 +145,14 @@ class PantallaConfiguracion(QWidget):
         fila_inf = QHBoxLayout(barra_inf)
         fila_inf.setContentsMargins(12, 8, 12, 8)
         lbl_info_guardar = QLabel(
-            "💡 Los cambios de resolución, tema, escala de letra, recordatorios y atajos se aplican al instante.",
+            "Los cambios de resolución, escala de letra, recordatorios y atajos se aplican al instante.",
             barra_inf,
         )
         lbl_info_guardar.setObjectName("subtitulo")
-        self.btn_guardar_cfg = QPushButton("💾  Guardar y aplicar configuración", barra_inf)
+        self.btn_guardar_cfg = QPushButton("  Guardar y aplicar configuración", barra_inf)
         self.btn_guardar_cfg.setProperty("rol", "exito")
         self.btn_guardar_cfg.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_guardar_cfg, "save")
         self.btn_guardar_cfg.clicked.connect(self.accion_guardar_general)
         fila_inf.addWidget(lbl_info_guardar, 1)
         fila_inf.addWidget(self.btn_guardar_cfg)
@@ -175,7 +182,7 @@ class PantallaConfiguracion(QWidget):
         form_p = QFormLayout(card_pantalla)
         form_p.setSpacing(12)
         form_p.addRow(
-            QLabel("<b>🖥 Apariencia, Resolución de Ventana y Escala Visual</b>")
+            QLabel("<b>Apariencia, Resolución de Ventana y Escala Visual</b>")
         )
 
         self.combo_tema = QComboBox(card_pantalla)
@@ -213,7 +220,7 @@ class PantallaConfiguracion(QWidget):
         card_mini.setProperty("card", True)
         form_m = QFormLayout(card_mini)
         form_m.setSpacing(12)
-        form_m.addRow(QLabel("<b>🪟 Mini-ventana flotante del cronómetro</b>"))
+        form_m.addRow(QLabel("<b>Mini-ventana flotante del cronómetro</b>"))
 
         self.combo_mini_tamano = QComboBox(card_mini)
         for etq, val in TAMANOS_MINI:
@@ -241,7 +248,7 @@ class PantallaConfiguracion(QWidget):
         card_gen.setProperty("card", True)
         form_gen = QFormLayout(card_gen)
         form_gen.setSpacing(12)
-        form_gen.addRow(QLabel("<b>👤 Datos del Usuario y Reportes Corporativos</b>"))
+        form_gen.addRow(QLabel("<b>Datos del Usuario y Reportes Corporativos</b>"))
 
         self.txt_usuario = QLineEdit(card_gen)
         self.txt_usuario.setPlaceholderText("Ej. Andrés")
@@ -268,7 +275,7 @@ class PantallaConfiguracion(QWidget):
         card_win.setProperty("card", True)
         col_win = QVBoxLayout(card_win)
         col_win.setSpacing(10)
-        col_win.addWidget(QLabel("<b>🚀 Arranque con Windows</b>"))
+        col_win.addWidget(QLabel("<b>Arranque con Windows</b>"))
 
         self.chk_autostart = QCheckBox(
             "Iniciar automáticamente al encender el portátil (inicio de sesión de Windows)",
@@ -289,10 +296,11 @@ class PantallaConfiguracion(QWidget):
         col_win.addWidget(self.chk_minimizar_al_cerrar)
 
         self.btn_crear_acceso_directo = QPushButton(
-            "📌  Crear acceso directo con logo en el Escritorio y Menú Inicio", card_win
+            "  Crear acceso directo con logo en el Escritorio y Menú Inicio", card_win
         )
         self.btn_crear_acceso_directo.setProperty("rol", "secundario")
         self.btn_crear_acceso_directo.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_crear_acceso_directo, "external-link", color="#0F172A")
         self.btn_crear_acceso_directo.clicked.connect(self.accion_crear_accesos_directos)
         col_win.addWidget(self.btn_crear_acceso_directo)
         col.addWidget(card_win)
@@ -310,7 +318,7 @@ class PantallaConfiguracion(QWidget):
         card_rec.setProperty("card", True)
         form_rec = QFormLayout(card_rec)
         form_rec.setSpacing(12)
-        form_rec.addRow(QLabel("<b>🔔 Avisos de Continuidad e Inactividad</b>"))
+        form_rec.addRow(QLabel("<b>Avisos de Continuidad e Inactividad</b>"))
 
         self.spin_rec_cont = QSpinBox(card_rec)
         self.spin_rec_cont.setRange(1, 180)
@@ -336,7 +344,7 @@ class PantallaConfiguracion(QWidget):
         card_prod.setProperty("card", True)
         form_prod = QFormLayout(card_prod)
         form_prod.setSpacing(12)
-        form_prod.addRow(QLabel("<b>📊 Meta de Tiempo Efectivo y Pesos de Productividad</b>"))
+        form_prod.addRow(QLabel("<b>Meta de Tiempo Efectivo y Pesos de Productividad</b>"))
 
         self.spin_meta_pct = QSpinBox(card_prod)
         self.spin_meta_pct.setRange(10, 100)
@@ -379,7 +387,7 @@ class PantallaConfiguracion(QWidget):
         form_atajos.setSpacing(10)
         form_atajos.addRow(
             QLabel(
-                "<b>⌨ Atajos de teclado opcionales</b> "
+                "<b>Atajos de teclado opcionales</b> "
                 "(desactivados por defecto para no interferir con otros programas)"
             )
         )
@@ -407,9 +415,10 @@ class PantallaConfiguracion(QWidget):
         )
 
         self.btn_limpiar_atajos = QPushButton(
-            "🗑 Desactivar / Limpiar todos los atajos", card_atajos
+            "  Desactivar / Limpiar todos los atajos", card_atajos
         )
         self.btn_limpiar_atajos.setProperty("rol", "secundario")
+        configurar_boton(self.btn_limpiar_atajos, "trash", color="#0F172A")
         self.btn_limpiar_atajos.clicked.connect(self.accion_limpiar_todos_los_atajos)
         form_atajos.addRow("", self.btn_limpiar_atajos)
         col.addWidget(card_atajos)
@@ -419,7 +428,7 @@ class PantallaConfiguracion(QWidget):
         form_plant = QFormLayout(card_plant)
         form_plant.setSpacing(10)
         form_plant.addRow(
-            QLabel("<b>✨ Crear plantilla o actividad recurrente para las mañanas</b>")
+            QLabel("<b>Crear plantilla o actividad recurrente para las mañanas</b>")
         )
 
         self.txt_plant_nombre = QLineEdit(card_plant)
@@ -434,7 +443,9 @@ class PantallaConfiguracion(QWidget):
         self.combo_plant_rec.addItem("Lunes a viernes", Recurrencia.DIAS_SEMANA.value)
         self.combo_plant_rec.addItem("Manual (sin recurrencia)", Recurrencia.NINGUNA.value)
 
-        self.btn_crear_plant = QPushButton("➕ Guardar plantilla", card_plant)
+        self.btn_crear_plant = QPushButton("  Guardar plantilla", card_plant)
+        self.btn_crear_plant.setProperty("rol", "exito")
+        configurar_boton(self.btn_crear_plant, "plus")
         self.btn_crear_plant.clicked.connect(self.accion_crear_plantilla)
 
         form_plant.addRow("Nombre de la plantilla:", self.txt_plant_nombre)
@@ -457,7 +468,7 @@ class PantallaConfiguracion(QWidget):
         card_pin.setProperty("card", True)
         col_pin = QVBoxLayout(card_pin)
         col_pin.setSpacing(10)
-        col_pin.addWidget(QLabel("<b>🔒 PIN Opcional de Acceso</b>"))
+        col_pin.addWidget(QLabel("<b>PIN Opcional de Acceso</b>"))
         lbl_pin_ayuda = QLabel(
             "Si compartes el portátil con otras personas, puedes activar un PIN numérico al abrir la aplicación.",
             card_pin,
@@ -484,7 +495,7 @@ class PantallaConfiguracion(QWidget):
         card_bak.setProperty("card", True)
         col_bak = QVBoxLayout(card_bak)
         col_bak.setSpacing(10)
-        col_bak.addWidget(QLabel("<b>📦 Copias de Seguridad y Restauración</b>"))
+        col_bak.addWidget(QLabel("<b>Copias de Seguridad y Restauración</b>"))
         lbl_bak_ayuda = QLabel(
             "La aplicación guarda una copia automática cada vez que cierras jornada. "
             "También puedes crear una copia manual ahora o llevarla en una memoria USB.",
@@ -495,10 +506,14 @@ class PantallaConfiguracion(QWidget):
         col_bak.addWidget(lbl_bak_ayuda)
 
         fila_bak = QHBoxLayout()
-        self.btn_backup_manual = QPushButton("📦 Crear copia manual ahora", card_bak)
-        self.btn_backup_usb = QPushButton("🔌 Copiar a USB / carpeta elegida", card_bak)
-        self.btn_restaurar = QPushButton("♻ Restaurar desde copia (.db)", card_bak)
+        self.btn_backup_manual = QPushButton("  Crear copia de respaldo", card_bak)
+        configurar_boton(self.btn_backup_manual, "archive")
+        self.btn_backup_usb = QPushButton("  Exportar a USB o carpeta", card_bak)
+        self.btn_backup_usb.setProperty("rol", "secundario")
+        configurar_boton(self.btn_backup_usb, "share", color="#0F172A")
+        self.btn_restaurar = QPushButton("  Restaurar copia (.db)", card_bak)
         self.btn_restaurar.setProperty("rol", "advertencia")
+        configurar_boton(self.btn_restaurar, "refresh-cw")
 
         self.btn_backup_manual.clicked.connect(self.accion_copia_manual)
         self.btn_backup_usb.clicked.connect(self.accion_copia_usb)
@@ -522,8 +537,9 @@ class PantallaConfiguracion(QWidget):
         fila = QHBoxLayout(cont)
         fila.setContentsMargins(0, 0, 0, 0)
         fila.setSpacing(6)
-        btn_limpiar = QPushButton("✖ Quitar", cont)
+        btn_limpiar = QPushButton("  Quitar", cont)
         btn_limpiar.setProperty("rol", "secundario")
+        configurar_boton(btn_limpiar, "x", color="#0F172A", tamano=12)
         btn_limpiar.clicked.connect(editor.clear)
         fila.addWidget(editor, 1)
         fila.addWidget(btn_limpiar)

@@ -70,6 +70,7 @@ def main(argv: list[str] | None = None) -> int:
             verificar(bd)
             return 0
 
+        from PySide6.QtGui import QFont
         from PySide6.QtWidgets import QApplication, QMessageBox
 
         from data.repositorios.configuracion import RepoConfiguracion
@@ -77,6 +78,7 @@ def main(argv: list[str] | None = None) -> int:
         from services.seguridad_pin import ServicioPIN
         from ui.bandeja import CoordinadorRecordatoriosUI, IconoBandeja, crear_icono_app
         from ui.dialogos import DialogoPIN
+        from ui.temas import cargar_fuente_montserrat
         from ui.ventana_principal import VentanaPrincipal
 
         with bd.sesion() as s:
@@ -106,6 +108,8 @@ def main(argv: list[str] | None = None) -> int:
 
         app = QApplication(sys.argv)
         app.setApplicationName(rutas.NOMBRE_VISIBLE)
+        cargar_fuente_montserrat()
+        app.setFont(QFont("Montserrat", 10))
         icono_app = crear_icono_app()
         app.setWindowIcon(icono_app)
         app.setQuitOnLastWindowClosed(False)

@@ -26,6 +26,7 @@ from data.db import BaseDatos
 from data.models import Usuario
 from data.repositorios.configuracion import RepoConfiguracion
 from ui.bandeja import crear_icono_app
+from ui.iconos import configurar_boton, obtener_icono
 from ui.mini_widget import MiniWidgetCronometro, formatear_reloj_hms
 from ui.pantallas.pantalla_cierre import PantallaCierre
 from ui.pantallas.pantalla_configuracion import PantallaConfiguracion
@@ -80,7 +81,7 @@ class VentanaPrincipal(QMainWindow):
         col_marca = QVBoxLayout(marca)
         col_marca.setContentsMargins(10, 8, 10, 8)
         col_marca.setSpacing(2)
-        lbl_app = QLabel("⏱ GENTE UTIL", marca)
+        lbl_app = QLabel("GENTE UTIL", marca)
         lbl_app.setObjectName("tituloSidebar")
         lbl_sub = QLabel(f"Control de Tiempos · v{rutas.VERSION}", marca)
         lbl_sub.setObjectName("subtituloSidebar")
@@ -89,7 +90,7 @@ class VentanaPrincipal(QMainWindow):
         col_nav.addWidget(marca)
 
         # Indicador de estado en vivo en la barra lateral
-        self.lbl_estado_sidebar = QLabel("⚪ Sin actividad en curso", sidebar)
+        self.lbl_estado_sidebar = QLabel("Sin actividad en curso", sidebar)
         self.lbl_estado_sidebar.setObjectName("chipEstadoSidebar")
         self.lbl_estado_sidebar.setWordWrap(True)
         col_nav.addWidget(self.lbl_estado_sidebar)
@@ -101,10 +102,10 @@ class VentanaPrincipal(QMainWindow):
         lbl_sec_op.setObjectName("seccionSidebar")
         col_nav.addWidget(lbl_sec_op)
 
-        self.btn_nav_hoy = self._crear_boton_nav("🏠   Hoy · Cronómetro", 0, sidebar)
-        self.btn_nav_planear = self._crear_boton_nav("📋   Planear el día", 1, sidebar)
-        self.btn_nav_extra = self._crear_boton_nav("⚡   Actividad extra", 2, sidebar)
-        self.btn_nav_cierre = self._crear_boton_nav("🏁   Cierre de jornada", 3, sidebar)
+        self.btn_nav_hoy = self._crear_boton_nav("Hoy · Cronómetro", 0, "clock", sidebar)
+        self.btn_nav_planear = self._crear_boton_nav("Planear el día", 1, "clipboard", sidebar)
+        self.btn_nav_extra = self._crear_boton_nav("Actividad extra", 2, "zap", sidebar)
+        self.btn_nav_cierre = self._crear_boton_nav("Cierre de jornada", 3, "flag", sidebar)
         for b in (
             self.btn_nav_hoy,
             self.btn_nav_planear,
@@ -117,9 +118,9 @@ class VentanaPrincipal(QMainWindow):
         lbl_sec_an.setObjectName("seccionSidebar")
         col_nav.addWidget(lbl_sec_an)
 
-        self.btn_nav_historial = self._crear_boton_nav("🗂   Historial", 4, sidebar)
-        self.btn_nav_reportes = self._crear_boton_nav("📄   Reportes PDF", 5, sidebar)
-        self.btn_nav_estadisticas = self._crear_boton_nav("📈   Estadísticas", 6, sidebar)
+        self.btn_nav_historial = self._crear_boton_nav("Historial", 4, "archive", sidebar)
+        self.btn_nav_reportes = self._crear_boton_nav("Reportes PDF", 5, "file-text", sidebar)
+        self.btn_nav_estadisticas = self._crear_boton_nav("Estadísticas", 6, "bar-chart", sidebar)
         for b in (
             self.btn_nav_historial,
             self.btn_nav_reportes,
@@ -131,14 +132,15 @@ class VentanaPrincipal(QMainWindow):
         lbl_sec_sis.setObjectName("seccionSidebar")
         col_nav.addWidget(lbl_sec_sis)
 
-        self.btn_nav_config = self._crear_boton_nav("⚙   Configuración", 7, sidebar)
+        self.btn_nav_config = self._crear_boton_nav("Configuración", 7, "settings", sidebar)
         col_nav.addWidget(self.btn_nav_config)
 
         col_nav.addStretch()
 
-        self.btn_toggle_mini = QPushButton("🪟  Abrir Mini-ventana", sidebar)
+        self.btn_toggle_mini = QPushButton("  Mini-ventana flotante", sidebar)
         self.btn_toggle_mini.setCheckable(True)
         self.btn_toggle_mini.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_toggle_mini, "window", color="#CBD5E1", tamano=16)
         self.btn_toggle_mini.toggled.connect(self.mostrar_ocultar_mini_widget)
         col_nav.addWidget(self.btn_toggle_mini)
 
@@ -211,11 +213,14 @@ class VentanaPrincipal(QMainWindow):
         self.aplicar_graficos()
         self._tick_reloj()
 
-    def _crear_boton_nav(self, texto: str, indice: int, parent: QWidget) -> QPushButton:
-        btn = QPushButton(texto, parent)
+    def _crear_boton_nav(
+        self, texto: str, indice: int, icono_nombre: str, parent: QWidget
+    ) -> QPushButton:
+        btn = QPushButton(f"  {texto}", parent)
         btn.setCheckable(True)
         btn.setProperty("nav", True)
         btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(btn, icono_nombre, color="#CBD5E1", tamano=17)
         self.grupo_nav.addButton(btn, indice)
         return btn
 
@@ -276,7 +281,7 @@ class VentanaPrincipal(QMainWindow):
         self.btn_toggle_mini.blockSignals(True)
         self.btn_toggle_mini.setChecked(visible)
         self.btn_toggle_mini.setText(
-            "🪟  Ocultar Mini-ventana" if visible else "🪟  Abrir Mini-ventana"
+            "  Ocultar Mini-ventana" if visible else "  Mini-ventana flotante"
         )
         self.btn_toggle_mini.blockSignals(False)
         if visible:
@@ -295,9 +300,9 @@ class VentanaPrincipal(QMainWindow):
         )
         if nombre:
             corto = nombre if len(nombre) <= 22 else nombre[:21] + "…"
-            self.lbl_estado_sidebar.setText(f"🟢 {corto}\n⏱ {formatear_reloj_hms(seg)}")
+            self.lbl_estado_sidebar.setText(f"EN CURSO:\n{corto}\n{formatear_reloj_hms(seg)}")
         else:
-            self.lbl_estado_sidebar.setText("⚪ Sin actividad en curso")
+            self.lbl_estado_sidebar.setText("Sin actividad en curso")
 
     def _sincronizar_vistas(self) -> None:
         self._tick_reloj()
@@ -354,7 +359,7 @@ class VentanaPrincipal(QMainWindow):
             self.lbl_atajos.setText("Atajos activos:\n" + "\n".join(resumen_lineas))
         else:
             self.lbl_atajos.setText(
-                "Atajos de teclado: desactivados\n(puedes asignarlos en ⚙ Configuración)"
+                "Atajos de teclado: desactivados\n(puedes asignarlos en Configuración)"
             )
 
     def _atajo_iniciar_o_pausar(self) -> None:

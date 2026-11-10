@@ -42,6 +42,7 @@ from services.historial import (
 )
 from services.whatsapp import formatear_duracion_corta
 from ui.dialogos import DialogoCorregirActividad
+from ui.iconos import configurar_boton
 from ui.mini_widget import formatear_reloj_hms
 
 
@@ -103,7 +104,9 @@ class PantallaHistorial(QWidget):
         self.combo_solicitante = QComboBox(self)
         self.combo_tipo = QComboBox(self)
 
-        self.btn_filtrar = QPushButton("🔍 Consultar historial", self)
+        self.btn_filtrar = QPushButton("  Consultar historial", self)
+        self.btn_filtrar.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_filtrar, "clipboard", color="#FFFFFF")
         self.btn_filtrar.clicked.connect(self.aplicar_filtros)
 
         fila_combos.addWidget(QLabel("Categoría:"))
@@ -149,7 +152,9 @@ class PantallaHistorial(QWidget):
         self.txt_detalle.setReadOnly(True)
         col_det.addWidget(self.txt_detalle, 1)
 
-        self.btn_corregir = QPushButton("✏ Corregir registro seleccionado (con motivo)", self)
+        self.btn_corregir = QPushButton("  Corregir registro seleccionado (con motivo)", self)
+        self.btn_corregir.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_corregir, "edit", color="#0F172A")
         self.btn_corregir.clicked.connect(self.accion_corregir_seleccionada)
         col_det.addWidget(self.btn_corregir)
 

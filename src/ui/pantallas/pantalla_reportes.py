@@ -35,6 +35,7 @@ from data.repositorios.jornadas import RepoJornadas
 from reports.generador_pdf import abrir_archivo_pdf, abrir_carpeta_contenedora
 from services.historial import FiltrosHistorial, rango_mes, rango_semana
 from services.reportes_pdf import ServicioReportesPDF
+from ui.iconos import configurar_boton
 
 
 class PantallaReportes(QWidget):
@@ -63,9 +64,10 @@ class PantallaReportes(QWidget):
         self.dt_dia = QDateEdit(hoy, self)
         self.dt_dia.setCalendarPopup(True)
         self.dt_dia.setDisplayFormat("dd/MM/yyyy")
-        self.btn_pdf_dia = QPushButton("📄 Generar PDF del día", self)
+        self.btn_pdf_dia = QPushButton("  Generar PDF del día", self)
         self.btn_pdf_dia.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf_dia.clicked.connect(self.accion_pdf_dia)
+        configurar_boton(self.btn_pdf_dia, "file-text", color="#FFFFFF")
         fila_dia.addWidget(self.dt_dia)
         fila_dia.addStretch()
         fila_dia.addWidget(self.btn_pdf_dia)
@@ -76,12 +78,14 @@ class PantallaReportes(QWidget):
         card_per.setProperty("card", True)
         fila_per = QHBoxLayout(card_per)
         fila_per.addWidget(QLabel("<b>2. Reportes ejecutivos con tendencia:</b>"))
-        self.btn_pdf_semana = QPushButton("📊 Generar PDF de esta semana", self)
-        self.btn_pdf_mes = QPushButton("📆 Generar PDF de este mes", self)
+        self.btn_pdf_semana = QPushButton("  Generar PDF de esta semana", self)
+        self.btn_pdf_mes = QPushButton("  Generar PDF de este mes", self)
         self.btn_pdf_semana.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf_mes.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf_semana.clicked.connect(self.accion_pdf_semana)
         self.btn_pdf_mes.clicked.connect(self.accion_pdf_mes)
+        configurar_boton(self.btn_pdf_semana, "bar-chart", color="#0F172A")
+        configurar_boton(self.btn_pdf_mes, "clipboard", color="#0F172A")
         fila_per.addStretch()
         fila_per.addWidget(self.btn_pdf_semana)
         fila_per.addWidget(self.btn_pdf_mes)
@@ -112,10 +116,11 @@ class PantallaReportes(QWidget):
         self.combo_solicitante = QComboBox(self)
         self.combo_tipo = QComboBox(self)
 
-        self.btn_pdf_especifico = QPushButton("🎯 Generar PDF específico", self)
+        self.btn_pdf_especifico = QPushButton("  Generar PDF específico", self)
         self.btn_pdf_especifico.setProperty("rol", "exito")
         self.btn_pdf_especifico.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pdf_especifico.clicked.connect(self.accion_pdf_especifico)
+        configurar_boton(self.btn_pdf_especifico, "zap", color="#FFFFFF")
 
         form_esp.addRow("Rango de fechas:", fila_rango)
         form_esp.addRow("Categoría:", self.combo_categoria)
@@ -130,9 +135,10 @@ class PantallaReportes(QWidget):
         fila_acc = QHBoxLayout(card_acc)
         self.lbl_ultimo_pdf = QLabel(f"Carpeta de reportes: {rutas.carpeta_reportes()}", self)
         self.lbl_ultimo_pdf.setObjectName("subtitulo")
-        self.btn_abrir_carpeta = QPushButton("📂 Abrir carpeta del PDF", self)
+        self.btn_abrir_carpeta = QPushButton("  Abrir carpeta del PDF", self)
         self.btn_abrir_carpeta.setProperty("rol", "secundario")
         self.btn_abrir_carpeta.clicked.connect(self.accion_abrir_carpeta)
+        configurar_boton(self.btn_abrir_carpeta, "archive", color="#0F172A")
         fila_acc.addWidget(self.lbl_ultimo_pdf, 1)
         fila_acc.addWidget(self.btn_abrir_carpeta)
         layout.addWidget(card_acc)

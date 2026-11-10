@@ -39,6 +39,7 @@ from data.repositorios.catalogos import RepoCategorias, RepoPlantillas
 from data.repositorios.jornadas import RepoJornadas
 from services.actividades import ServicioActividades
 from services.whatsapp import ServicioWhatsApp, copiar_al_portapapeles
+from ui.iconos import configurar_boton
 
 
 class PantallaPlanear(QWidget):
@@ -98,10 +99,11 @@ class PantallaPlanear(QWidget):
         if self.txt_categoria is not None:
             self.txt_categoria.setPlaceholderText("Selecciona o escribe categoría")
 
-        self.btn_nueva_cat = QPushButton("➕ Nueva", self)
+        self.btn_nueva_cat = QPushButton("  Nueva", self)
         self.btn_nueva_cat.setProperty("rol", "secundario")
         self.btn_nueva_cat.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nueva_cat.setToolTip("Crear una nueva categoría en el sistema")
+        configurar_boton(self.btn_nueva_cat, "plus", color="#0F172A")
         self.btn_nueva_cat.clicked.connect(self.accion_crear_categoria)
 
         fila1.addWidget(lbl_act)
@@ -124,9 +126,10 @@ class PantallaPlanear(QWidget):
         for p in (Prioridad.NORMAL, Prioridad.MAXIMA, Prioridad.MINIMA):
             self.combo_prioridad.addItem(p.etiqueta(), p.value)
 
-        self.btn_agregar = QPushButton("➕  Agregar a mi plan de hoy", self)
+        self.btn_agregar = QPushButton("  Agregar a mi plan de hoy", self)
         self.btn_agregar.setProperty("rol", "exito")
         self.btn_agregar.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_agregar, "plus")
         self.btn_agregar.clicked.connect(self.accion_agregar_planeada)
         self.txt_nombre.returnPressed.connect(self.accion_agregar_planeada)
 
@@ -143,12 +146,13 @@ class PantallaPlanear(QWidget):
         self.card_plant = QFrame(self)
         self.card_plant.setProperty("card", True)
         col_plant = QHBoxLayout(self.card_plant)
-        col_plant.addWidget(QLabel("<b>✨ Plantillas sugeridas para hoy:</b>"))
+        col_plant.addWidget(QLabel("<b>Plantillas sugeridas para hoy:</b>"))
         self.lista_plantillas = QListWidget(self)
         self.lista_plantillas.setMaximumHeight(64)
         col_plant.addWidget(self.lista_plantillas, 1)
-        self.btn_aceptar_plantilla = QPushButton("✔ Agregar plantilla", self)
+        self.btn_aceptar_plantilla = QPushButton("  Agregar plantilla", self)
         self.btn_aceptar_plantilla.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_aceptar_plantilla, "check", color="#0F172A")
         self.btn_aceptar_plantilla.clicked.connect(self.accion_aceptar_plantilla)
         col_plant.addWidget(self.btn_aceptar_plantilla)
         layout.addWidget(self.card_plant)
@@ -162,14 +166,15 @@ class PantallaPlanear(QWidget):
         col_hoy = QVBoxLayout(card_lista_hoy)
         col_hoy.setContentsMargins(14, 12, 14, 12)
         col_hoy.setSpacing(8)
-        col_hoy.addWidget(QLabel("<b>📌 Actividades en tu plan de hoy</b>"))
+        col_hoy.addWidget(QLabel("<b>Actividades en tu plan de hoy</b>"))
 
         self.lista_planeadas_hoy = QListWidget(self)
         col_hoy.addWidget(self.lista_planeadas_hoy, 1)
 
-        self.btn_quitar_planeada = QPushButton("🗑  Quitar actividad seleccionada del plan", self)
+        self.btn_quitar_planeada = QPushButton("  Quitar actividad seleccionada del plan", self)
         self.btn_quitar_planeada.setProperty("rol", "secundario")
         self.btn_quitar_planeada.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_quitar_planeada, "trash", color="#0F172A")
         self.btn_quitar_planeada.clicked.connect(self.accion_quitar_planeada)
         col_hoy.addWidget(self.btn_quitar_planeada)
 
@@ -178,14 +183,15 @@ class PantallaPlanear(QWidget):
         col_wa = QVBoxLayout(card_wa)
         col_wa.setContentsMargins(14, 12, 14, 12)
         col_wa.setSpacing(8)
-        col_wa.addWidget(QLabel("<b>💬 Mensaje listo para enviar por WhatsApp</b>"))
+        col_wa.addWidget(QLabel("<b>Mensaje listo para enviar por WhatsApp</b>"))
 
         self.txt_plan_whatsapp = QPlainTextEdit(self)
         col_wa.addWidget(self.txt_plan_whatsapp, 1)
 
-        self.btn_copiar_wa = QPushButton("📋  Copiar plan para WhatsApp", self)
+        self.btn_copiar_wa = QPushButton("  Copiar plan para WhatsApp", self)
         self.btn_copiar_wa.setProperty("rol", "exito")
         self.btn_copiar_wa.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_copiar_wa, "copy")
         self.btn_copiar_wa.clicked.connect(self.accion_copiar_whatsapp)
         col_wa.addWidget(self.btn_copiar_wa)
 
