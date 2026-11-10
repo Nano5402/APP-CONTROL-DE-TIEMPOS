@@ -35,12 +35,12 @@ def _dibujar_pixmap_icono(tamano: int) -> QPixmap:
     lado = s - 2.0 * margen
     radio = s * 0.24
 
-    # Fondo redondeado con degradado azul corporativo Gente Util
+    # Fondo redondeado con degradado azul corporativo Gente Util (#003D95)
     grad = QLinearGradient(0, margen, 0, s - margen)
-    grad.setColorAt(0.0, QColor("#1D4ED8"))
-    grad.setColorAt(1.0, QColor("#0A2E52"))
+    grad.setColorAt(0.0, QColor("#003D95"))
+    grad.setColorAt(1.0, QColor("#00265E"))
     p.setBrush(grad)
-    p.setPen(QPen(QColor("#60A5FA"), max(1.0, s * 0.03)))
+    p.setPen(QPen(QColor("#3B82F6"), max(1.0, s * 0.03)))
     p.drawRoundedRect(int(margen), int(margen), int(lado), int(lado), radio, radio)
 
     # Corona superior del cronómetro en ámbar

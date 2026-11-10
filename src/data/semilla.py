@@ -78,6 +78,7 @@ CONFIGURACION_POR_DEFECTO: dict[str, str] = {
     "copias.conservar": "30",
     # Datos para los PDF
     "empresa.nombre": "Gente Util",
+    "empresa.color_primario": "#003D95",
 }
 
 

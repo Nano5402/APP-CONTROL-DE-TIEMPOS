@@ -52,7 +52,7 @@ def _envolver_html(
     empresa: str,
     usuario: str,
     cuerpo_html: str,
-    color_primario: str = "#1E3A8A",
+    color_primario: str = "#003D95",
     logo_ruta: str | None = None,
 ) -> str:
     logo_html = ""
@@ -147,7 +147,7 @@ class ServicioReportesPDF:
         usr = self.s.scalar(select(Usuario).limit(1))
         nombre_usr = usr.nombre.strip() if usr and usr.nombre else ""
         empresa = self.config.obtener("empresa.nombre", "Gente Util") or "Gente Util"
-        color = self.config.obtener("empresa.color_primario", "#0F4C81") or "#0F4C81"
+        color = self.config.obtener("empresa.color_primario", "#003D95") or "#003D95"
         logo = self.config.obtener("empresa.logo_ruta", None)
         if not logo or not Path(logo).is_file():
             defecto = rutas.ruta_logo_por_defecto()

@@ -247,7 +247,7 @@ class PantallaConfiguracion(QWidget):
         self.txt_usuario.setPlaceholderText("Ej. Andrés")
         self.txt_empresa = QLineEdit(card_gen)
         self.txt_color_empresa = QLineEdit(card_gen)
-        self.txt_color_empresa.setPlaceholderText("#0F4C81")
+        self.txt_color_empresa.setPlaceholderText("#003D95")
         self.txt_logo_ruta = QLineEdit(card_gen)
         self.txt_logo_ruta.setPlaceholderText("Automático (logo corporativo Gente Util)")
         self.btn_elegir_logo = QPushButton("Elegir imagen...", card_gen)
@@ -541,7 +541,7 @@ class PantallaConfiguracion(QWidget):
             self.txt_usuario.setText(usr.nombre if usr else "")
             self.txt_empresa.setText(cfg.obtener("empresa.nombre", "Gente Util") or "Gente Util")
             self.txt_color_empresa.setText(
-                cfg.obtener("empresa.color_primario", "#0F4C81") or "#0F4C81"
+                cfg.obtener("empresa.color_primario", "#003D95") or "#003D95"
             )
             self.txt_logo_ruta.setText(cfg.obtener("empresa.logo_ruta", "") or "")
 
@@ -642,7 +642,7 @@ class PantallaConfiguracion(QWidget):
             cfg = RepoConfiguracion(s)
             cfg.guardar("empresa.nombre", self.txt_empresa.text().strip() or "Gente Util")
             cfg.guardar(
-                "empresa.color_primario", self.txt_color_empresa.text().strip() or "#0F4C81"
+                "empresa.color_primario", self.txt_color_empresa.text().strip() or "#003D95"
             )
             cfg.guardar("empresa.logo_ruta", self.txt_logo_ruta.text().strip())
 
