@@ -91,35 +91,11 @@ def _dibujar_pixmap_icono(tamano: int) -> QPixmap:
 
 
 def crear_icono_app() -> QIcon:
-    """Carga literalmente el logo oficial de Gente Util S.A. (``logo_gente_util.png``)."""
-    ruta_logo = rutas.carpeta_assets() / "logo_gente_util.png"
-    ruta_ico = rutas.carpeta_assets() / "icono_app.ico"
-    if ruta_logo.is_file():
-        base_pix = QPixmap(str(ruta_logo))
-        if not base_pix.isNull():
-            icono = QIcon()
-            for tam in (16, 24, 32, 48, 64, 128, 256):
-                lienzo = QPixmap(tam, tam)
-                lienzo.fill(QColor(0, 0, 0, 0))
-                escalado = base_pix.scaled(
-                    tam,
-                    tam,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                pintor = QPainter(lienzo)
-                pintor.drawPixmap(
-                    (tam - escalado.width()) // 2,
-                    (tam - escalado.height()) // 2,
-                    escalado,
-                )
-                pintor.end()
-                icono.addPixmap(lienzo)
-            return icono
-
+    """Genera el icono multi-resolución de la aplicación (cronómetro) y guarda ``icono_app.ico``."""
     icono = QIcon()
     for tam in (16, 24, 32, 48, 64, 128, 256):
         icono.addPixmap(_dibujar_pixmap_icono(tam))
+    ruta_ico = rutas.carpeta_assets() / "icono_app.ico"
     if not ruta_ico.exists():
         try:
             _dibujar_pixmap_icono(256).save(str(ruta_ico), "ICO")

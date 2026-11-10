@@ -99,7 +99,7 @@ def main(argv: list[str] | None = None) -> int:
                 import ctypes
 
                 ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
-                    f"GenteUtil.ControlTiempos.LogoOficial.{rutas.VERSION}"
+                    f"GenteUtil.ControlTiempos.Desktop.{rutas.VERSION}"
                 )
             except Exception:
                 pass

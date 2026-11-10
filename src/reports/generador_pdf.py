@@ -1,8 +1,8 @@
 """Renderizado de HTML estilizado a archivos PDF usando `QPdfWriter` + `QTextDocument` (RF-08).
 
 No requiere internet ni librerías nativas externas; funciona con cualquier
-usuario estándar de Windows y soporta tablas, colores neutros (o corporativos
-cuando se configure en la v1.0) e imagen de logo opcional.
+usuario estándar de Windows y soporta tablas ejecutivas, colores corporativos
+e incrustación nítida del logo oficial de Gente Util S.A.
 """
 
 from __future__ import annotations
@@ -15,6 +15,7 @@ from pathlib import Path
 
 def renderizar_html_a_pdf(html: str, ruta_destino: Path | str) -> Path:
     """Convierte un documento HTML en un archivo PDF en ``ruta_destino``."""
+    from PySide6.QtCore import QMarginsF
     from PySide6.QtGui import QPageLayout, QPageSize, QPdfWriter, QTextDocument
     from PySide6.QtWidgets import QApplication
 
@@ -25,12 +26,13 @@ def renderizar_html_a_pdf(html: str, ruta_destino: Path | str) -> Path:
 
     writer = QPdfWriter(str(destino))
     writer.setPageSize(QPageSize(QPageSize.PageSizeId.Letter))
-    writer.setPageMargins(
-        writer.pageLayout().margins(), QPageLayout.Unit.Millimeter
-    )
-    writer.setResolution(300)
+    writer.setPageMargins(QMarginsF(12.0, 12.0, 12.0, 12.0), QPageLayout.Unit.Millimeter)
+    # 96 DPI alinea 1:1 las unidades lógicas de CSS/HTML (px/pt) con la página PDF
+    # manteniendo texto y bordes vectoriales y el logo PNG en alta resolución.
+    writer.setResolution(96)
 
     doc = QTextDocument()
+    doc.setDocumentMargin(4.0)
     doc.setHtml(html)
     doc.print_(writer)
     return destino

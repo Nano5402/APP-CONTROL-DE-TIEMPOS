@@ -135,9 +135,7 @@ def crear_acceso_directo_lnk(ruta_lnk: Path) -> Path:
         argumentos = f'"{main_py}"'
         workdir = str(main_py.parents[1])
 
-    ruta_icono = rutas.carpeta_assets() / "gente_util_logo_oficial.ico"
-    if not ruta_icono.exists():
-        ruta_icono = rutas.carpeta_assets() / "icono_app.ico"
+    ruta_icono = rutas.carpeta_assets() / "icono_app.ico"
     ruta_lnk.parent.mkdir(parents=True, exist_ok=True)
 
     script_ps = (

@@ -202,10 +202,10 @@ def generar_qss(codigo: str | None = "claro", *, tamano_fuente_px: int = 13) -> 
         border-right: 1px solid rgba(255, 255, 255, 0.06);
     }}
     QFrame#marcaSidebar {{
-        background-color: #FFFFFF;
-        border: 1px solid rgba(255, 255, 255, 0.25);
+        background-color: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.09);
         border-radius: 10px;
-        padding: 8px 10px;
+        padding: 10px;
     }}
     QLabel#tituloSidebar {{
         color: #FFFFFF;

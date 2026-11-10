@@ -73,26 +73,18 @@ class VentanaPrincipal(QMainWindow):
         col_nav.setContentsMargins(14, 16, 14, 16)
         col_nav.setSpacing(4)
 
-        # Bloque de marca corporativa mostrando literalmente el logo oficial de Gente Util S.A.
+        # Bloque de marca corporativa
         marca = QFrame(sidebar)
         marca.setObjectName("marcaSidebar")
         col_marca = QVBoxLayout(marca)
-        col_marca.setContentsMargins(6, 6, 6, 6)
+        col_marca.setContentsMargins(10, 8, 10, 8)
         col_marca.setSpacing(2)
-
-        lbl_logo = QLabel(marca)
-        lbl_logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        ruta_logo_oficial = rutas.carpeta_assets() / "logo_gente_util.png"
-        if ruta_logo_oficial.is_file():
-            pix_logo = QPixmap(str(ruta_logo_oficial)).scaled(
-                192,
-                73,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            lbl_logo.setPixmap(pix_logo)
-        lbl_logo.setStyleSheet("background: transparent;")
-        col_marca.addWidget(lbl_logo)
+        lbl_app = QLabel("⏱ GENTE UTIL", marca)
+        lbl_app.setObjectName("tituloSidebar")
+        lbl_sub = QLabel(f"Control de Tiempos · v{rutas.VERSION}", marca)
+        lbl_sub.setObjectName("subtituloSidebar")
+        col_marca.addWidget(lbl_app)
+        col_marca.addWidget(lbl_sub)
         col_nav.addWidget(marca)
 
         # Indicador de estado en vivo en la barra lateral
