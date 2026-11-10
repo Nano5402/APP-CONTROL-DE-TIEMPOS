@@ -60,9 +60,10 @@ RESOLUCIONES_DISPONIBLES: list[tuple[str, str]] = [
 ]
 
 MODOS_VENTANA: list[tuple[str, str]] = [
-    ("Ventana normal (resolución elegida)", "ventana"),
+    ("Ventana normal (con bordes)", "ventana"),
+    ("Ventana sin bordes (estilo launcher / frameless)", "sin_bordes"),
+    ("Pantalla completa (F11)", "pantalla_completa"),
     ("Maximizada (ajustada a la pantalla)", "maximizada"),
-    ("Pantalla completa", "pantalla_completa"),
 ]
 
 ESCALAS_FUENTE: list[tuple[str, int]] = [
@@ -529,7 +530,7 @@ class PantallaConfiguracion(QWidget):
         return pag
 
     def _actualizar_visibilidad_resolucion(self) -> None:
-        es_ventana = self.combo_modo_ventana.currentData() == "ventana"
+        es_ventana = self.combo_modo_ventana.currentData() in ("ventana", "sin_bordes")
         self.widget_resolucion.setVisible(es_ventana)
 
     def _fila_key_edit(self, editor: QKeySequenceEdit) -> QWidget:

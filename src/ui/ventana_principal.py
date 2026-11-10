@@ -4,8 +4,8 @@ personalizables (desactivados por defecto) y sincronización con el mini-widget 
 
 from __future__ import annotations
 
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QKeySequence, QPixmap, QShortcut
+from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtGui import QKeySequence, QMouseEvent, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QApplication,
     QButtonGroup,
@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QSizeGrip,
     QSizePolicy,
     QStackedWidget,
     QVBoxLayout,
@@ -39,6 +40,184 @@ from ui.pantallas.pantalla_reportes import PantallaReportes
 from ui.temas import generar_qss
 
 
+class BarraTituloSuperior(QFrame):
+    """Barra de título superior estilo lanzador moderno (Epic Games).
+
+    Ofrece:
+    - Arrastre fluido de la ventana con el ratón.
+    - Doble clic para maximizar / restaurar.
+    - Cápsula directa para cambiar entre: 'Ventana', 'Sin bordes' y 'Pantalla completa (F11)'.
+    - Botón de acceso rápido para activar/desactivar el tema visual Epic Games.
+    - Controles de minimizar, maximizar/restaurar y cerrar.
+    """
+
+    def __init__(self, ventana: VentanaPrincipal) -> None:
+        super().__init__(ventana)
+        self.ventana = ventana
+        self._pos_arrastre: QPoint | None = None
+        self.setObjectName("barraTitulo")
+        self.setFixedHeight(38)
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(12, 0, 8, 0)
+        layout.setSpacing(10)
+
+        # 1. Identidad de la App
+        self.lbl_logo = QLabel(self)
+        pix = crear_icono_app().pixmap(18, 18)
+        self.lbl_logo.setPixmap(pix)
+
+        self.lbl_titulo = QLabel("CONTROL DE TIEMPOS | GENTE ÚTIL", self)
+        self.lbl_titulo.setObjectName("tituloBarraApp")
+
+        self.lbl_badge = QLabel("PRO LAUNCHER", self)
+        self.lbl_badge.setObjectName("badgeBarraApp")
+
+        self.lbl_status_header = QLabel("○ EN ESPERA", self)
+        self.lbl_status_header.setStyleSheet("color: #94A3B8; font-weight: 600; font-size: 11px;")
+
+        layout.addWidget(self.lbl_logo)
+        layout.addWidget(self.lbl_titulo)
+        layout.addWidget(self.lbl_badge)
+        layout.addWidget(self.lbl_status_header)
+        layout.addSpacing(10)
+
+        # 2. Cápsula de Modos de Ventana
+        capsula = QFrame(self)
+        capsula.setObjectName("capsulaModos")
+        fila_capsula = QHBoxLayout(capsula)
+        fila_capsula.setContentsMargins(3, 2, 3, 2)
+        fila_capsula.setSpacing(2)
+
+        self.btn_modo_ventana = QPushButton("  Ventana", capsula)
+        self.btn_modo_sin_bordes = QPushButton("  Sin bordes", capsula)
+        self.btn_modo_fullscreen = QPushButton("  Pantalla completa", capsula)
+
+        for b in (self.btn_modo_ventana, self.btn_modo_sin_bordes, self.btn_modo_fullscreen):
+            b.setProperty("modo_pill", True)
+            b.setCheckable(True)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        configurar_boton(self.btn_modo_ventana, "window", color="#CBD5E1", tamano=13)
+        configurar_boton(self.btn_modo_sin_bordes, "zap", color="#CBD5E1", tamano=13)
+        configurar_boton(self.btn_modo_fullscreen, "fullscreen", color="#CBD5E1", tamano=13)
+
+        self.btn_modo_ventana.setToolTip("Modo ventana estándar con bordes")
+        self.btn_modo_sin_bordes.setToolTip("Ventana sin bordes estilo lanzador moderno / Epic Games")
+        self.btn_modo_fullscreen.setToolTip("Pantalla completa inmersiva (pulsa F11 para alternar)")
+
+        self.grupo_modos = QButtonGroup(self)
+        self.grupo_modos.setExclusive(True)
+        self.grupo_modos.addButton(self.btn_modo_ventana, 0)
+        self.grupo_modos.addButton(self.btn_modo_sin_bordes, 1)
+        self.grupo_modos.addButton(self.btn_modo_fullscreen, 2)
+
+        self.btn_modo_ventana.clicked.connect(lambda: self.ventana.cambiar_modo_ventana("ventana"))
+        self.btn_modo_sin_bordes.clicked.connect(lambda: self.ventana.cambiar_modo_ventana("sin_bordes"))
+        self.btn_modo_fullscreen.clicked.connect(lambda: self.ventana.cambiar_modo_ventana("pantalla_completa"))
+
+        fila_capsula.addWidget(self.btn_modo_ventana)
+        fila_capsula.addWidget(self.btn_modo_sin_bordes)
+        fila_capsula.addWidget(self.btn_modo_fullscreen)
+        layout.addWidget(capsula)
+
+        layout.addStretch(1)
+
+        # 3. Acceso rápido al tema Epic Games
+        self.btn_epic_theme = QPushButton("  Epic Games Theme", self)
+        self.btn_epic_theme.setProperty("modo_pill", True)
+        self.btn_epic_theme.setCheckable(True)
+        self.btn_epic_theme.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_epic_theme, "palette", color="#CBD5E1", tamano=13)
+        self.btn_epic_theme.setToolTip("Alterna el tema visual oscuro 'Epic Games'")
+        self.btn_epic_theme.clicked.connect(self.ventana.alternar_tema_epic)
+        layout.addWidget(self.btn_epic_theme)
+        layout.addSpacing(6)
+
+        # 4. Botones de ventana (Minimizar, Maximizar/Restaurar, Cerrar)
+        self.btn_min = QPushButton("—", self)
+        self.btn_min.setObjectName("btnMinimizar")
+        self.btn_min.setToolTip("Minimizar")
+        self.btn_min.clicked.connect(self.ventana.showMinimized)
+
+        self.btn_max = QPushButton("🗖", self)
+        self.btn_max.setObjectName("btnMaximizar")
+        self.btn_max.setToolTip("Maximizar / Restaurar")
+        self.btn_max.clicked.connect(self.ventana.alternar_maximizar)
+
+        self.btn_close = QPushButton("✕", self)
+        self.btn_close.setObjectName("btnCerrar")
+        self.btn_close.setToolTip("Cerrar")
+        self.btn_close.clicked.connect(self.ventana.close)
+
+        for b in (self.btn_min, self.btn_max, self.btn_close):
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            layout.addWidget(b)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._pos_arrastre = event.globalPosition().toPoint() - self.ventana.frameGeometry().topLeft()
+            event.accept()
+        else:
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        if self._pos_arrastre is not None and event.buttons() == Qt.MouseButton.LeftButton:
+            if not self.ventana.isMaximized() and not self.ventana.isFullScreen():
+                self.ventana.move(event.globalPosition().toPoint() - self._pos_arrastre)
+                event.accept()
+        else:
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        self._pos_arrastre = None
+        super().mouseReleaseEvent(event)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.ventana.alternar_maximizar()
+            event.accept()
+        else:
+            super().mouseDoubleClickEvent(event)
+
+    def actualizar_modo_activo(self, modo: str) -> None:
+        self.btn_modo_ventana.blockSignals(True)
+        self.btn_modo_sin_bordes.blockSignals(True)
+        self.btn_modo_fullscreen.blockSignals(True)
+
+        if modo == "pantalla_completa":
+            self.btn_modo_fullscreen.setChecked(True)
+        elif modo == "sin_bordes":
+            self.btn_modo_sin_bordes.setChecked(True)
+        else:
+            self.btn_modo_ventana.setChecked(True)
+
+        self.btn_modo_ventana.blockSignals(False)
+        self.btn_modo_sin_bordes.blockSignals(False)
+        self.btn_modo_fullscreen.blockSignals(False)
+
+        if self.ventana.isMaximized():
+            self.btn_max.setText("❐")
+        else:
+            self.btn_max.setText("🗖")
+
+    def actualizar_tema_activo(self, tema_codigo: str) -> None:
+        es_epic = tema_codigo == "epic_games"
+        self.btn_epic_theme.blockSignals(True)
+        self.btn_epic_theme.setChecked(es_epic)
+        self.btn_epic_theme.setText("  Epic Games (Activo)" if es_epic else "  Epic Games Theme")
+        self.btn_epic_theme.blockSignals(False)
+
+    def actualizar_estado(self, nombre_activo: str | None, segundos: int) -> None:
+        if nombre_activo:
+            corto = nombre_activo if len(nombre_activo) <= 18 else nombre_activo[:17] + "…"
+            self.lbl_status_header.setText(f"● {corto}")
+            self.lbl_status_header.setStyleSheet("color: #00DF81; font-weight: 700; font-size: 11px;")
+        else:
+            self.lbl_status_header.setText("○ EN ESPERA")
+            self.lbl_status_header.setStyleSheet("color: #94A3B8; font-weight: 600; font-size: 11px;")
+
+
 class VentanaPrincipal(QMainWindow):
     """Ventana principal de Control de Tiempos con barra lateral y páginas."""
 
@@ -48,11 +227,19 @@ class VentanaPrincipal(QMainWindow):
         self.coordinador_recordatorios = None
         self.icono_bandeja = None
         self._atajos_activos: list[QShortcut] = []
+        self._resolucion_configurada = "1180x740"
+        self._modo_ventana_actual = "sin_bordes"
 
         self.setWindowTitle(f"{rutas.NOMBRE_VISIBLE} — Gente Util v{rutas.VERSION}")
         icono_corporativo = crear_icono_app()
         self.setWindowIcon(icono_corporativo)
         self.resize(1180, 740)
+
+        # Atajos globales de pantalla completa (F11 y Escape)
+        self.atajo_f11 = QShortcut(QKeySequence("F11"), self)
+        self.atajo_f11.activated.connect(self.alternar_pantalla_completa)
+        self.atajo_esc = QShortcut(QKeySequence("Escape"), self)
+        self.atajo_esc.activated.connect(self._salir_pantalla_completa_si_activa)
 
         # Mini-widget flotante siempre visible
         self.mini_widget = MiniWidgetCronometro(
@@ -63,9 +250,17 @@ class VentanaPrincipal(QMainWindow):
         self.mini_widget.setWindowIcon(icono_corporativo)
 
         contenedor = QWidget(self)
-        layout_raiz = QHBoxLayout(contenedor)
+        layout_raiz = QVBoxLayout(contenedor)
         layout_raiz.setContentsMargins(0, 0, 0, 0)
         layout_raiz.setSpacing(0)
+
+        # Barra de título superior estilo lanzador (Epic Games / Frameless)
+        self.barra_titulo = BarraTituloSuperior(self)
+        layout_raiz.addWidget(self.barra_titulo)
+
+        layout_cuerpo = QHBoxLayout()
+        layout_cuerpo.setContentsMargins(0, 0, 0, 0)
+        layout_cuerpo.setSpacing(0)
 
         # Barra lateral de navegación
         sidebar = QFrame(contenedor)
@@ -193,8 +388,9 @@ class VentanaPrincipal(QMainWindow):
             if len(lbl.text()) > 32:
                 lbl.setWordWrap(True)
 
-        layout_raiz.addWidget(sidebar)
-        layout_raiz.addWidget(self.paginas, 1)
+        layout_cuerpo.addWidget(sidebar)
+        layout_cuerpo.addWidget(self.paginas, 1)
+        layout_raiz.addLayout(layout_cuerpo, 1)
         self.setCentralWidget(contenedor)
 
         self.grupo_nav.idClicked.connect(self.cambiar_pagina)
@@ -231,6 +427,7 @@ class VentanaPrincipal(QMainWindow):
             widget.refrescar()
 
     def aplicar_tema(self, codigo_tema: str, *, tamano_fuente_px: int = 13) -> None:
+        self._tema_actual = codigo_tema
         qss = generar_qss(codigo_tema, tamano_fuente_px=tamano_fuente_px)
         app = QApplication.instance()
         if app is not None:
@@ -238,44 +435,108 @@ class VentanaPrincipal(QMainWindow):
         else:
             self.setStyleSheet(qss)
         self.mini_widget.setStyleSheet(qss)
+        if hasattr(self, "barra_titulo"):
+            self.barra_titulo.actualizar_tema_activo(codigo_tema)
 
     def aplicar_graficos(self) -> None:
         """Aplica tema, tamaño de letra, resolución, modo de ventana y mini-ventana."""
         with self.bd.sesion() as s:
             usr = s.scalar(select(Usuario).limit(1))
-            tema_actual = usr.tema if usr and usr.tema else "gente_util"
+            tema_actual = usr.tema if usr and usr.tema else "epic_games"
             cfg = RepoConfiguracion(s)
             resolucion = cfg.obtener("graficos.resolucion", "1180x740") or "1180x740"
-            modo_ventana = cfg.obtener("graficos.modo_ventana", "ventana") or "ventana"
+            modo_ventana = cfg.obtener("graficos.modo_ventana", "sin_bordes") or "sin_bordes"
             tam_fuente = cfg.obtener_int("graficos.tamano_fuente", 13)
             mini_tamano = cfg.obtener("graficos.mini_tamano", "normal") or "normal"
             mini_opacidad = cfg.obtener_int("graficos.mini_opacidad", 95)
 
+        self._resolucion_configurada = resolucion
         self.aplicar_tema(tema_actual, tamano_fuente_px=tam_fuente)
         self.mini_widget.aplicar_preferencias_visuales(mini_tamano, mini_opacidad)
+        self.cambiar_modo_ventana(modo_ventana, guardar=False)
 
+    def _aplicar_tamano_configurado(self) -> None:
         try:
-            ancho_s, alto_s = resolucion.lower().split("x")
-            ancho, alto = max(900, int(ancho_s)), max(620, int(alto_s))
+            ancho_s, alto_s = (self._resolucion_configurada or "1180x740").lower().split("x")
+            ancho, alto = max(900, int(ancho_s)), max(580, int(alto_s))
         except Exception:
             ancho, alto = 1180, 740
+        self.resize(ancho, alto)
 
-        if modo_ventana == "pantalla_completa":
-            if self.isVisible():
-                self.showFullScreen()
-            else:
-                self.setWindowState(Qt.WindowState.WindowFullScreen)
-        elif modo_ventana == "maximizada":
-            if self.isVisible():
-                self.showMaximized()
-            else:
-                self.setWindowState(Qt.WindowState.WindowMaximized)
-        else:
-            if self.isMaximized() or self.isFullScreen():
+    def cambiar_modo_ventana(self, modo: str, guardar: bool = True) -> None:
+        """Aplica y conmuta los modos: 'ventana', 'sin_bordes', 'pantalla_completa' o 'maximizada'."""
+        self._modo_ventana_actual = modo
+        if guardar:
+            with self.bd.sesion() as s:
+                RepoConfiguracion(s).guardar("graficos.modo_ventana", modo)
+
+        if hasattr(self, "barra_titulo"):
+            self.barra_titulo.actualizar_modo_activo(modo)
+
+        was_visible = self.isVisible()
+
+        if modo == "pantalla_completa":
+            self.showFullScreen()
+        elif modo == "sin_bordes":
+            if self.isFullScreen():
                 self.showNormal()
-            else:
-                self.setWindowState(Qt.WindowState.WindowNoState)
-            self.resize(ancho, alto)
+            flags = self.windowFlags()
+            if not (flags & Qt.WindowType.FramelessWindowHint):
+                self.setWindowFlags(flags | Qt.WindowType.FramelessWindowHint)
+            if was_visible:
+                self.show()
+            self._aplicar_tamano_configurado()
+        elif modo == "maximizada":
+            flags = self.windowFlags()
+            if flags & Qt.WindowType.FramelessWindowHint:
+                self.setWindowFlags(flags & ~Qt.WindowType.FramelessWindowHint)
+            if self.isFullScreen():
+                self.showNormal()
+            self.showMaximized()
+        else:  # "ventana"
+            flags = self.windowFlags()
+            if flags & Qt.WindowType.FramelessWindowHint:
+                self.setWindowFlags(flags & ~Qt.WindowType.FramelessWindowHint)
+            if self.isFullScreen() or self.isMaximized():
+                self.showNormal()
+            elif was_visible:
+                self.show()
+            self._aplicar_tamano_configurado()
+
+    def alternar_maximizar(self) -> None:
+        if self.isFullScreen():
+            self.showNormal()
+        elif self.isMaximized():
+            self.showNormal()
+        else:
+            self.showMaximized()
+        if hasattr(self, "barra_titulo"):
+            self.barra_titulo.actualizar_modo_activo(self._modo_ventana_actual)
+
+    def alternar_pantalla_completa(self) -> None:
+        if self.isFullScreen():
+            with self.bd.sesion() as s:
+                previo = RepoConfiguracion(s).obtener("graficos.modo_ventana", "sin_bordes") or "sin_bordes"
+                if previo == "pantalla_completa":
+                    previo = "sin_bordes"
+            self.cambiar_modo_ventana(previo)
+        else:
+            self.cambiar_modo_ventana("pantalla_completa")
+
+    def _salir_pantalla_completa_si_activa(self) -> None:
+        if self.isFullScreen():
+            self.alternar_pantalla_completa()
+
+    def alternar_tema_epic(self) -> None:
+        with self.bd.sesion() as s:
+            usr = s.scalar(select(Usuario).limit(1))
+            tema_actual = usr.tema if usr and usr.tema else "gente_util"
+            nuevo_tema = "gente_util" if tema_actual == "epic_games" else "epic_games"
+            if usr:
+                usr.tema = nuevo_tema
+        self.aplicar_tema(nuevo_tema)
+        if hasattr(self, "pantalla_config"):
+            self.pantalla_config.refrescar()
 
     def mostrar_ocultar_mini_widget(self, visible: bool) -> None:
         self.btn_toggle_mini.blockSignals(True)
@@ -298,6 +559,8 @@ class VentanaPrincipal(QMainWindow):
         self.mini_widget.actualizar_estado(
             nombre, seg, self.pantalla_hoy.nombre_siguiente_sugerido
         )
+        if hasattr(self, "barra_titulo"):
+            self.barra_titulo.actualizar_estado(nombre, seg)
         if nombre:
             corto = nombre if len(nombre) <= 22 else nombre[:21] + "…"
             self.lbl_estado_sidebar.setText(f"EN CURSO:\n{corto}\n{formatear_reloj_hms(seg)}")

@@ -190,3 +190,59 @@ def test_cierre_ventana_detiene_timers_y_cierra_por_completo(bd, monkeypatch):
     assert coordinador.timer.isActive() is False
 
 
+def test_modos_ventana_epic_games_launcher_y_pantalla_completa(bd, monkeypatch):
+    """Verifica los 3 modos de ventana (Ventana, Sin bordes, Pantalla completa) y el tema Epic Games."""
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QApplication
+
+    from ui.temas import TEMAS, generar_qss
+    from ui.ventana_principal import VentanaPrincipal
+
+    _app = QApplication.instance() or QApplication([])
+
+    # 1. Verificar tema Epic Games
+    assert "epic_games" in TEMAS
+    paleta_epic = TEMAS["epic_games"]
+    assert paleta_epic.acento == "#0078F2"
+    qss_epic = generar_qss("epic_games")
+    assert "#0078F2" in qss_epic
+    assert "#00E5FF" in qss_epic  # Reloj digital en cian neon
+
+    # 2. Inicializar ventana principal y barra de título
+    ventana = VentanaPrincipal(bd)
+    ventana.show()
+    assert hasattr(ventana, "barra_titulo")
+
+    # 3. Probar modo 'sin_bordes' (Frameless launcher style)
+    ventana.cambiar_modo_ventana("sin_bordes")
+    assert ventana._modo_ventana_actual == "sin_bordes"
+    assert bool(ventana.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
+    assert ventana.barra_titulo.btn_modo_sin_bordes.isChecked() is True
+
+    # 4. Probar modo 'ventana' (Con bordes estándar)
+    ventana.cambiar_modo_ventana("ventana")
+    assert ventana._modo_ventana_actual == "ventana"
+    assert bool(ventana.windowFlags() & Qt.WindowType.FramelessWindowHint) is False
+    assert ventana.barra_titulo.btn_modo_ventana.isChecked() is True
+
+    # 5. Probar modo 'pantalla_completa' y atajo F11
+    ventana.cambiar_modo_ventana("pantalla_completa")
+    assert ventana._modo_ventana_actual == "pantalla_completa"
+    assert ventana.barra_titulo.btn_modo_fullscreen.isChecked() is True
+
+    # Alternar F11 restaura el modo
+    ventana.alternar_pantalla_completa()
+    assert ventana.isFullScreen() is False
+
+    # 6. Probar botón de conmutación de tema Epic Games
+    ventana.aplicar_tema("gente_util")
+    assert ventana.barra_titulo.btn_epic_theme.isChecked() is False
+    ventana.alternar_tema_epic()
+    assert ventana._tema_actual == "epic_games"
+    assert ventana.barra_titulo.btn_epic_theme.isChecked() is True
+
+    ventana.close()
+
+
+

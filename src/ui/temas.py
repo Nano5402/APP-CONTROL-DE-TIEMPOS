@@ -165,6 +165,32 @@ TEMAS: dict[str, PaletaTema] = {
         seleccion_tabla="rgba(55, 48, 163, 0.14)",
         texto_seleccion="#1E1B4B",
     ),
+    "epic_games": PaletaTema(
+        codigo="epic_games",
+        nombre="Epic Games (Dark Pro Launcher)",
+        fondo_ventana="qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #0D0E12, stop:0.45 #13151D, stop:1 #090A0D)",
+        fondo_panel="rgba(24, 25, 34, 0.84)",
+        fondo_hero="qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 rgba(28, 32, 46, 0.94), stop:1 rgba(16, 18, 26, 0.90))",
+        fondo_reloj="qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 rgba(11, 16, 28, 0.97), stop:1 rgba(6, 9, 17, 0.93))",
+        fondo_sidebar="qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #101117, stop:0.6 #0B0C10, stop:1 #050608)",
+        texto_principal="#F8FAFC",
+        texto_secundario="#94A3B8",
+        texto_sidebar="#E2E8F0",
+        borde="rgba(255, 255, 255, 0.18)",
+        borde_fuerte="rgba(255, 255, 255, 0.08)",
+        acento="#0078F2",
+        acento_hover="#0060C4",
+        acento_suave="rgba(0, 120, 242, 0.22)",
+        exito="#00DF81",
+        exito_hover="#00B86B",
+        advertencia="#F59E0B",
+        advertencia_hover="#D97706",
+        peligro="#EF4444",
+        peligro_hover="#DC2626",
+        fondo_input="rgba(16, 17, 24, 0.90)",
+        seleccion_tabla="rgba(0, 120, 242, 0.32)",
+        texto_seleccion="#FFFFFF",
+    ),
 }
 
 
@@ -179,6 +205,7 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
     f_sub = max(10, f_base - 1)
     f_tit = f_base + 9
     f_reloj = f_base + 26
+    color_reloj = "#00E5FF" if t.codigo == "epic_games" else t.acento
 
     fuente_familia = '"Montserrat", -apple-system, "Segoe UI", Arial, sans-serif'
     fuente_reloj = '"Montserrat", "Cascadia Mono", "Segoe UI", monospace'
@@ -308,7 +335,7 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
     QLabel#relojGrande {{
         font-size: {f_reloj}px;
         font-weight: 800;
-        color: {t.acento};
+        color: {color_reloj};
         font-family: {fuente_reloj};
         letter-spacing: 2px;
         background: transparent;
@@ -316,7 +343,7 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
     QLabel#relojMini {{
         font-size: {f_base + 8}px;
         font-weight: 800;
-        color: {t.acento};
+        color: {color_reloj};
         font-family: {fuente_reloj};
         letter-spacing: 1px;
         background: transparent;
@@ -483,5 +510,84 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
     }}
     QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {{
         height: 0px;
+    }}
+    /* Barra de título superior estilo Launcher (Epic Games / Frameless) */
+    QFrame#barraTitulo {{
+        background: {t.fondo_sidebar};
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        min-height: 38px;
+        max-height: 38px;
+    }}
+    QLabel#tituloBarraApp {{
+        color: #FFFFFF;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+        background: transparent;
+    }}
+    QLabel#badgeBarraApp {{
+        background-color: {t.acento_suave};
+        color: {t.acento if t.codigo != "epic_games" else "#38BDF8"};
+        border: 1px solid rgba(0, 120, 242, 0.40);
+        border-radius: 6px;
+        padding: 2px 8px;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.8px;
+    }}
+    QFrame#capsulaModos {{
+        background: rgba(0, 0, 0, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.10);
+        border-radius: 8px;
+        padding: 2px;
+    }}
+    QPushButton[modo_pill="true"] {{
+        background: transparent;
+        color: rgba(255, 255, 255, 0.65);
+        border: none;
+        border-radius: 6px;
+        padding: 3px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        min-height: 20px;
+    }}
+    QPushButton[modo_pill="true"]:hover {{
+        background: rgba(255, 255, 255, 0.12);
+        color: #FFFFFF;
+    }}
+    QPushButton[modo_pill="true"]:checked {{
+        background: {t.acento};
+        color: #FFFFFF;
+        font-weight: 700;
+    }}
+    QPushButton#btnMinimizar, QPushButton#btnMaximizar {{
+        background: transparent;
+        color: #94A3B8;
+        border: none;
+        border-radius: 6px;
+        min-width: 34px;
+        max-width: 34px;
+        min-height: 26px;
+        max-height: 26px;
+        padding: 0px;
+    }}
+    QPushButton#btnMinimizar:hover, QPushButton#btnMaximizar:hover {{
+        background: rgba(255, 255, 255, 0.15);
+        color: #FFFFFF;
+    }}
+    QPushButton#btnCerrar {{
+        background: transparent;
+        color: #94A3B8;
+        border: none;
+        border-radius: 6px;
+        min-width: 34px;
+        max-width: 34px;
+        min-height: 26px;
+        max-height: 26px;
+        padding: 0px;
+    }}
+    QPushButton#btnCerrar:hover {{
+        background: #E81123;
+        color: #FFFFFF;
     }}
     """
