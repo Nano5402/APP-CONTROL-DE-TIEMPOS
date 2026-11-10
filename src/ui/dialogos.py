@@ -30,6 +30,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from data.db import BaseDatos
 from data.enums import CanalSolicitud, MotivoRevision, TipoPausa, TipoRevision
 from data.models import Actividad, Solicitante
 from ui.iconos import configurar_boton
@@ -38,13 +39,14 @@ from ui.iconos import configurar_boton
 class DialogoPIN(QDialog):
     """Solicita el PIN de acceso al abrir la aplicación (RF-09)."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(self, bd: BaseDatos | None = None, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.bd = bd
         self.setWindowTitle("Ingresar PIN — Control de Tiempos")
-        self.setMinimumWidth(360)
+        self.setMinimumWidth(380)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(20, 18, 20, 18)
+        layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(12)
 
         lbl_tit = QLabel("Acceso protegido con PIN", self)
@@ -52,20 +54,67 @@ class DialogoPIN(QDialog):
         layout.addWidget(lbl_tit)
 
         layout.addWidget(QLabel("Escribe tu PIN numérico para entrar a la aplicación:"))
+
+        fila_input = QHBoxLayout()
         self.txt_pin = QLineEdit(self)
         self.txt_pin.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_pin.setPlaceholderText("PIN de 4 o más dígitos")
-        layout.addWidget(self.txt_pin)
+        self.txt_pin.returnPressed.connect(self._intentar_aceptar)
+
+        self.btn_ver_pin = QPushButton("Ver", self)
+        self.btn_ver_pin.setProperty("rol", "secundario")
+        self.btn_ver_pin.setCheckable(True)
+        self.btn_ver_pin.setFixedWidth(56)
+        self.btn_ver_pin.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_ver_pin.toggled.connect(self._alternar_ver_pin)
+
+        fila_input.addWidget(self.txt_pin, 1)
+        fila_input.addWidget(self.btn_ver_pin)
+        layout.addLayout(fila_input)
+
+        self.lbl_error = QLabel("", self)
+        self.lbl_error.setStyleSheet("color: #EF4444; font-size: 12px; font-weight: 600;")
+        self.lbl_error.setVisible(False)
+        layout.addWidget(self.lbl_error)
 
         botones = QDialogButtonBox(
             QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel,
             self,
         )
-        botones.button(QDialogButtonBox.StandardButton.Ok).setText("Entrar")
+        self.btn_ok = botones.button(QDialogButtonBox.StandardButton.Ok)
+        self.btn_ok.setText("  Entrar")
+        self.btn_ok.setProperty("rol", "exito")
+        configurar_boton(self.btn_ok, "check", color="#FFFFFF")
         botones.button(QDialogButtonBox.StandardButton.Cancel).setText("Cancelar")
-        botones.accepted.connect(self.accept)
+        botones.accepted.connect(self._intentar_aceptar)
         botones.rejected.connect(self.reject)
         layout.addWidget(botones)
+
+    def _alternar_ver_pin(self, ver: bool) -> None:
+        self.txt_pin.setEchoMode(
+            QLineEdit.EchoMode.Normal if ver else QLineEdit.EchoMode.Password
+        )
+        self.btn_ver_pin.setText("Ocultar" if ver else "Ver")
+
+    def _intentar_aceptar(self) -> None:
+        pin = self.pin
+        if not pin:
+            self.lbl_error.setText("Escribe tu PIN numérico.")
+            self.lbl_error.setVisible(True)
+            return
+
+        if self.bd is not None:
+            from services.seguridad_pin import ServicioPIN
+
+            with self.bd.sesion() as s:
+                if not ServicioPIN(s).verificar(pin):
+                    self.lbl_error.setText("PIN incorrecto. Revisa los dígitos e inténtalo de nuevo.")
+                    self.lbl_error.setVisible(True)
+                    self.txt_pin.selectAll()
+                    self.txt_pin.setFocus()
+                    return
+
+        self.accept()
 
     @property
     def pin(self) -> str:

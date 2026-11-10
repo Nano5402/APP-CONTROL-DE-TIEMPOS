@@ -481,12 +481,25 @@ class PantallaConfiguracion(QWidget):
         self.txt_nuevo_pin = QLineEdit(card_pin)
         self.txt_nuevo_pin.setEchoMode(QLineEdit.EchoMode.Password)
         self.txt_nuevo_pin.setPlaceholderText("Escribe un PIN de 4 o más dígitos")
+        self.btn_ver_nuevo_pin = QPushButton("Ver", card_pin)
+        self.btn_ver_nuevo_pin.setProperty("rol", "secundario")
+        self.btn_ver_nuevo_pin.setCheckable(True)
+        self.btn_ver_nuevo_pin.setFixedWidth(56)
+        self.btn_ver_nuevo_pin.toggled.connect(
+            lambda v: (
+                self.txt_nuevo_pin.setEchoMode(
+                    QLineEdit.EchoMode.Normal if v else QLineEdit.EchoMode.Password
+                ),
+                self.btn_ver_nuevo_pin.setText("Ocultar" if v else "Ver"),
+            )
+        )
         self.btn_fijar_pin = QPushButton("Establecer PIN", card_pin)
         self.btn_quitar_pin = QPushButton("Desactivar PIN", card_pin)
         self.btn_quitar_pin.setProperty("rol", "secundario")
         self.btn_fijar_pin.clicked.connect(self.accion_establecer_pin)
         self.btn_quitar_pin.clicked.connect(self.accion_quitar_pin)
         fila_pin.addWidget(self.txt_nuevo_pin, 1)
+        fila_pin.addWidget(self.btn_ver_nuevo_pin)
         fila_pin.addWidget(self.btn_fijar_pin)
         fila_pin.addWidget(self.btn_quitar_pin)
         col_pin.addLayout(fila_pin)

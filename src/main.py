@@ -118,13 +118,9 @@ def main(argv: list[str] | None = None) -> int:
 
         # Si el usuario configuró un PIN opcional y se va a mostrar la ventana, solicitarlo
         if requiere_pin and not ocultar_ventana_al_arrancar:
-            dlg_pin = DialogoPIN()
+            dlg_pin = DialogoPIN(bd)
             if dlg_pin.exec() != DialogoPIN.DialogCode.Accepted:
                 return 0
-            with bd.sesion() as s:
-                if not ServicioPIN(s).verificar(dlg_pin.pin):
-                    QMessageBox.critical(None, "PIN incorrecto", "El PIN ingresado no es válido.")
-                    return 1
 
         ventana = VentanaPrincipal(bd)
         bandeja = IconoBandeja(ventana)
