@@ -60,9 +60,9 @@ RESOLUCIONES_DISPONIBLES: list[tuple[str, str]] = [
 ]
 
 MODOS_VENTANA: list[tuple[str, str]] = [
-    ("Ventana normal (con bordes)", "ventana"),
-    ("Ventana sin bordes (estilo launcher / frameless)", "sin_bordes"),
-    ("Pantalla completa (F11)", "pantalla_completa"),
+    ("Ventana normal (con bordes de Windows)", "ventana"),
+    ("Ventana sin bordes (limpia y estética)", "sin_bordes"),
+    ("Pantalla completa (inmersiva — F11)", "pantalla_completa"),
     ("Maximizada (ajustada a la pantalla)", "maximizada"),
 ]
 

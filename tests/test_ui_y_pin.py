@@ -190,8 +190,8 @@ def test_cierre_ventana_detiene_timers_y_cierra_por_completo(bd, monkeypatch):
     assert coordinador.timer.isActive() is False
 
 
-def test_modos_ventana_epic_games_launcher_y_pantalla_completa(bd, monkeypatch):
-    """Verifica los 3 modos de ventana (Ventana, Sin bordes, Pantalla completa) y el tema Epic Games."""
+def test_modos_visualizacion_configuracion_y_pantalla_completa(bd, monkeypatch):
+    """Verifica los modos de visualización (Ventana, Sin bordes, Pantalla completa, Maximizada) desde Configuración."""
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtCore import Qt
     from PySide6.QtWidgets import QApplication
@@ -201,46 +201,43 @@ def test_modos_ventana_epic_games_launcher_y_pantalla_completa(bd, monkeypatch):
 
     _app = QApplication.instance() or QApplication([])
 
-    # 1. Verificar tema Epic Games
-    assert "epic_games" in TEMAS
-    paleta_epic = TEMAS["epic_games"]
-    assert paleta_epic.acento == "#0078F2"
-    qss_epic = generar_qss("epic_games")
-    assert "#0078F2" in qss_epic
-    assert "#00E5FF" in qss_epic  # Reloj digital en cian neon
+    # 1. Verificar tema corporativo Gente Útil
+    assert "gente_util" in TEMAS
+    paleta_gu = TEMAS["gente_util"]
+    assert paleta_gu.acento == "#003D95"
+    qss_gu = generar_qss("gente_util")
+    assert "#003D95" in qss_gu
 
     # 2. Inicializar ventana principal y barra de título
     ventana = VentanaPrincipal(bd)
     ventana.show()
     assert hasattr(ventana, "barra_titulo")
 
-    # 3. Probar modo 'sin_bordes' (Frameless launcher style)
+    # 3. Probar modo 'sin_bordes' (Frameless estético: activa barra minimalista integrada)
     ventana.cambiar_modo_ventana("sin_bordes")
     assert ventana._modo_ventana_actual == "sin_bordes"
     assert bool(ventana.windowFlags() & Qt.WindowType.FramelessWindowHint) is True
-    assert ventana.barra_titulo.btn_modo_sin_bordes.isChecked() is True
+    assert ventana.barra_titulo.isVisible() is True
 
-    # 4. Probar modo 'ventana' (Con bordes estándar)
+    # 4. Probar modo 'ventana' (Marco estándar de Windows: oculta la barra integrada)
     ventana.cambiar_modo_ventana("ventana")
     assert ventana._modo_ventana_actual == "ventana"
     assert bool(ventana.windowFlags() & Qt.WindowType.FramelessWindowHint) is False
-    assert ventana.barra_titulo.btn_modo_ventana.isChecked() is True
+    assert ventana.barra_titulo.isVisible() is False
 
     # 5. Probar modo 'pantalla_completa' y atajo F11
     ventana.cambiar_modo_ventana("pantalla_completa")
     assert ventana._modo_ventana_actual == "pantalla_completa"
-    assert ventana.barra_titulo.btn_modo_fullscreen.isChecked() is True
+    assert ventana.barra_titulo.isVisible() is False
 
-    # Alternar F11 restaura el modo
+    # Alternar F11 restaura el modo anterior
     ventana.alternar_pantalla_completa()
     assert ventana.isFullScreen() is False
 
-    # 6. Probar botón de conmutación de tema Epic Games
-    ventana.aplicar_tema("gente_util")
-    assert ventana.barra_titulo.btn_epic_theme.isChecked() is False
-    ventana.alternar_tema_epic()
-    assert ventana._tema_actual == "epic_games"
-    assert ventana.barra_titulo.btn_epic_theme.isChecked() is True
+    # 6. Probar modo 'maximizada'
+    ventana.cambiar_modo_ventana("maximizada")
+    assert ventana._modo_ventana_actual == "maximizada"
+    assert ventana.barra_titulo.isVisible() is False
 
     ventana.close()
 
