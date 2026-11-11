@@ -80,7 +80,9 @@ CONFIGURACION_POR_DEFECTO: dict[str, str] = {
     # Copias de seguridad (RF-09)
     "copias.carpeta": "",  # vacío = carpeta por defecto en Documentos
     "copias.conservar": "30",
-    # Datos para los PDF
+    # Datos del colaborador y empresa para reportes PDF
+    "usuario.cargo": "",
+    "usuario.area": "",
     "empresa.nombre": "Gente Util",
     "empresa.color_primario": "#003D95",
 }

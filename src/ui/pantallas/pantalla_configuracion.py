@@ -296,8 +296,16 @@ class PantallaConfiguracion(QWidget):
         form_gen.addRow(QLabel("<b>Datos del Usuario y Reportes Corporativos</b>"))
 
         self.txt_usuario = QLineEdit(card_gen)
-        self.txt_usuario.setPlaceholderText("Ej. Andrés (para reportes y WhatsApp)")
-        self.txt_usuario.setToolTip("Nombre usado en encabezados de reportes PDF y resúmenes de WhatsApp")
+        self.txt_usuario.setPlaceholderText("Escribe tu nombre completo (reportes PDF y WhatsApp)")
+        self.txt_usuario.setToolTip(
+            "Nombre usado en encabezados y firmas de reportes PDF y resúmenes de WhatsApp"
+        )
+        self.txt_cargo = QLineEdit(card_gen)
+        self.txt_cargo.setPlaceholderText("Ej. Analista, Coordinador, Desarrollador, Auxiliar...")
+        self.txt_cargo.setToolTip("Cargo o puesto mostrado en los reportes PDF")
+        self.txt_area = QLineEdit(card_gen)
+        self.txt_area.setPlaceholderText("Ej. Operaciones, Administración, Tecnología...")
+        self.txt_area.setToolTip("Área o departamento mostrado en los reportes PDF")
         self.txt_empresa = QLineEdit(card_gen)
         self.txt_color_empresa = QLineEdit(card_gen)
         self.txt_color_empresa.setPlaceholderText("#003D95")
@@ -312,7 +320,9 @@ class PantallaConfiguracion(QWidget):
         fila_logo.addWidget(self.txt_logo_ruta, 1)
         fila_logo.addWidget(self.btn_elegir_logo)
 
-        form_gen.addRow("Nombre para reportes:", self.txt_usuario)
+        form_gen.addRow("Nombre completo (reportes):", self.txt_usuario)
+        form_gen.addRow("Cargo / puesto:", self.txt_cargo)
+        form_gen.addRow("Área / departamento:", self.txt_area)
         form_gen.addRow("Empresa:", self.txt_empresa)
         form_gen.addRow("Color primario en reportes PDF:", self.txt_color_empresa)
         form_gen.addRow("Logo para reportes PDF:", fila_logo)
@@ -784,7 +794,9 @@ class PantallaConfiguracion(QWidget):
             usr = s.scalar(select(Usuario).limit(1))
             cfg = RepoConfiguracion(s)
 
-            self.txt_usuario.setText(usr.nombre if usr else "")
+            self.txt_usuario.setText((usr.nombre or "").strip() if usr else "")
+            self.txt_cargo.setText((cfg.obtener("usuario.cargo", "") or "").strip())
+            self.txt_area.setText((cfg.obtener("usuario.area", "") or "").strip())
             self.txt_empresa.setText(cfg.obtener("empresa.nombre", "Gente Util") or "Gente Util")
             self.txt_color_empresa.setText(
                 cfg.obtener("empresa.color_primario", "#003D95") or "#003D95"
@@ -902,11 +914,17 @@ class PantallaConfiguracion(QWidget):
 
         with self.bd.sesion() as s:
             usr = s.scalar(select(Usuario).limit(1))
-            if usr:
-                usr.nombre = self.txt_usuario.text().strip()
+            nombre_usuario = self.txt_usuario.text().strip()
+            if usr is None:
+                usr = Usuario(nombre=nombre_usuario, tema=tema)
+                s.add(usr)
+            else:
+                usr.nombre = nombre_usuario
                 usr.tema = tema
 
             cfg = RepoConfiguracion(s)
+            cfg.guardar("usuario.cargo", self.txt_cargo.text().strip())
+            cfg.guardar("usuario.area", self.txt_area.text().strip())
             cfg.guardar("empresa.nombre", self.txt_empresa.text().strip() or "Gente Util")
             cfg.guardar(
                 "empresa.color_primario", self.txt_color_empresa.text().strip() or "#003D95"

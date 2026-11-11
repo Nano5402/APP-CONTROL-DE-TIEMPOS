@@ -159,12 +159,15 @@ def _etiqueta_horario_bloques(bloques: list[Horario]) -> str:
 def _cargar_cabecera(s: Session) -> _DatosCabecera:
     usuario = s.scalars(select(Usuario).limit(1)).first()
     cfg = RepoConfiguracion(s)
+    nombre_usr = (usuario.nombre or "").strip() if usuario else ""
+    cargo_cfg = (cfg.obtener("usuario.cargo", "") or "").strip()
+    area_cfg = (cfg.obtener("usuario.area", "") or "").strip()
     logo_cfg = cfg.obtener("empresa.logo_ruta", "") or ""
     ruta_logo = Path(logo_cfg) if logo_cfg and Path(logo_cfg).exists() else rutas.ruta_logo_por_defecto()
     return _DatosCabecera(
-        usuario=usuario.nombre if usuario else "Usuario",
-        cargo=cfg.obtener("usuario.cargo", "Diseño Gráfico") or "Diseño Gráfico",
-        area=cfg.obtener("usuario.area", "Operaciones y Marca") or "Operaciones y Marca",
+        usuario=nombre_usr or "Colaborador",
+        cargo=cargo_cfg or "Sin especificar",
+        area=area_cfg or "Sin especificar",
         empresa=cfg.obtener("empresa.nombre", "Gente Util") or "Gente Util",
         color_primario=cfg.obtener("empresa.color_primario", "#003D95") or "#003D95",
         ruta_logo=str(ruta_logo) if ruta_logo and ruta_logo.exists() else None,

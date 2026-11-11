@@ -6,7 +6,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from PySide6.QtPdf import QPdfDocument
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from data.enums import MotivoRevision, TipoPausa, TipoRevision
 from data.models import Pausa, SesionTiempo, Solicitante
@@ -20,6 +20,7 @@ from services.historial import FiltrosHistorial
 from services.productividad import NivelSemaforo, ServicioProductividad
 from services.reportes_pdf import ServicioReportesPDF, _colores_semaforo
 from ui.pantallas.pantalla_cierre import PantallaCierre
+from ui.pantallas.pantalla_configuracion import PantallaConfiguracion
 from ui.pantallas.pantalla_hoy import PantallaHoy
 
 
@@ -371,4 +372,82 @@ def test_pdf_jornada_y_periodo_con_semaforo_por_mejorar_y_aceptable(s, monkeypat
     textos.clear()
     ruta_per = srv_pdf.generar_pdf_periodo(dia_bajo, dia_medio, etiqueta_periodo="Comparativo")
     _verificar_pdf_generado(ruta_per)
+
+
+def test_configurar_nombre_cargo_area_refleja_en_pdf(bd, monkeypatch):
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    QApplication.instance() or QApplication([])
+    monkeypatch.setattr(QMessageBox, "information", lambda *a, **kw: QMessageBox.StandardButton.Ok)
+
+    textos = _espiar_textos_lienzo(monkeypatch)
+    dia = date(2026, 11, 18)
+
+    # 1. Con datos iniciales (sin nombre/cargo configurados), no aparece "Diseño Gráfico"
+    with bd.sesion() as sesion:
+        srv_act = ServicioActividades(sesion)
+        cron = ServicioCronometro(sesion)
+        act = srv_act.crear_planeada(
+            "Revisión general", tiempo_estimado_min=60, momento=datetime(2026, 11, 18, 8, 0)
+        )
+        cron.iniciar(act, momento=datetime(2026, 11, 18, 8, 0))
+        cron.finalizar(act, momento=datetime(2026, 11, 18, 9, 0))
+        jornada_id = act.jornada.id
+        ruta_def = ServicioReportesPDF(sesion).generar_pdf_jornada(act.jornada)
+        _verificar_pdf_generado(ruta_def)
+
+    unif_def = "\n".join(textos)
+    assert "Diseño Gráfico" not in unif_def
+    assert "Operaciones y Marca" not in unif_def
+    assert "Colaborador" in unif_def
+    assert "Sin especificar" in unif_def
+
+    # 2. El usuario configura nombre, cargo y área desde PantallaConfiguracion
+    cfg_ui = PantallaConfiguracion(bd)
+    assert cfg_ui.txt_usuario.text() == ""
+    assert cfg_ui.txt_cargo.text() == ""
+    assert cfg_ui.txt_area.text() == ""
+
+    cfg_ui.txt_usuario.setText("Camila Torres")
+    cfg_ui.txt_cargo.setText("Coordinadora Administrativa")
+    cfg_ui.txt_area.setText("Talento Humano")
+    cfg_ui.accion_guardar_general()
+
+    # Recargar desde BD debe conservar los tres campos
+    cfg_ui.txt_usuario.clear()
+    cfg_ui.txt_cargo.clear()
+    cfg_ui.txt_area.clear()
+    cfg_ui.refrescar()
+    assert cfg_ui.txt_usuario.text() == "Camila Torres"
+    assert cfg_ui.txt_cargo.text() == "Coordinadora Administrativa"
+    assert cfg_ui.txt_area.text() == "Talento Humano"
+    cfg_ui.close()
+
+    # 3. Los PDFs posteriores usan el nombre, cargo y área configurados
+    textos.clear()
+    with bd.sesion() as sesion:
+        jornada = RepoJornadas(sesion).obtener_por_fecha(dia)
+        assert jornada is not None and jornada.id == jornada_id
+        srv_pdf = ServicioReportesPDF(sesion)
+        ruta_jor = srv_pdf.generar_pdf_jornada(jornada)
+        _verificar_pdf_generado(ruta_jor)
+
+    unif_jor = "\n".join(textos)
+    assert "Camila Torres" in unif_jor
+    assert "Coordinadora Administrativa" in unif_jor
+    assert "Talento Humano" in unif_jor
+    assert "Diseño Gráfico" not in unif_jor
+    assert "Operaciones y Marca" not in unif_jor
+
+    textos.clear()
+    with bd.sesion() as sesion:
+        ruta_esp = ServicioReportesPDF(sesion).generar_pdf_especifico(
+            FiltrosHistorial(fecha_desde=dia, fecha_hasta=dia),
+            titulo_filtro="Reporte personalizado",
+        )
+        _verificar_pdf_generado(ruta_esp)
+
+    unif_esp = "\n".join(textos)
+    assert "Camila Torres" in unif_esp
+    assert "Coordinadora Administrativa" in unif_esp
+    assert "Diseño Gráfico" not in unif_esp
 
