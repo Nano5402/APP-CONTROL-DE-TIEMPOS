@@ -1,7 +1,7 @@
 """Generación de reportes PDF corporativos elegantes y gráficos (RF-08, RF-10).
 
 Cuatro modalidades unificadas sobre ``LienzoPDF``:
-1. Reporte diario laboral (productividad, bruto en jornada, línea de tiempo y tablas).
+1. Reporte diario laboral (productividad, tiempo efectivo en jornada, línea de tiempo y tablas).
 2. Reporte de día no laboral (registro de trabajo fuera de horario).
 3. Reporte específico con filtros (rango de fechas, categoría, solicitante o tipo).
 4. Reporte periódico Semanal o Mensual (tendencia diaria, comparativos y desviación).
@@ -24,10 +24,9 @@ from data.enums import (
     MotivoRevision,
     Prioridad,
     TipoActividad,
-    TipoPausa,
     TipoRevision,
 )
-from data.models import Actividad, Horario, Jornada, Pausa, SesionTiempo, Usuario
+from data.models import Actividad, Horario, Jornada, SesionTiempo, Usuario
 from data.repositorios.configuracion import RepoConfiguracion
 from data.repositorios.horarios import RepoHorarios
 from data.tiempo import ahora
@@ -57,7 +56,7 @@ from reports.graficos_pdf import (
 from services.actividades import ServicioActividades
 from services.estadisticas import ServicioEstadisticas
 from services.historial import FiltrosHistorial, ServicioHistorial
-from services.productividad import NivelSemaforo, ResultadoProductividad, ServicioProductividad
+from services.productividad import NivelSemaforo, ServicioProductividad
 from services.whatsapp import formatear_duracion_corta
 
 _DIAS_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
@@ -77,15 +76,6 @@ _MESES_ES = [
     "noviembre",
     "diciembre",
 ]
-
-_ETIQUETAS_TIPO_PAUSA = {
-    TipoPausa.ALMUERZO.value: "Descanso de almuerzo",
-    TipoPausa.PRIORIDAD.value: "Cambio a prioridad mayor",
-    TipoPausa.EXTERNA.value: "Causa externa / falla técnica",
-    TipoPausa.PERSONAL.value: "Baño / hidratación / pausa activa",
-    TipoPausa.FIN_JORNADA.value: "Cierre / fin de jornada",
-    TipoPausa.OTRO.value: "Otra pausa breve",
-}
 
 _ETIQUETAS_MOTIVO_REV = {e.value: e.etiqueta() for e in MotivoRevision}
 _ETIQUETAS_TIPO_REV = {e.value: e.etiqueta() for e in TipoRevision}
@@ -205,7 +195,6 @@ class ServicioReportesPDF:
         self,
         jornada: Jornada,
         actividades: list[Actividad],
-        pausas: list[Pausa],
         pal: PaletaPDF,
     ) -> tuple[list[BloqueHorarioTimeline], list[SegmentoTimeline], str]:
         bloques_bd = RepoHorarios(self.s).bloques_del_dia(jornada.fecha.weekday())
@@ -254,37 +243,12 @@ class ServicioReportesPDF:
                 )
             )
 
-        conteo_pausas_reales = 0
-        for p in pausas:
-            if not p.fin or p.fin <= p.inicio:
-                continue
-            dur = int((p.fin - p.inicio).total_seconds())
-            if dur <= 0:
-                continue
-            if p.tipo == TipoPausa.ALMUERZO.value:
-                col_p = QColor("#94A3B8")
-            elif p.es_externa:
-                col_p = QColor("#0EA5E9")
-            else:
-                conteo_pausas_reales += 1
-                col_p = QColor("#F59E0B")
-            segmentos.append(
-                SegmentoTimeline(
-                    inicio_min=_minutos_dia(p.inicio),
-                    fin_min=_minutos_dia(p.fin),
-                    etiqueta=_ETIQUETAS_TIPO_PAUSA.get(p.tipo, "Pausa"),
-                    color=col_p,
-                    es_pausa=True,
-                )
-            )
-
         if inicios_sesion:
             primera = min(inicios_sesion).strftime("%H:%M")
             ultima = max(fines_sesion).strftime("%H:%M")
             resumen = (
                 f"Primera actividad: {primera}  ·  Última actividad: {ultima}  ·  "
-                f"{_plural(conteo_ses, 'sesión', 'sesiones')}  ·  "
-                f"{_plural(conteo_pausas_reales, 'pausa breve', 'pausas breves')}"
+                f"{_plural(conteo_ses, 'sesión', 'sesiones')}"
             )
         else:
             resumen = "No se registraron sesiones activas durante la jornada"
@@ -369,13 +333,6 @@ class ServicioReportesPDF:
             )
         return salida
 
-    def _pausas_jornada(self, jornada_id: int) -> list[Pausa]:
-        return list(
-            self.s.scalars(
-                select(Pausa).where(Pausa.jornada_id == jornada_id).order_by(Pausa.inicio.asc())
-            )
-        )
-
     def _revisiones_jornada(self, jornada_id: int) -> list[Actividad]:
         return list(
             self.s.scalars(
@@ -390,7 +347,7 @@ class ServicioReportesPDF:
         )
 
     # ------------------------------------------------------------------
-    # Tablas compartidas (Actividades, Revisiones, Pausas)
+    # Tablas compartidas (Actividades y Revisiones)
     # ------------------------------------------------------------------
 
     def _dibujar_tabla_actividades_dia(
@@ -610,61 +567,6 @@ class ServicioReportesPDF:
         )
         lienzo.dibujar_tabla_paginada(columnas, filas, fila_totales=totales)
 
-    def _dibujar_seccion_pausas(
-        self,
-        lienzo: LienzoPDF,
-        pausas: list[Pausa],
-        res: ResultadoProductividad,
-    ) -> None:
-        """Lista las pausas reales filtrando marcadores de 0 min de cierre de jornada."""
-        filas: list[list[str]] = []
-        for p in pausas:
-            dur = int((p.fin - p.inicio).total_seconds()) if p.fin else 0
-            if p.tipo == TipoPausa.FIN_JORNADA.value and dur <= 0:
-                continue
-            horario = f"{p.inicio:%H:%M} – {p.fin:%H:%M}" if p.fin else f"{p.inicio:%H:%M} – En curso"
-            etq_tipo = _ETIQUETAS_TIPO_PAUSA.get(p.tipo, p.tipo)
-            if p.tipo == TipoPausa.ALMUERZO.value:
-                alcance = "Bloque no laboral"
-            elif p.es_externa:
-                alcance = "Causa externa (no penaliza foco)"
-            else:
-                alcance = "Pausa en jornada"
-            filas.append(
-                [
-                    horario,
-                    etq_tipo,
-                    alcance,
-                    formatear_duracion_corta(dur),
-                    (p.motivo or "—").strip(),
-                ]
-            )
-
-        if not filas:
-            return
-
-        # 124 + 196 + 150 + 84 + 190 = 744 px
-        columnas = [
-            ("Horario", 124.0, Qt.AlignmentFlag.AlignLeft),
-            ("Tipo de pausa", 196.0, Qt.AlignmentFlag.AlignLeft),
-            ("Alcance", 150.0, Qt.AlignmentFlag.AlignLeft),
-            ("Duración", 84.0, Qt.AlignmentFlag.AlignRight),
-            ("Motivo / Nota", 190.0, Qt.AlignmentFlag.AlignLeft),
-        ]
-        totales = [
-            "Pausas laborales breves",
-            "(excluye almuerzo)",
-            f"Externas: {formatear_duracion_corta(res.tiempo_pausas_externas_seg)}",
-            formatear_duracion_corta(res.tiempo_pausas_seg),
-            "—",
-        ]
-        lienzo.dibujar_seccion(
-            "Registro de pausas y descansos",
-            subtitulo=f"Pausas breves: {formatear_duracion_corta(res.tiempo_pausas_seg)}",
-            alto_min_siguiente=78.0,
-        )
-        lienzo.dibujar_tabla_paginada(columnas, filas, fila_totales=totales)
-
     # ------------------------------------------------------------------
     # 1. Reporte Diario Laboral
     # ------------------------------------------------------------------
@@ -681,7 +583,6 @@ class ServicioReportesPDF:
         cab = _cargar_cabecera(self.s)
         res = self.srv_prod.calcular_jornada(jornada)
         actividades = self.srv_act.listar_visibles_jornada(jornada.id)
-        pausas = self._pausas_jornada(jornada.id)
         revisiones = self._revisiones_jornada(jornada.id)
         bloques_bd = RepoHorarios(self.s).bloques_del_dia(jornada.fecha.weekday())
 
@@ -737,23 +638,28 @@ class ServicioReportesPDF:
             color_arco=arc_sem,
         )
 
-        bruto_jor_seg = res.tiempo_bruto_jornada_seg
+        ef_seg = res.tiempo_efectivo_seg
         pct_jor = (
-            (bruto_jor_seg / res.duracion_jornada_seg * 100.0)
+            (ef_seg / res.duracion_jornada_seg * 100.0)
             if res.duracion_jornada_seg > 0
             else 0.0
+        )
+        faltante_seg = max(0, res.duracion_jornada_seg - ef_seg)
+        sub_ef_2 = (
+            f"Faltante en horario: {formatear_duracion_corta(faltante_seg)}"
+            if faltante_seg > 0
+            else "Horario laboral cubierto"
         )
         dibujar_card_kpi_jornada(
             lienzo,
             QRectF(MARGEN_X + (w_card + gap), y_kpi, w_card, h_card),
-            bruto_txt=formatear_duracion_corta(bruto_jor_seg),
+            efectivo_txt=formatear_duracion_corta(ef_seg),
             jornada_txt=formatear_duracion_corta(res.duracion_jornada_seg),
             pct_cobertura=pct_jor,
-            efectivo_seg=res.tiempo_efectivo_seg,
-            pausas_seg=res.tiempo_pausas_seg,
+            efectivo_seg=ef_seg,
             jornada_seg=res.duracion_jornada_seg,
-            sublinea_1=f"Efectivo: {formatear_duracion_corta(res.tiempo_efectivo_seg)}",
-            sublinea_2=f"Pausas breves: {formatear_duracion_corta(res.tiempo_pausas_seg)}",
+            sublinea_1="Solo trabajo activo (sin pausas)",
+            sublinea_2=sub_ef_2,
         )
 
         comp_tot = sum(1 for a in actividades if a.estado == EstadoActividad.COMPLETADA.value)
@@ -785,24 +691,20 @@ class ServicioReportesPDF:
             barra_total=float(max(total_prog, comp_tot, 1)),
         )
 
-        sub_alm = (
-            f"Almuerzo (libre): {formatear_duracion_corta(res.tiempo_almuerzo_seg)}"
-            if res.tiempo_almuerzo_seg > 0
-            else f"Pausas externas: {formatear_duracion_corta(res.tiempo_pausas_externas_seg)}"
-        )
+        trabajado_tot_seg = res.tiempo_trabajado_total_seg
         dibujar_card_kpi_metrica(
             lienzo,
             QRectF(MARGEN_X + 3.0 * (w_card + gap), y_kpi, w_card, h_card),
-            eyebrow="Tiempo total invertido",
-            valor=formatear_duracion_corta(res.tiempo_bruto_total_seg),
+            eyebrow="Tiempo trabajado total",
+            valor=formatear_duracion_corta(trabajado_tot_seg),
             color_acento=pal.morado,
-            sublinea_1=f"Fuera de horario: {formatear_duracion_corta(res.tiempo_fuera_horario_seg)}",
-            sublinea_2=sub_alm,
+            sublinea_1=f"En horario: {formatear_duracion_corta(ef_seg)}",
+            sublinea_2=f"Fuera de horario: {formatear_duracion_corta(res.tiempo_fuera_horario_seg)}",
             barra_segmentos=[
-                (float(bruto_jor_seg), pal.primario),
+                (float(ef_seg), pal.primario),
                 (float(res.tiempo_fuera_horario_seg), pal.morado),
             ],
-            barra_total=float(max(res.tiempo_bruto_total_seg, 1)),
+            barra_total=float(max(trabajado_tot_seg, 1)),
         )
         lienzo.y = y_kpi + h_card + 12.0
 
@@ -825,7 +727,7 @@ class ServicioReportesPDF:
             nota_pesos=nota_pesos,
         )
         bloques_tl, segs_tl, resumen_tl = self._construir_timeline_dia(
-            jornada, actividades, pausas, pal
+            jornada, actividades, pal
         )
         dibujar_timeline_jornada(
             lienzo,
@@ -869,7 +771,6 @@ class ServicioReportesPDF:
         self._dibujar_resumen_destacados_dia(lienzo, extras, arrastradas_pend, jornada.fecha)
 
         self._dibujar_seccion_revisiones(lienzo, revisiones, solo_fecha=jornada.fecha)
-        self._dibujar_seccion_pausas(lienzo, pausas, res)
 
         # 6. Firmas
         lienzo.dibujar_firmas(cab.usuario)
@@ -888,7 +789,6 @@ class ServicioReportesPDF:
         cab = _cargar_cabecera(self.s)
         res = self.srv_prod.calcular_jornada(jornada)
         actividades = self.srv_act.listar_visibles_jornada(jornada.id)
-        pausas = self._pausas_jornada(jornada.id)
 
         destino = (
             Path(ruta_destino)
@@ -951,17 +851,17 @@ class ServicioReportesPDF:
         dibujar_card_kpi_metrica(
             lienzo,
             QRectF(MARGEN_X + 2.0 * (w3 + gap), y_kpi, w3, h3),
-            eyebrow="Pausas registradas",
-            valor=formatear_duracion_corta(res.tiempo_pausas_seg),
-            color_acento=pal.ambar,
-            sublinea_1=f"Almuerzo: {formatear_duracion_corta(res.tiempo_almuerzo_seg)}",
-            sublinea_2=f"Estado jornada: {jornada.estado.upper()}",
+            eyebrow="Estado de la jornada",
+            valor=jornada.estado.upper(),
+            color_acento=pal.azul,
+            sublinea_1="Solo tiempo trabajado activo",
+            sublinea_2="Las pausas no se contabilizan",
         )
         lienzo.y = y_kpi + h3 + 12.0
 
         # Línea de tiempo + categorías
         bloques_tl, segs_tl, resumen_tl = self._construir_timeline_dia(
-            jornada, actividades, pausas, pal
+            jornada, actividades, pal
         )
         if segs_tl:
             dibujar_timeline_jornada(
@@ -993,7 +893,6 @@ class ServicioReportesPDF:
             "Actividades registradas",
             solo_fecha=jornada.fecha,
         )
-        self._dibujar_seccion_pausas(lienzo, pausas, res)
         lienzo.dibujar_firmas(cab.usuario)
         return lienzo.finalizar()
 
@@ -1167,9 +1066,8 @@ class ServicioReportesPDF:
         resultados_dia = [(j, self.srv_prod.calcular_jornada(j)) for j in jornadas_rango]
 
         tiempo_ef_total = sum(r.tiempo_efectivo_seg for _, r in resultados_dia)
-        tiempo_pau_total = sum(r.tiempo_pausas_seg for _, r in resultados_dia)
         tiempo_fh_total = sum(r.tiempo_fuera_horario_seg for _, r in resultados_dia)
-        bruto_total_periodo = tiempo_ef_total + tiempo_pau_total + tiempo_fh_total
+        total_trabajado_periodo = tiempo_ef_total + tiempo_fh_total
         prods_lab = [
             r.productividad_pct
             for _, r in resultados_dia
@@ -1236,17 +1134,16 @@ class ServicioReportesPDF:
         dibujar_card_kpi_metrica(
             lienzo,
             QRectF(MARGEN_X + (w_card + gap), y_kpi, w_card, h_card),
-            eyebrow="Bruto del período",
-            valor=formatear_duracion_corta(bruto_total_periodo),
+            eyebrow="Tiempo trabajado",
+            valor=formatear_duracion_corta(total_trabajado_periodo),
             color_acento=pal.primario,
-            sublinea_1=f"Bruto jornada: {formatear_duracion_corta(tiempo_ef_total + tiempo_pau_total)}",
+            sublinea_1=f"En jornada: {formatear_duracion_corta(tiempo_ef_total)}",
             sublinea_2=f"Fuera horario: {formatear_duracion_corta(tiempo_fh_total)}",
             barra_segmentos=[
                 (float(tiempo_ef_total), pal.verde),
-                (float(tiempo_pau_total), pal.ambar),
                 (float(tiempo_fh_total), pal.morado),
             ],
-            barra_total=float(max(bruto_total_periodo, 1)),
+            barra_total=float(max(total_trabajado_periodo, 1)),
         )
 
         acts_tot = sum(s.cantidad_solicitudes for s in stats.por_solicitante)
@@ -1386,10 +1283,10 @@ class ServicioReportesPDF:
                 e_txt = f"{res_d.eficiencia_pct:.1f}%" if res_d.eficiencia_pct is not None else "—"
                 k_txt = f"{res_d.foco_pct:.1f}%" if res_d.foco_pct is not None else "—"
                 g_txt = f"{res_d.productividad_pct:.1f}%" if res_d.productividad_pct is not None else "No apl."
-                ef_y_br = formatear_duracion_corta(res_d.tiempo_bruto_jornada_seg)
+                ef_txt = formatear_duracion_corta(res_d.tiempo_efectivo_seg)
                 fh_txt = formatear_duracion_corta(res_d.tiempo_fuera_horario_seg)
                 filas_tend.append(
-                    [f_txt, tipo_j, c_txt, e_txt, k_txt, g_txt, ef_y_br, fh_txt]
+                    [f_txt, tipo_j, c_txt, e_txt, k_txt, g_txt, ef_txt, fh_txt]
                 )
             # 124 + 86 + 68 + 68 + 68 + 78 + 126 + 126 = 744 px
             cols_tend = [
@@ -1399,7 +1296,7 @@ class ServicioReportesPDF:
                 ("Efic.", 68.0, Qt.AlignmentFlag.AlignRight),
                 ("Foco", 68.0, Qt.AlignmentFlag.AlignRight),
                 ("Global", 78.0, Qt.AlignmentFlag.AlignRight),
-                ("Bruto en jornada", 126.0, Qt.AlignmentFlag.AlignRight),
+                ("En jornada", 126.0, Qt.AlignmentFlag.AlignRight),
                 ("Fuera de horario", 126.0, Qt.AlignmentFlag.AlignRight),
             ]
             prom_txt = f"{prod_prom:.1f}%" if prod_prom is not None else "—"
@@ -1410,7 +1307,7 @@ class ServicioReportesPDF:
                 "—",
                 "—",
                 prom_txt,
-                formatear_duracion_corta(tiempo_ef_total + tiempo_pau_total),
+                formatear_duracion_corta(tiempo_ef_total),
                 formatear_duracion_corta(tiempo_fh_total),
             ]
             lienzo.dibujar_seccion(

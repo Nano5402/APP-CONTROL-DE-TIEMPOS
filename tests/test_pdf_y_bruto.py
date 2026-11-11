@@ -15,10 +15,11 @@ from data.repositorios.jornadas import RepoJornadas
 from reports.generador_pdf import LienzoPDF, PaletaPDF
 from reports.graficos_pdf import color_por_nivel_pct
 from services.actividades import ServicioActividades
-from services.cronometro import ServicioCronometro
+from services.cronometro import AccionSobreActiva, ServicioCronometro
 from services.historial import FiltrosHistorial
 from services.productividad import NivelSemaforo, ServicioProductividad
 from services.reportes_pdf import ServicioReportesPDF, _colores_semaforo
+from ui.pantallas.pantalla_cierre import PantallaCierre
 from ui.pantallas.pantalla_hoy import PantallaHoy
 
 
@@ -58,7 +59,7 @@ def _verificar_pdf_generado(ruta: Path) -> int:
     return doc.pageCount()
 
 
-def test_pausa_almuerzo_no_infla_pausas_y_calcula_bruto(s):
+def test_pausas_no_se_suman_al_tiempo_trabajado(s):
     srv_act = ServicioActividades(s)
     cron = ServicioCronometro(s)
     srv_prod = ServicioProductividad(s)
@@ -116,14 +117,15 @@ def test_pausa_almuerzo_no_infla_pausas_y_calcula_bruto(s):
     res = srv_prod.calcular_jornada(act.jornada)
     assert res.meta_tiempo_pct == 100.0
     assert res.tiempo_efectivo_seg == 120 * 60
-    assert res.tiempo_pausas_seg == 10 * 60
-    assert res.tiempo_almuerzo_seg == 90 * 60
+    assert res.tiempo_pausas_seg == 0
+    assert res.tiempo_almuerzo_seg == 0
     assert res.tiempo_fuera_horario_seg == 15 * 60
-    assert res.tiempo_bruto_jornada_seg == 130 * 60
-    assert res.tiempo_bruto_total_seg == 145 * 60
+    assert res.tiempo_trabajado_total_seg == 135 * 60
+    assert res.tiempo_bruto_jornada_seg == 120 * 60
+    assert res.tiempo_bruto_total_seg == 135 * 60
 
 
-def test_pdf_diario_sin_meta_con_bruto_y_sin_duplicar_revision(s, monkeypatch):
+def test_pdf_diario_solo_tiempo_efectivo_sin_pausas_ni_duplicar_revision(s, monkeypatch):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     QApplication.instance() or QApplication([])
     textos = _espiar_textos_lienzo(monkeypatch)
@@ -194,12 +196,15 @@ def test_pdf_diario_sin_meta_con_bruto_y_sin_duplicar_revision(s, monkeypatch):
     assert pags >= 1
     assert "Meta:" not in unificado
     assert "Meta diaria" not in unificado
-    assert "BRUTO EN JORNADA" in unificado
-    assert "1 h 58 min" in unificado  # 90m + 20m + 8m pausa breve (sin almuerzo)
-    assert "Pausas breves: 8 min" in unificado
+    assert "TIEMPO EN JORNADA" in unificado
+    assert "BRUTO EN JORNADA" not in unificado
+    assert "1 h 58 min" not in unificado  # los 8m de pausa NO se suman
+    assert "Pausas breves" not in unificado
+    assert "Registro de pausas" not in unificado
+    assert "Pausa breve" not in unificado
     assert "Cierre / fin de jornada" not in unificado
     assert f"Página 1 de {pags}" in unificado
-    # Total actividad = 1h30m + 20m = 1h 50m (sin sumar doblemente 1h50m sobre parent+hija)
+    # Total actividad = 1h30m + 20m = 1h 50m (sin sumar pausas ni duplicar parent+hija)
     assert "1 h 50 min" in unificado
     assert "Total (1 revisión)" in unificado
 
@@ -237,6 +242,8 @@ def test_pdf_mensual_denso_y_especifico_titulo_largo(s, monkeypatch):
     _verificar_pdf_generado(ruta_mensual)
     unificado = "\n".join(textos)
     assert "Reporte Mensual de Productividad" in unificado
+    assert "TIEMPO TRABAJADO" in unificado
+    assert "Bruto" not in unificado
     assert "Estimado vs. Real promedio" in unificado
 
     textos.clear()
@@ -248,13 +255,46 @@ def test_pdf_mensual_denso_y_especifico_titulo_largo(s, monkeypatch):
     assert "Campaña Digital" in "\n".join(textos)
 
 
-def test_pantalla_hoy_muestra_bruto_sin_meta(bd, monkeypatch):
+def test_pantalla_hoy_y_cierre_muestran_solo_tiempo_efectivo_sin_pausas(bd, monkeypatch):
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     QApplication.instance() or QApplication([])
     vista = PantallaHoy(bd)
-    assert "Bruto en jornada:" in vista.lbl_meta.text()
+    assert "Tiempo efectivo hoy:" in vista.lbl_meta.text()
+    assert "Bruto en jornada:" not in vista.lbl_meta.text()
     assert "Meta de tiempo" not in vista.lbl_meta.text()
     vista.close()
+
+    cierre = PantallaCierre(bd)
+    cierre.refrescar()
+    assert "Tiempo efectivo:" in cierre.lbl_tiempos.text()
+    assert "En pausas:" not in cierre.lbl_tiempos.text()
+    cierre.close()
+
+
+def test_iniciar_otra_actividad_cierra_pausa_abierta_previa(s):
+    srv_act = ServicioActividades(s)
+    cron = ServicioCronometro(s)
+
+    act_a = srv_act.crear_planeada("Actividad A", momento=datetime(2026, 11, 9, 8, 0))
+    act_b = srv_act.crear_planeada("Actividad B", momento=datetime(2026, 11, 9, 8, 0))
+    act_c = srv_act.crear_planeada("Actividad C", momento=datetime(2026, 11, 9, 8, 0))
+
+    cron.iniciar(act_a, momento=datetime(2026, 11, 9, 8, 0))
+    pausa_a = cron.pausar(
+        act_a, tipo=TipoPausa.PERSONAL, motivo="Baño", momento=datetime(2026, 11, 9, 9, 0)
+    )
+    assert pausa_a.fin is None
+
+    # Al iniciar otra actividad diferente a las 09:10, la pausa abierta previa debe cerrarse
+    cron.iniciar(act_b, momento=datetime(2026, 11, 9, 9, 10))
+    s.refresh(pausa_a)
+    assert pausa_a.fin == datetime(2026, 11, 9, 9, 10)
+    assert cron.pausa_abierta() is None
+
+    # Al cambiar directamente pausando B e iniciando C, no quedan pausas abiertas huérfanas
+    cron.iniciar(act_c, accion_sobre_activa=AccionSobreActiva.PAUSAR, momento=datetime(2026, 11, 9, 10, 0))
+    assert cron.pausa_abierta() is None
+    assert act_b.pausas[-1].fin == datetime(2026, 11, 9, 10, 0)
 
 
 def test_colores_semaforo_cubre_todos_los_niveles(tmp_path):

@@ -236,16 +236,15 @@ def dibujar_card_kpi_donut(
 def dibujar_card_kpi_jornada(
     lienzo: LienzoPDF,
     rect: QRectF,
-    bruto_txt: str,
+    efectivo_txt: str,
     jornada_txt: str,
     pct_cobertura: float,
     efectivo_seg: int,
-    pausas_seg: int,
     jornada_seg: int,
     sublinea_1: str,
-    sublinea_2: str,
+    sublinea_2: str = "",
 ) -> None:
-    """Tarjeta KPI dedicada al bruto gastado durante la jornada laboral (sin metas reducidas)."""
+    """Tarjeta KPI dedicada al tiempo efectivo trabajado durante la jornada laboral."""
     pal = lienzo.paleta
     lienzo.dibujar_rect_redondeado(
         rect,
@@ -261,7 +260,7 @@ def dibujar_card_kpi_jornada(
     )
     lienzo.dibujar_texto(
         QRectF(rect.left() + 12.0, rect.top() + 9.0, rect.width() - 24.0, 12.0),
-        "BRUTO EN JORNADA",
+        "TIEMPO EN JORNADA",
         fuente_pdf(6.9, QFont.Weight.Bold),
         pal.texto_suave,
         envolver=False,
@@ -273,7 +272,7 @@ def dibujar_card_kpi_jornada(
     w_chip = lienzo.metricas(f_chip).horizontalAdvance(chip_txt) + 12.0
     lienzo.dibujar_texto(
         QRectF(rect.left() + 12.0, rect.top() + 26.0, rect.width() - 28.0 - w_chip, 24.0),
-        bruto_txt,
+        efectivo_txt,
         fuente_pdf(14.0, QFont.Weight.Bold),
         pal.texto,
         envolver=False,
@@ -289,13 +288,13 @@ def dibujar_card_kpi_jornada(
         alto=17.0,
     )
 
-    # Barra apilada: efectivo (verde) + pausas laborales (ámbar) sobre el horario programado
+    # Barra de progreso efectivo sobre el horario programado (sin sumar pausas)
     bar_rect = QRectF(rect.left() + 12.0, rect.top() + 56.0, rect.width() - 24.0, 7.0)
-    base_ref = float(max(jornada_seg, efectivo_seg + pausas_seg, 1))
+    base_ref = float(max(jornada_seg, efectivo_seg, 1))
     _dibujar_barra_apilada(
         lienzo,
         bar_rect,
-        [(float(efectivo_seg), pal.verde), (float(pausas_seg), pal.ambar)],
+        [(float(efectivo_seg), pal.verde)],
         base_ref,
         pal.pista,
     )
@@ -447,7 +446,7 @@ def dibujar_timeline_jornada(
     segmentos: list[SegmentoTimeline],
     resumen_pie: str,
 ) -> None:
-    """Tarjeta con línea de tiempo cronológica (horario, sesiones y pausas)."""
+    """Tarjeta con línea de tiempo cronológica (horario programado y sesiones activas)."""
     pal = lienzo.paleta
     lienzo.dibujar_rect_redondeado(rect, 10.0, fondo=pal.superficie, borde=pal.borde, grosor_borde=1.0)
     lienzo.dibujar_texto(
@@ -515,11 +514,11 @@ def dibujar_timeline_jornada(
                 grosor_borde=0.8,
             )
 
-    # Etiquetas de carril muy tenues o bloques de sesiones y pausas
+    # Bloques de sesiones de trabajo activas
     if not segmentos:
         lienzo.dibujar_texto(
             track,
-            "Sin sesiones ni pausas registradas en este día",
+            "Sin sesiones registradas en este día",
             fuente_pdf(8.0, QFont.Weight.Normal, italic=True),
             pal.texto_suave,
             alineacion=Qt.AlignmentFlag.AlignCenter,
@@ -583,12 +582,11 @@ def dibujar_timeline_jornada(
 
     # Leyenda de colores compacta en 1 fila
     leyenda = [
+        ("Horario", QColor("#93C5FD")),
         ("Planeada", pal.azul),
         ("Extra", pal.ambar),
         ("No plan.", pal.morado),
         ("Revisión", pal.rojo),
-        ("Pausa breve", QColor("#F59E0B")),
-        ("Almuerzo", QColor("#94A3B8")),
     ]
     lx = rect.left() + 16.0
     ly = y_eje + 22.0

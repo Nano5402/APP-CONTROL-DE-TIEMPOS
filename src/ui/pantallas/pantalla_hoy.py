@@ -229,7 +229,7 @@ class PantallaHoy(QWidget):
         capa_meta.setSpacing(8)
 
         fila_barra = QHBoxLayout()
-        self.lbl_meta = QLabel("Tiempo en jornada hoy:", self)
+        self.lbl_meta = QLabel("Tiempo efectivo hoy:", self)
         self.lbl_meta.setStyleSheet("font-weight: 600;")
         self.barra_meta = QProgressBar(self)
         self.barra_meta.setRange(0, 100)
@@ -582,14 +582,14 @@ class PantallaHoy(QWidget):
                 self.tabla.selectRow(0)
 
             if res_prod.es_laboral and res_prod.duracion_jornada_seg > 0:
-                bruto_seg = res_prod.tiempo_bruto_jornada_seg
+                ef_seg = res_prod.tiempo_efectivo_seg
                 pct_jor = min(
                     100,
-                    int(round((bruto_seg / res_prod.duracion_jornada_seg) * 100.0)),
+                    int(round((ef_seg / res_prod.duracion_jornada_seg) * 100.0)),
                 )
                 self.barra_meta.setValue(pct_jor)
                 self.lbl_meta.setText(
-                    f"Bruto en jornada: {formatear_duracion_corta(bruto_seg)} / "
+                    f"Tiempo efectivo hoy: {formatear_duracion_corta(ef_seg)} / "
                     f"{formatear_duracion_corta(res_prod.duracion_jornada_seg)}"
                 )
             else:

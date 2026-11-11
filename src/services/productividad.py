@@ -119,14 +119,19 @@ class ResultadoProductividad:
     tiempo_almuerzo_seg: int = 0
 
     @property
+    def tiempo_trabajado_total_seg(self) -> int:
+        """Tiempo real trabajado en el día (en horario + fuera de horario, sin contar pausas)."""
+        return self.tiempo_efectivo_seg + self.tiempo_fuera_horario_seg
+
+    @property
     def tiempo_bruto_jornada_seg(self) -> int:
-        """Tiempo bruto invertido en la jornada laboral (efectivo + pausas breves)."""
-        return self.tiempo_efectivo_seg + self.tiempo_pausas_seg
+        """Compatibilidad: tiempo trabajado en la jornada sin sumar pausas."""
+        return self.tiempo_efectivo_seg
 
     @property
     def tiempo_bruto_total_seg(self) -> int:
-        """Tiempo total registrado en el día (bruto en jornada + fuera de horario)."""
-        return self.tiempo_efectivo_seg + self.tiempo_pausas_seg + self.tiempo_fuera_horario_seg
+        """Compatibilidad: tiempo trabajado total sin sumar pausas."""
+        return self.tiempo_trabajado_total_seg
 
 
 class ServicioProductividad:
@@ -155,7 +160,8 @@ class ServicioProductividad:
         tiempo_efectivo_seg = sum(s.duracion_seg for s in sesiones_dia if not s.fuera_horario)
         tiempo_fuera_seg = sum(s.duracion_seg for s in sesiones_dia if s.fuera_horario)
 
-        # Pausas cerradas de la jornada
+        # Pausas cerradas de la jornada: sus tiempos no se cuentan ni suman como tiempo trabajado.
+        # Solo se excluyen causas externas del denominador de Foco (RF-05b).
         pausas_jornada = list(
             self.s.scalars(
                 select(Pausa).where(
@@ -164,20 +170,8 @@ class ServicioProductividad:
                 )
             )
         )
-        pausas_excluidas = {
-            TipoPausa.FIN_JORNADA.value,
-            TipoPausa.ALMUERZO.value,
-        }
-        tiempo_pausas_seg = sum(
-            max(0, int((p.fin - p.inicio).total_seconds()))
-            for p in pausas_jornada
-            if p.fin and p.tipo not in pausas_excluidas
-        )
-        tiempo_almuerzo_seg = sum(
-            max(0, int((p.fin - p.inicio).total_seconds()))
-            for p in pausas_jornada
-            if p.fin and p.tipo == TipoPausa.ALMUERZO.value
-        )
+        tiempo_pausas_seg = 0
+        tiempo_almuerzo_seg = 0
         tiempo_pausas_ext_seg = sum(
             max(0, int((p.fin - p.inicio).total_seconds()))
             for p in pausas_jornada

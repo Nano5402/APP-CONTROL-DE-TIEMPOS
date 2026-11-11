@@ -206,7 +206,6 @@ class PantallaCierre(QWidget):
 
             self.lbl_tiempos.setText(
                 f"Tiempo efectivo: {formatear_duracion_corta(res.tiempo_efectivo_seg)}  ·  "
-                f"En pausas: {formatear_duracion_corta(res.tiempo_pausas_seg)}  ·  "
                 f"Fuera de horario: {formatear_duracion_corta(res.tiempo_fuera_horario_seg)}  ·  "
                 f"Estado jornada: {jornada.estado.upper()}"
             )

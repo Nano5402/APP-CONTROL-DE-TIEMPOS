@@ -200,8 +200,8 @@ class ServicioCronometro:
             elif accion == AccionSobreActiva.FINALIZAR:
                 self.finalizar(activa, momento=instante)
 
-        # Si la actividad tenía una pausa abierta (estaba pausada o arrastrada), se cierra.
-        self._cerrar_pausas_abiertas(actividad.id, instante)
+        # Cierra cualquier pausa abierta previa antes de iniciar/reanudar actividad.
+        self._cerrar_pausas_abiertas(None, instante)
 
         # Garantiza que exista la jornada del día en que corre el cronómetro.
         self.repo_jornadas.obtener_o_crear(instante.date(), instante)
@@ -617,11 +617,12 @@ class ServicioCronometro:
             )
         self.s.flush()
 
-    def _cerrar_pausas_abiertas(self, actividad_id: int, instante_fin: datetime) -> None:
-        consulta = select(Pausa).where(
-            Pausa.actividad_id == actividad_id,
-            Pausa.fin.is_(None),
-        )
+    def _cerrar_pausas_abiertas(
+        self, actividad_id: int | None, instante_fin: datetime
+    ) -> None:
+        consulta = select(Pausa).where(Pausa.fin.is_(None))
+        if actividad_id is not None:
+            consulta = consulta.where(Pausa.actividad_id == actividad_id)
         for p in self.s.scalars(consulta):
             p.fin = max(instante_fin, p.inicio)
         self.s.flush()
