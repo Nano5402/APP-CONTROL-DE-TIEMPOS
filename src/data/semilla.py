@@ -54,10 +54,14 @@ CONFIGURACION_POR_DEFECTO: dict[str, str] = {
     "recordatorio.inicio_sin_actividad_min": "10",
     "recordatorio.aviso_almuerzo": "1",
     "recordatorio.aviso_salida": "1",
-    # Estilo de los avisos
-    "aviso.estilo": "ventana",  # ventana | notificacion
+    # Estilo de los avisos y sonidos personalizables (como teléfono)
+    "aviso.estilo": "ambos",  # ambos | ventana | notificacion
     "aviso.sonido": "1",
     "aviso.volumen": "70",
+    "aviso.tono.continuidad": "gotita",
+    "aviso.tono.repeticion": "alerta",
+    "aviso.tono.alerta": "acorde",
+    "aviso.tono.jornada": "campana",
     # Sistema
     "sistema.inicio_con_windows": "1",
     "sistema.iniciar_minimizada_bandeja": "0",

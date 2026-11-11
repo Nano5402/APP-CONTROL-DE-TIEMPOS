@@ -505,6 +505,28 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {t.exito}, stop:1 #34D399);
         border-radius: 7px;
     }}
+    /* Sliders horizontales (volumen de sonido) */
+    QSlider::groove:horizontal {{
+        border: 1px solid {t.borde_fuerte};
+        height: 8px;
+        background: {t.fondo_input};
+        border-radius: 4px;
+    }}
+    QSlider::sub-page:horizontal {{
+        background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 {t.acento}, stop:1 #3B82F6);
+        border-radius: 4px;
+    }}
+    QSlider::handle:horizontal {{
+        background: #FFFFFF;
+        border: 2px solid {t.acento};
+        width: 18px;
+        height: 18px;
+        margin: -6px 0;
+        border-radius: 9px;
+    }}
+    QSlider::handle:horizontal:hover {{
+        background: {t.acento_suave};
+    }}
     /* Barras de desplazamiento */
     QScrollBar:vertical {{
         background: transparent;

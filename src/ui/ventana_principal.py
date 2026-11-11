@@ -643,11 +643,14 @@ class VentanaPrincipal(QMainWindow):
                 if activa_ahora is not None:
                     cron.pausar(activa_ahora, motivo="Cierre de la aplicación")
 
-        # Cierre definitivo: detener timers, ocultar bandeja y cerrar proceso
+        # Cierre definitivo: detener timers, audio, ocultar bandeja y cerrar proceso
+        from ui.sonido import detener_sonidos
+
         if hasattr(self, "coordinador_recordatorios") and self.coordinador_recordatorios:
             self.coordinador_recordatorios.detener()
-        if hasattr(self, "reloj_timer") and self.reloj_timer:
-            self.reloj_timer.stop()
+        if hasattr(self, "timer_reloj") and self.timer_reloj:
+            self.timer_reloj.stop()
+        detener_sonidos()
         if hasattr(self, "mini_widget") and self.mini_widget:
             self.mini_widget.close()
         if hasattr(self, "icono_bandeja") and self.icono_bandeja:

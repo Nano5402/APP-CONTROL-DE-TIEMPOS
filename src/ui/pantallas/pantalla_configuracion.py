@@ -26,12 +26,14 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QFrame,
     QHBoxLayout,
+    QInputDialog,
     QKeySequenceEdit,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSlider,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -48,6 +50,15 @@ from services.backups import ServicioBackups
 from services.inicio_windows import ServicioInicioWindows, crear_accesos_directos_usuario
 from services.seguridad_pin import ServicioPIN
 from ui.iconos import configurar_boton, obtener_icono
+from ui.sonido import (
+    FILTRO_ARCHIVOS_AUDIO,
+    TONOS_DEFECTO_POR_CLAVE,
+    eliminar_sonido_personalizado,
+    importar_sonido_personalizado,
+    listar_catalogo_sonidos,
+    listar_sonidos_usuario,
+    reproducir_tono_aviso,
+)
 from ui.temas import TEMAS
 
 RESOLUCIONES_DISPONIBLES: list[tuple[str, str]] = [
@@ -77,6 +88,35 @@ TAMANOS_MINI: list[tuple[str, str]] = [
     ("Compacta (310 × 118 px)", "compacta"),
     ("Normal (348 × 130 px)", "normal"),
     ("Grande (420 × 152 px)", "grande"),
+]
+
+ESTILOS_AVISO: list[tuple[str, str]] = [
+    ("Ventana emergente + Notificación de Windows (Recomendado)", "ambos"),
+    ("Solo ventana emergente al frente", "ventana"),
+    ("Solo notificación en bandeja de Windows", "notificacion"),
+]
+
+EVENTOS_SONIDO: list[tuple[str, str, str]] = [
+    (
+        "aviso.tono.continuidad",
+        "Seguimiento periódico («¿Sigues con...?»)",
+        "Suena cada ciertos minutos mientras trabajas en una actividad",
+    ),
+    (
+        "aviso.tono.repeticion",
+        "Recordatorio urgente (sin respuesta)",
+        "Se repite cuando no respondes el aviso en el tiempo de espera",
+    ),
+    (
+        "aviso.tono.alerta",
+        "Tiempo estimado alcanzado / Sin actividad",
+        "Avisa si excediste el tiempo estimado o estás sin tarea activa",
+    ),
+    (
+        "aviso.tono.jornada",
+        "Hora de almuerzo y Salida",
+        "Marca el descanso de mediodía y el cierre de la jornada laboral",
+    ),
 ]
 
 
@@ -126,7 +166,7 @@ class PantallaConfiguracion(QWidget):
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_recordatorios()),
             obtener_icono("bell", color="#003D95", tamano=16),
-            "Recordatorios y Meta",
+            "Notificaciones y Sonidos",
         )
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_atajos_y_plantillas()),
@@ -315,11 +355,137 @@ class PantallaConfiguracion(QWidget):
         col.setContentsMargins(4, 8, 4, 4)
         col.setSpacing(12)
 
+        # 1. Tarjeta principal estilo teléfono: Personalizar Sonidos y Volumen
+        card_tonos = QFrame(pag)
+        card_tonos.setProperty("card", True)
+        col_tonos = QVBoxLayout(card_tonos)
+        col_tonos.setSpacing(10)
+
+        lbl_tonos_tit = QLabel("<b>Sonidos de Notificación Personalizables (estilo teléfono)</b>", card_tonos)
+        lbl_tonos_sub = QLabel(
+            "Elige un tono distinto para cada tipo de aviso o sube tus propios archivos (.mp3, .wav, .ogg, .m4a).",
+            card_tonos,
+        )
+        lbl_tonos_sub.setObjectName("subtitulo")
+        lbl_tonos_sub.setWordWrap(True)
+        col_tonos.addWidget(lbl_tonos_tit)
+        col_tonos.addWidget(lbl_tonos_sub)
+
+        # Interruptor maestro + Volumen + Probar
+        fila_audio_maestro = QHBoxLayout()
+        fila_audio_maestro.setSpacing(12)
+        self.chk_sonido = QCheckBox("Activar sonidos en las notificaciones", card_tonos)
+        fila_audio_maestro.addWidget(self.chk_sonido)
+        fila_audio_maestro.addStretch()
+
+        self.btn_subir_sonido = QPushButton("  Subir audio propio...", card_tonos)
+        self.btn_subir_sonido.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_subir_sonido, "folder-open", color="#FFFFFF")
+        self.btn_subir_sonido.clicked.connect(lambda: self._accion_subir_audio(None))
+
+        self.btn_aplicar_todos_tonos = QPushButton("Usar tono 1 para todos", card_tonos)
+        self.btn_aplicar_todos_tonos.setProperty("rol", "secundario")
+        self.btn_aplicar_todos_tonos.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_aplicar_todos_tonos.clicked.connect(self._accion_aplicar_tono_a_todos)
+
+        self.btn_eliminar_sonido_custom = QPushButton("  Quitar audio...", card_tonos)
+        self.btn_eliminar_sonido_custom.setProperty("rol", "secundario")
+        self.btn_eliminar_sonido_custom.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_eliminar_sonido_custom, "trash", color="#0F172A")
+        self.btn_eliminar_sonido_custom.clicked.connect(self._accion_eliminar_audio_custom)
+
+        fila_audio_maestro.addWidget(self.btn_subir_sonido)
+        fila_audio_maestro.addWidget(self.btn_aplicar_todos_tonos)
+        fila_audio_maestro.addWidget(self.btn_eliminar_sonido_custom)
+        col_tonos.addLayout(fila_audio_maestro)
+
+        fila_vol = QHBoxLayout()
+        fila_vol.setSpacing(10)
+        lbl_vol = QLabel("<b>Volumen general:</b>", card_tonos)
+        self.slider_volumen = QSlider(Qt.Orientation.Horizontal, card_tonos)
+        self.slider_volumen.setRange(0, 100)
+        self.slider_volumen.setValue(70)
+        self.lbl_volumen_val = QLabel("70 %", card_tonos)
+        self.lbl_volumen_val.setMinimumWidth(48)
+        self.lbl_volumen_val.setStyleSheet("font-weight: 700;")
+        self.slider_volumen.valueChanged.connect(
+            lambda v: self.lbl_volumen_val.setText(f"{v} %")
+        )
+
+        self.btn_probar_volumen = QPushButton("  Probar sonido", card_tonos)
+        self.btn_probar_volumen.setProperty("rol", "secundario")
+        self.btn_probar_volumen.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_probar_volumen, "volume-2", color="#0F172A")
+        self.btn_probar_volumen.clicked.connect(
+            lambda: self._probar_tono_de_clave("aviso.tono.continuidad")
+        )
+
+        fila_vol.addWidget(lbl_vol)
+        fila_vol.addWidget(self.slider_volumen, 1)
+        fila_vol.addWidget(self.lbl_volumen_val)
+        fila_vol.addWidget(self.btn_probar_volumen)
+        col_tonos.addLayout(fila_vol)
+
+        # Lista de filas estilo ajustes de notificaciones del móvil
+        self.combos_tonos: dict[str, QComboBox] = {}
+        for clave, titulo_ev, desc_ev in EVENTOS_SONIDO:
+            fila_box = QFrame(card_tonos)
+            fila_box.setStyleSheet(
+                "QFrame { background-color: rgba(255, 255, 255, 0.45); "
+                "border: 1px solid rgba(180, 200, 225, 0.45); border-radius: 10px; }"
+            )
+            fila_ev = QHBoxLayout(fila_box)
+            fila_ev.setContentsMargins(12, 8, 12, 8)
+            fila_ev.setSpacing(10)
+
+            col_info = QVBoxLayout()
+            col_info.setSpacing(2)
+            lbl_e_tit = QLabel(f"<b>{titulo_ev}</b>", fila_box)
+            lbl_e_tit.setStyleSheet("border: none; background: transparent;")
+            lbl_e_desc = QLabel(desc_ev, fila_box)
+            lbl_e_desc.setObjectName("subtitulo")
+            lbl_e_desc.setStyleSheet("border: none; background: transparent;")
+            lbl_e_desc.setWordWrap(True)
+            col_info.addWidget(lbl_e_tit)
+            col_info.addWidget(lbl_e_desc)
+
+            combo = QComboBox(fila_box)
+            combo.setMinimumWidth(260)
+            combo.activated.connect(lambda _idx, c=clave: self._probar_tono_de_clave(c))
+            self.combos_tonos[clave] = combo
+
+            btn_play = QPushButton("  Probar", fila_box)
+            btn_play.setProperty("rol", "secundario")
+            btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_play.setToolTip(f"Escuchar vista previa de «{titulo_ev}»")
+            configurar_boton(btn_play, "volume-2", color="#003D95", tamano=14)
+            btn_play.clicked.connect(lambda _c=False, k=clave: self._probar_tono_de_clave(k))
+
+            btn_subir_ev = QPushButton("", fila_box)
+            btn_subir_ev.setProperty("rol", "secundario")
+            btn_subir_ev.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn_subir_ev.setToolTip(f"Elegir archivo .mp3 / .wav del computador para «{titulo_ev}»")
+            configurar_boton(btn_subir_ev, "folder-open", color="#0F172A", tamano=15)
+            btn_subir_ev.clicked.connect(lambda _c=False, k=clave: self._accion_subir_audio(k))
+
+            fila_ev.addLayout(col_info, 1)
+            fila_ev.addWidget(combo)
+            fila_ev.addWidget(btn_play)
+            fila_ev.addWidget(btn_subir_ev)
+            col_tonos.addWidget(fila_box)
+
+        col.addWidget(card_tonos)
+
+        # 2. Modo de entrega y frecuencia de recordatorios
         card_rec = QFrame(pag)
         card_rec.setProperty("card", True)
         form_rec = QFormLayout(card_rec)
         form_rec.setSpacing(12)
-        form_rec.addRow(QLabel("<b>Avisos de Continuidad e Inactividad</b>"))
+        form_rec.addRow(QLabel("<b>Modo de Notificación e Intervalos</b>"))
+
+        self.combo_estilo_aviso = QComboBox(card_rec)
+        for etiqueta, codigo in ESTILOS_AVISO:
+            self.combo_estilo_aviso.addItem(etiqueta, codigo)
 
         self.spin_rec_cont = QSpinBox(card_rec)
         self.spin_rec_cont.setRange(1, 180)
@@ -333,12 +499,18 @@ class PantallaConfiguracion(QWidget):
         self.spin_rec_inact.setRange(1, 120)
         self.spin_rec_inact.setSuffix(" min")
 
-        self.chk_sonido = QCheckBox("Reproducir sonido suave en los avisos", card_rec)
+        fila_hor_avisos = QHBoxLayout()
+        self.chk_aviso_almuerzo = QCheckBox("Avisar a la hora de almuerzo", card_rec)
+        self.chk_aviso_salida = QCheckBox("Avisar a la hora de salida", card_rec)
+        fila_hor_avisos.addWidget(self.chk_aviso_almuerzo)
+        fila_hor_avisos.addWidget(self.chk_aviso_salida)
+        fila_hor_avisos.addStretch()
 
+        form_rec.addRow("Cómo mostrar las notificaciones:", self.combo_estilo_aviso)
         form_rec.addRow("Preguntar «¿Sigues con...?» cada:", self.spin_rec_cont)
         form_rec.addRow("Repetir aviso si no respondes cada:", self.spin_rec_rep)
         form_rec.addRow("Avisar si no hay actividad en curso tras:", self.spin_rec_inact)
-        form_rec.addRow("", self.chk_sonido)
+        form_rec.addRow("Recordatorios de horario:", fila_hor_avisos)
         col.addWidget(card_rec)
 
         card_prod = QFrame(pag)
@@ -638,6 +810,24 @@ class PantallaConfiguracion(QWidget):
                 cfg.obtener_int("recordatorio.inicio_sin_actividad_min", 10)
             )
             self.chk_sonido.setChecked(cfg.obtener_bool("aviso.sonido", True))
+            volumen = cfg.obtener_int("aviso.volumen", 70)
+            self.slider_volumen.setValue(max(0, min(100, volumen)))
+            self.lbl_volumen_val.setText(f"{self.slider_volumen.value()} %")
+
+            estilo = cfg.obtener("aviso.estilo", "ambos") or "ambos"
+            idx_e = self.combo_estilo_aviso.findData(estilo)
+            if idx_e >= 0:
+                self.combo_estilo_aviso.setCurrentIndex(idx_e)
+
+            self.chk_aviso_almuerzo.setChecked(cfg.obtener_bool("recordatorio.aviso_almuerzo", True))
+            self.chk_aviso_salida.setChecked(cfg.obtener_bool("recordatorio.aviso_salida", True))
+
+            seleccion_tonos = {
+                clave: (cfg.obtener(clave, defecto) or defecto)
+                for clave, defecto in TONOS_DEFECTO_POR_CLAVE.items()
+            }
+            self._recargar_combos_tonos(seleccion_tonos)
+
             self.spin_meta_pct.setValue(int(cfg.obtener_float("meta.tiempo_efectivo_pct", 80)))
 
             self.spin_peso_c.setValue(
@@ -714,6 +904,15 @@ class PantallaConfiguracion(QWidget):
                 "recordatorio.inicio_sin_actividad_min", int(self.spin_rec_inact.value())
             )
             cfg.guardar("aviso.sonido", self.chk_sonido.isChecked())
+            cfg.guardar("aviso.volumen", int(self.slider_volumen.value()))
+            cfg.guardar(
+                "aviso.estilo", str(self.combo_estilo_aviso.currentData() or "ambos")
+            )
+            cfg.guardar("recordatorio.aviso_almuerzo", self.chk_aviso_almuerzo.isChecked())
+            cfg.guardar("recordatorio.aviso_salida", self.chk_aviso_salida.isChecked())
+            for clave, combo in self.combos_tonos.items():
+                cfg.guardar(clave, str(combo.currentData() or TONOS_DEFECTO_POR_CLAVE[clave]))
+
             cfg.guardar("meta.tiempo_efectivo_pct", int(self.spin_meta_pct.value()))
             cfg.guardar(
                 "productividad.peso_cumplimiento",
@@ -853,3 +1052,128 @@ class PantallaConfiguracion(QWidget):
             "Copia restaurada",
             "Los datos fueron restaurados correctamente.",
         )
+
+    # ------------------------------------------------------------------
+    # Personalización de sonidos de notificación (estilo teléfono)
+    # ------------------------------------------------------------------
+
+    def _recargar_combos_tonos(
+        self, seleccion_por_clave: dict[str, str] | None = None
+    ) -> None:
+        catalogo = listar_catalogo_sonidos()
+        personalizados = listar_sonidos_usuario()
+        self.btn_eliminar_sonido_custom.setEnabled(len(personalizados) > 0)
+
+        for clave, combo in self.combos_tonos.items():
+            objetivo = (
+                seleccion_por_clave.get(clave)
+                if seleccion_por_clave is not None
+                else combo.currentData()
+            ) or TONOS_DEFECTO_POR_CLAVE[clave]
+
+            combo.blockSignals(True)
+            combo.clear()
+            for cod, etiq in catalogo:
+                combo.addItem(etiq, cod)
+            idx = combo.findData(objetivo)
+            if idx < 0:
+                idx = combo.findData(TONOS_DEFECTO_POR_CLAVE[clave])
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
+
+    def _probar_tono_de_clave(self, clave: str) -> None:
+        combo = self.combos_tonos.get(clave)
+        if combo is None:
+            return
+        codigo_tono = str(combo.currentData() or TONOS_DEFECTO_POR_CLAVE[clave])
+        reproducir_tono_aviso(
+            habilitado=True,
+            es_repeticion=(clave == "aviso.tono.repeticion"),
+            tono=codigo_tono,
+            volumen=int(self.slider_volumen.value()),
+        )
+
+    def _accion_subir_audio(self, clave_destino: str | None = None) -> None:
+        archivo, _ = QFileDialog.getOpenFileName(
+            self,
+            "Seleccionar archivo de sonido personalizado",
+            "",
+            FILTRO_ARCHIVOS_AUDIO,
+        )
+        if not archivo:
+            return
+
+        try:
+            codigo = importar_sonido_personalizado(archivo)
+        except Exception as exc:
+            QMessageBox.warning(
+                self,
+                "No se pudo importar el audio",
+                str(exc),
+            )
+            return
+
+        actuales = {
+            c: str(cb.currentData() or TONOS_DEFECTO_POR_CLAVE[c])
+            for c, cb in self.combos_tonos.items()
+        }
+        if clave_destino and clave_destino in actuales:
+            actuales[clave_destino] = codigo
+        else:
+            actuales["aviso.tono.continuidad"] = codigo
+
+        self._recargar_combos_tonos(actuales)
+
+        reproducir_tono_aviso(
+            habilitado=True,
+            tono=codigo,
+            volumen=int(self.slider_volumen.value()),
+        )
+
+    def _accion_aplicar_tono_a_todos(self) -> None:
+        combo_ref = self.combos_tonos.get("aviso.tono.continuidad")
+        if combo_ref is None:
+            return
+        codigo = str(combo_ref.currentData() or "gotita")
+        for combo in self.combos_tonos.values():
+            idx = combo.findData(codigo)
+            if idx >= 0:
+                combo.blockSignals(True)
+                combo.setCurrentIndex(idx)
+                combo.blockSignals(False)
+        self._probar_tono_de_clave("aviso.tono.continuidad")
+
+    def _accion_eliminar_audio_custom(self) -> None:
+        personalizados = listar_sonidos_usuario()
+        if not personalizados:
+            QMessageBox.information(
+                self,
+                "Sin audios personalizados",
+                "Aún no has subido archivos de sonido propios.",
+            )
+            return
+
+        etiquetas = [etiq for _, etiq in personalizados]
+        elegida, ok = QInputDialog.getItem(
+            self,
+            "Quitar audio personalizado",
+            "Elige el sonido personalizado que deseas borrar:",
+            etiquetas,
+            0,
+            False,
+        )
+        if not ok:
+            return
+        idx = etiquetas.index(elegida)
+        codigo_a_borrar = personalizados[idx][0]
+        if eliminar_sonido_personalizado(codigo_a_borrar):
+            actuales = {
+                c: (
+                    TONOS_DEFECTO_POR_CLAVE[c]
+                    if str(cb.currentData()) == codigo_a_borrar
+                    else str(cb.currentData() or TONOS_DEFECTO_POR_CLAVE[c])
+                )
+                for c, cb in self.combos_tonos.items()
+            }
+            self._recargar_combos_tonos(actuales)

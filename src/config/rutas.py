@@ -111,3 +111,15 @@ def ruta_logo_por_defecto() -> Path:
     if png.is_file():
         return png
     return carpeta_assets() / "logo_gente_util.svg"
+
+
+def carpeta_sonidos_integrados() -> Path:
+    """Carpeta de tonos de notificación incluidos en la aplicación (`src/assets/sounds`)."""
+    return carpeta_assets() / "sounds"
+
+
+def carpeta_sonidos_usuario() -> Path:
+    """Carpeta donde se guardan los tonos personalizados importados por el usuario."""
+    ruta = carpeta_datos() / "sonidos"
+    ruta.mkdir(parents=True, exist_ok=True)
+    return ruta

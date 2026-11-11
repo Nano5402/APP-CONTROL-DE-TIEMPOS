@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject, Qt, QTimer
 from PySide6.QtGui import QAction, QColor, QIcon, QLinearGradient, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QMainWindow, QMenu, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QMenu, QSystemTrayIcon
 
 from config import rutas
 from data.db import BaseDatos
@@ -20,7 +20,12 @@ from data.models import Actividad
 from data.repositorios.configuracion import RepoConfiguracion
 from services.recordatorios import AvisoRecordatorio, ServicioRecordatorios, TipoAviso
 from ui.dialogo_recordatorio import DialogoRecordatorio
-from ui.sonido import reproducir_tono_aviso
+from ui.sonido import (
+    TONOS_DEFECTO_POR_CLAVE,
+    clave_tono_para_aviso,
+    detener_sonidos,
+    reproducir_tono_aviso,
+)
 
 
 def _dibujar_pixmap_icono(tamano: int) -> QPixmap:
@@ -138,8 +143,11 @@ class IconoBandeja(QSystemTrayIcon):
             self.mostrar_ventana()
 
     def _salir(self) -> None:
-        from PySide6.QtWidgets import QApplication
-
+        if hasattr(self.ventana, "coordinador_recordatorios") and self.ventana.coordinador_recordatorios:
+            self.ventana.coordinador_recordatorios.detener()
+        if hasattr(self.ventana, "timer_reloj") and self.ventana.timer_reloj:
+            self.ventana.timer_reloj.stop()
+        detener_sonidos()
         self.hide()
         QApplication.quit()
 
@@ -209,41 +217,86 @@ class CoordinadorRecordatoriosUI(QObject):
         with self.bd.sesion() as s:
             cfg = RepoConfiguracion(s)
             sonido_on = cfg.obtener_bool("aviso.sonido", True)
-            estilo = cfg.obtener("aviso.estilo", "ventana") or "ventana"
+            volumen = cfg.obtener_int("aviso.volumen", 70)
+            estilo = cfg.obtener("aviso.estilo", "ambos") or "ambos"
+            tonos_config = {
+                clave: (cfg.obtener(clave, defecto) or defecto)
+                for clave, defecto in TONOS_DEFECTO_POR_CLAVE.items()
+            }
 
             srv = self._vincular_servicio(s)
             avisos = srv.evaluar()
             self._guardar_estado(srv)
 
+        sonido_emitido = False
+        tray_disponible = bool(self.bandeja and self.bandeja.isSystemTrayAvailable())
+
         for aviso in avisos:
-            reproducir_tono_aviso(
-                habilitado=sonido_on,
-                es_repeticion=aviso.es_repeticion_sin_respuesta,
-            )
-            if estilo == "notificacion" and self.bandeja and self.bandeja.isSystemTrayAvailable():
-                self.bandeja.showMessage(aviso.titulo, aviso.mensaje)
-                if aviso.tipo == TipoAviso.CONTINUIDAD:
-                    self._mostrar_dialogo_continuidad(aviso)
-            else:
-                self._mostrar_dialogo_continuidad(aviso)
+            clave = clave_tono_para_aviso(aviso.tipo, aviso.es_repeticion_sin_respuesta)
+            tono_aviso = tonos_config.get(clave, TONOS_DEFECTO_POR_CLAVE[clave])
+
+            if not sonido_emitido:
+                reproducir_tono_aviso(
+                    habilitado=sonido_on,
+                    es_repeticion=aviso.es_repeticion_sin_respuesta,
+                    tono=tono_aviso,
+                    volumen=volumen,
+                )
+                sonido_emitido = True
+
+            if estilo in ("notificacion", "ambos") and tray_disponible:
+                self.bandeja.showMessage(
+                    aviso.titulo,
+                    aviso.mensaje,
+                    QSystemTrayIcon.MessageIcon.Information,
+                    6000,
+                )
+
+            if estilo in ("ventana", "ambos") or aviso.tipo == TipoAviso.CONTINUIDAD:
+                self._mostrar_dialogo_continuidad(aviso, mostrar_tray_si_ocupado=tray_disponible)
 
         return avisos
 
-    def _mostrar_dialogo_continuidad(self, aviso: AvisoRecordatorio) -> None:
+    def _mostrar_dialogo_continuidad(
+        self, aviso: AvisoRecordatorio, *, mostrar_tray_si_ocupado: bool = True
+    ) -> None:
         if self._dialogo_abierto is not None and self._dialogo_abierto.isVisible():
+            if aviso.tipo == TipoAviso.CONTINUIDAD:
+                self._dialogo_abierto.actualizar_aviso(aviso)
+            elif mostrar_tray_si_ocupado and self.bandeja:
+                self.bandeja.showMessage(
+                    aviso.titulo,
+                    aviso.mensaje,
+                    QSystemTrayIcon.MessageIcon.Information,
+                    6000,
+                )
             self._dialogo_abierto.raise_()
             self._dialogo_abierto.activateWindow()
+            QApplication.alert(self._dialogo_abierto, 0)
             return
 
-        dlg = DialogoRecordatorio(aviso, self.ventana)
+        usar_padre = (
+            self.ventana is not None
+            and self.ventana.isVisible()
+            and not self.ventana.isMinimized()
+        )
+        padre = self.ventana if usar_padre else None
+        dlg = DialogoRecordatorio(aviso, padre)
+        if padre is None and self.ventana is not None:
+            app = QApplication.instance()
+            if app is None or not app.styleSheet():
+                dlg.setStyleSheet(self.ventana.styleSheet())
         self._dialogo_abierto = dlg
         dlg.finished.connect(lambda _res, d=dlg, a=aviso: self._al_cerrar_dialogo(d, a))
         dlg.show()
         dlg.raise_()
         dlg.activateWindow()
+        QApplication.alert(dlg, 0)
 
     def _al_cerrar_dialogo(self, dlg: DialogoRecordatorio, aviso: AvisoRecordatorio) -> None:
-        self._dialogo_abierto = None
+        if self._dialogo_abierto is dlg:
+            self._dialogo_abierto = None
+        dlg.deleteLater()
         if aviso.tipo != TipoAviso.CONTINUIDAD or aviso.actividad_id is None:
             return
         if dlg.respuesta_elegida is None:
@@ -263,3 +316,8 @@ class CoordinadorRecordatoriosUI(QObject):
                 motivo_ajuste=dlg.motivo_ingresado or None,
             )
             self._guardar_estado(srv)
+
+        if hasattr(self.ventana, "pantalla_hoy"):
+            self.ventana.pantalla_hoy.refrescar()
+        if hasattr(self.ventana, "_tick_reloj"):
+            self.ventana._tick_reloj()

@@ -37,24 +37,20 @@ class DialogoRecordatorio(QDialog):
         self.respuesta_elegida: RespuestaRecordatorio | None = None
 
         self.setWindowTitle(aviso.titulo)
-        self.setWindowFlags(
-            self.windowFlags()
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.Tool
-        )
+        self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
         self.setMinimumWidth(440)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(12)
 
-        lbl_titulo = QLabel(aviso.titulo, self)
-        lbl_titulo.setStyleSheet("font-size: 17px; font-weight: bold;")
-        lbl_mensaje = QLabel(aviso.mensaje, self)
-        lbl_mensaje.setWordWrap(True)
-        lbl_mensaje.setStyleSheet("font-size: 14px;")
-        layout.addWidget(lbl_titulo)
-        layout.addWidget(lbl_mensaje)
+        self.lbl_titulo = QLabel(aviso.titulo, self)
+        self.lbl_titulo.setStyleSheet("font-size: 17px; font-weight: bold;")
+        self.lbl_mensaje = QLabel(aviso.mensaje, self)
+        self.lbl_mensaje.setWordWrap(True)
+        self.lbl_mensaje.setStyleSheet("font-size: 14px;")
+        layout.addWidget(self.lbl_titulo)
+        layout.addWidget(self.lbl_mensaje)
 
         # Controles adicionales ocultos hasta que el usuario los necesite
         self.combo_tipo_pausa = QComboBox(self)
@@ -134,6 +130,13 @@ class DialogoRecordatorio(QDialog):
             configurar_boton(btn_entendido, "check", color="#FFFFFF")
             btn_entendido.clicked.connect(self.accept)
             layout.addWidget(btn_entendido)
+
+    def actualizar_aviso(self, aviso: AvisoRecordatorio) -> None:
+        """Actualiza título y mensaje si llega una repetición sin respuesta previa."""
+        self.aviso = aviso
+        self.setWindowTitle(aviso.titulo)
+        self.lbl_titulo.setText(aviso.titulo)
+        self.lbl_mensaje.setText(aviso.mensaje)
 
     def _mostrar_ocultar_extra(self, visible: bool) -> None:
         self.panel_extra.setVisible(visible)
