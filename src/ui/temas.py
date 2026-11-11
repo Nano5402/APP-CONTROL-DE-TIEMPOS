@@ -213,8 +213,8 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         border: 1px solid {t.borde_fuerte};
         border-top: 1.5px solid {t.borde};
         border-radius: 10px;
-        padding: 9px 18px;
-        margin-right: 8px;
+        padding: 8px 14px;
+        margin-right: 6px;
         font-weight: 600;
         font-family: {fuente_familia};
     }}
@@ -272,7 +272,7 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         background-color: transparent;
         color: {t.texto_sidebar};
         text-align: left;
-        padding: 10px 14px;
+        padding: 9px 12px;
         border-radius: 9px;
         border: 1px solid transparent;
         font-size: 13px;
@@ -362,10 +362,14 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         color: #FFFFFF;
         border: 1px solid rgba(255, 255, 255, 0.22);
         border-radius: 9px;
-        padding: 9px 18px;
+        padding: 8px 14px;
         font-weight: 600;
         font-family: {fuente_familia};
         min-height: 20px;
+    }}
+    QPushButton[compact="true"] {{
+        padding: 5px 10px;
+        min-height: 18px;
     }}
     QPushButton:hover {{
         background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #186BE5, stop:1 {t.acento});
@@ -416,10 +420,10 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         color: {t.texto_principal};
         border: 1px solid {t.borde_fuerte};
         border-radius: 8px;
-        padding: 6px 14px;
-        font-size: 13px;
+        padding: 5px 11px;
+        font-size: 12px;
         font-weight: 600;
-        min-height: 28px;
+        min-height: 24px;
     }}
     QPushButton[chip="true"]:hover {{
         background-color: {t.acento};
@@ -431,8 +435,8 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         color: {t.acento};
         border: 1.5px solid rgba(0, 61, 149, 0.28);
         border-radius: 8px;
-        padding: 6px 14px;
-        font-size: 13px;
+        padding: 5px 11px;
+        font-size: 12px;
         font-weight: 700;
     }}
     /* Entradas de formulario Glass */
@@ -489,6 +493,16 @@ def generar_qss(codigo: str | None = "gente_util", *, tamano_fuente_px: int = 13
         border-bottom: 2px solid {t.acento};
         padding: 10px 12px;
         font-family: {fuente_familia};
+    }}
+    QTableWidget QComboBox, QTableWidget QSpinBox, QTableWidget QLineEdit {{
+        padding: 4px 8px;
+        min-height: 20px;
+        border-radius: 6px;
+    }}
+    QTableWidget QPushButton {{
+        padding: 4px 10px;
+        min-height: 20px;
+        border-radius: 6px;
     }}
     /* Barra de progreso */
     QProgressBar {{

@@ -49,16 +49,16 @@ class MiniWidgetCronometro(QWidget):
             | Qt.WindowType.Tool,
         )
         self.setWindowTitle("Cronómetro — Gente Util")
-        self.setFixedSize(348, 130)
+        self.setFixedSize(384, 136)
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(10, 8, 10, 8)
+        layout.setContentsMargins(8, 6, 8, 6)
         layout.setSpacing(6)
 
         marco = QFrame(self)
         marco.setObjectName("heroCronometro")
         capa_marco = QVBoxLayout(marco)
-        capa_marco.setContentsMargins(12, 10, 12, 10)
+        capa_marco.setContentsMargins(10, 8, 10, 8)
         capa_marco.setSpacing(8)
 
         fila_sup = QHBoxLayout()
@@ -72,13 +72,16 @@ class MiniWidgetCronometro(QWidget):
 
         fila_btn = QHBoxLayout()
         fila_btn.setSpacing(6)
-        self.btn_pausar = QPushButton("  Pausar", self)
+        self.btn_pausar = QPushButton(" Pausar", self)
         self.btn_pausar.setProperty("rol", "advertencia")
+        self.btn_pausar.setProperty("compact", True)
         configurar_boton(self.btn_pausar, "pause", tamano=14)
-        self.btn_finalizar = QPushButton("  Finalizar", self)
+        self.btn_finalizar = QPushButton(" Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
+        self.btn_finalizar.setProperty("compact", True)
         configurar_boton(self.btn_finalizar, "stop", tamano=14)
-        self.btn_siguiente = QPushButton("  Siguiente", self)
+        self.btn_siguiente = QPushButton(" Siguiente", self)
+        self.btn_siguiente.setProperty("compact", True)
         self.btn_siguiente.setToolTip("Terminar esta actividad y empezar la siguiente")
         configurar_boton(self.btn_siguiente, "skip-forward", tamano=14)
 
@@ -131,11 +134,11 @@ class MiniWidgetCronometro(QWidget):
     ) -> None:
         """Ajusta el tamaño y la opacidad de la mini-ventana flotante."""
         dimensiones = {
-            "compacta": (310, 118),
-            "normal": (348, 130),
-            "grande": (420, 152),
+            "compacta": (350, 126),
+            "normal": (384, 136),
+            "grande": (420, 148),
         }
-        ancho, alto = dimensiones.get(tamano, (348, 130))
+        ancho, alto = dimensiones.get(tamano, (384, 136))
         self.setFixedSize(ancho, alto)
         opacidad = max(0.60, min(1.0, int(opacidad_pct) / 100.0))
         self.setWindowOpacity(opacidad)

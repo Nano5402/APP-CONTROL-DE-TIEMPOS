@@ -28,6 +28,8 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSizePolicy,
     QSpinBox,
     QVBoxLayout,
     QWidget,
@@ -66,24 +68,31 @@ class PantallaExtra(QWidget):
             "Usa esta pantalla cuando alguien te pida una tarea adicional que no estaba en tu plan de la mañana.",
             self,
         )
+        lbl_sub.setWordWrap(True)
         lbl_sub.setObjectName("subtitulo")
         layout.addWidget(lbl_tit)
         layout.addWidget(lbl_sub)
 
-        card = QFrame(self)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }")
+        card = QFrame(scroll)
         card.setProperty("card", True)
         form = QFormLayout(card)
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form.setSpacing(10)
 
-        self.txt_nombre = QLineEdit(self)
+        self.txt_nombre = QLineEdit(card)
         self.txt_nombre.setPlaceholderText("Ej. Flyer urgente vacante, Ajuste presentación...")
 
         # Selector limpio de solicitante + botón opcional para agregar una persona nueva
         fila_sol = QHBoxLayout()
-        self.combo_solicitante = QComboBox(self)
+        self.combo_solicitante = QComboBox(card)
         self.combo_solicitante.currentIndexChanged.connect(self._al_cambiar_solicitante)
-        self.btn_mostrar_nuevo_sol = QPushButton("  Registrar otra persona", self)
+        self.btn_mostrar_nuevo_sol = QPushButton("  Otra persona", card)
         self.btn_mostrar_nuevo_sol.setProperty("rol", "secundario")
+        self.btn_mostrar_nuevo_sol.setProperty("compact", True)
         self.btn_mostrar_nuevo_sol.setCheckable(True)
         self.btn_mostrar_nuevo_sol.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_mostrar_nuevo_sol, "plus", color="#0F172A")
@@ -92,7 +101,7 @@ class PantallaExtra(QWidget):
         fila_sol.addWidget(self.btn_mostrar_nuevo_sol)
 
         # Panel desplegable para dar de alta un nuevo solicitante (oculto por defecto)
-        self.panel_nuevo_sol = QWidget(self)
+        self.panel_nuevo_sol = QWidget(card)
         fila_nuevo_sol = QHBoxLayout(self.panel_nuevo_sol)
         fila_nuevo_sol.setContentsMargins(0, 0, 0, 0)
         self.txt_nuevo_sol = QLineEdit(self.panel_nuevo_sol)
@@ -101,6 +110,7 @@ class PantallaExtra(QWidget):
         for ts in (TipoSolicitante.COMPANERO, TipoSolicitante.TERCERO, TipoSolicitante.DOCTORA):
             self.combo_tipo_nuevo_sol.addItem(ts.etiqueta(), ts.value)
         self.btn_crear_sol = QPushButton("Guardar persona", self.panel_nuevo_sol)
+        self.btn_crear_sol.setProperty("compact", True)
         self.btn_crear_sol.clicked.connect(self.accion_crear_solicitante)
         fila_nuevo_sol.addWidget(self.txt_nuevo_sol, 2)
         fila_nuevo_sol.addWidget(self.combo_tipo_nuevo_sol, 1)
@@ -108,38 +118,41 @@ class PantallaExtra(QWidget):
         self.panel_nuevo_sol.setVisible(False)
         self.btn_mostrar_nuevo_sol.toggled.connect(self.panel_nuevo_sol.setVisible)
 
-        self.lbl_regla_prioridad = QLabel("", self)
+        self.lbl_regla_prioridad = QLabel("", card)
         self.lbl_regla_prioridad.setWordWrap(True)
+        self.lbl_regla_prioridad.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding
+        )
         self.lbl_regla_prioridad.setObjectName("bannerInfo")
 
         # Solo visible cuando quien solicita es compañero o tercero
         self.chk_aprobada_ing = QCheckBox(
-            "El Ing. Luis Eduardo ya autorizó esta solicitud", self
+            "El Ing. Luis Eduardo ya autorizó esta solicitud", card
         )
         self.chk_aprobada_ing.setVisible(False)
 
-        self.combo_canal = QComboBox(self)
+        self.combo_canal = QComboBox(card)
         for c in CanalSolicitud:
             self.combo_canal.addItem(c.etiqueta(), c.value)
 
-        self.txt_motivo_urgencia = QLineEdit(self)
+        self.txt_motivo_urgencia = QLineEdit(card)
         self.txt_motivo_urgencia.setPlaceholderText("¿Por qué la necesitan hoy? (ej. Reunión, publicación urgente...)")
 
-        self.combo_categoria = QComboBox(self)
+        self.combo_categoria = QComboBox(card)
         self.combo_categoria.setEditable(True)
         self.txt_categoria = self.combo_categoria.lineEdit()
         if self.txt_categoria is not None:
             self.txt_categoria.setPlaceholderText("Elige o escribe categoría (ej. Flyers)")
 
-        self.spin_estimado = QSpinBox(self)
+        self.spin_estimado = QSpinBox(card)
         self.spin_estimado.setRange(0, 600)
         self.spin_estimado.setSuffix(" min")
         self.spin_estimado.setSpecialValueText("Sin estimado")
 
         # Fecha límite oculta salvo que marque la casilla
         fila_lim = QHBoxLayout()
-        self.chk_tiene_limite = QCheckBox("Tiene hora o fecha límite de entrega", self)
-        self.dt_limite = QDateTimeEdit(QDateTime.currentDateTime().addSecs(3600), self)
+        self.chk_tiene_limite = QCheckBox("Con hora o fecha límite", card)
+        self.dt_limite = QDateTimeEdit(QDateTime.currentDateTime().addSecs(3600), card)
         self.dt_limite.setDisplayFormat("dd/MM/yyyy HH:mm")
         self.dt_limite.setVisible(False)
         self.chk_tiene_limite.toggled.connect(self.dt_limite.setVisible)
@@ -147,11 +160,12 @@ class PantallaExtra(QWidget):
         fila_lim.addWidget(self.dt_limite)
         fila_lim.addStretch()
 
-        self.txt_descripcion = QPlainTextEdit(self)
+        self.txt_descripcion = QPlainTextEdit(card)
         self.txt_descripcion.setPlaceholderText(
             "Describe brevemente qué pidieron hacer..."
         )
-        self.txt_descripcion.setMaximumHeight(85)
+        self.txt_descripcion.setMinimumHeight(72)
+        self.txt_descripcion.setMaximumHeight(96)
 
         form.addRow("¿Qué actividad te pidieron?*:", self.txt_nombre)
         form.addRow("¿Quién la solicita?*:", fila_sol)
@@ -164,7 +178,8 @@ class PantallaExtra(QWidget):
         form.addRow("Tiempo estimado:", self.spin_estimado)
         form.addRow("Fecha límite:", fila_lim)
         form.addRow("Descripción breve*:", self.txt_descripcion)
-        layout.addWidget(card)
+        scroll.setWidget(card)
+        layout.addWidget(scroll, 1)
 
         fila_btn = QHBoxLayout()
         self.btn_guardar = QPushButton("  Guardar en mi lista", self)
@@ -184,7 +199,6 @@ class PantallaExtra(QWidget):
         fila_btn.addWidget(self.btn_guardar)
         fila_btn.addWidget(self.btn_guardar_iniciar)
         layout.addLayout(fila_btn)
-        layout.addStretch()
 
         self.refrescar()
 
@@ -222,18 +236,19 @@ class PantallaExtra(QWidget):
                 return
             if sol.requiere_aprobacion:
                 self.lbl_regla_prioridad.setText(
-                    f"Solicitud de {sol.tipo}: requiere autorización del Ing. Luis Eduardo. "
-                    "Si aún no te la ha aprobado, quedará en espera en la pantalla Hoy."
+                    f"Solicitud de {sol.tipo}: requiere aprobación del Ing. Luis Eduardo "
+                    "(si falta, queda en espera en Hoy)."
                 )
                 self.chk_aprobada_ing.setVisible(True)
                 self.chk_aprobada_ing.setEnabled(True)
             else:
                 self.lbl_regla_prioridad.setText(
-                    "Prioridad MÁXIMA: no requiere aprobación, puedes iniciarla de inmediato "
-                    "(pausará lo que tengas en curso) y suma a tu Cumplimiento."
+                    "Prioridad MÁXIMA: sin aprobación; puedes iniciarla ya "
+                    "(pausa la actual) y suma a tu Cumplimiento."
                 )
                 self.chk_aprobada_ing.setChecked(False)
                 self.chk_aprobada_ing.setVisible(False)
+            self.lbl_regla_prioridad.updateGeometry()
 
     def accion_crear_solicitante(self) -> None:
         nombre = self.txt_nuevo_sol.text().strip()

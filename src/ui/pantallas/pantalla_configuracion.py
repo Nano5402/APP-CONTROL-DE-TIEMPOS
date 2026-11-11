@@ -85,9 +85,9 @@ ESCALAS_FUENTE: list[tuple[str, int]] = [
 ]
 
 TAMANOS_MINI: list[tuple[str, str]] = [
-    ("Compacta (310 × 118 px)", "compacta"),
-    ("Normal (348 × 130 px)", "normal"),
-    ("Grande (420 × 152 px)", "grande"),
+    ("Compacta (350 × 126 px)", "compacta"),
+    ("Normal (384 × 136 px)", "normal"),
+    ("Grande (420 × 148 px)", "grande"),
 ]
 
 ESTILOS_AVISO: list[tuple[str, str]] = [
@@ -149,10 +149,13 @@ class PantallaConfiguracion(QWidget):
             self,
         )
         lbl_sub.setObjectName("subtitulo")
+        lbl_sub.setWordWrap(True)
         layout.addWidget(lbl_tit)
         layout.addWidget(lbl_sub)
 
         self.tabs_config = QTabWidget(self)
+        self.tabs_config.setUsesScrollButtons(True)
+        self.tabs_config.setElideMode(Qt.TextElideMode.ElideNone)
         self.tabs_config.addTab(
             self._envolver_scroll(self._construir_tab_graficos()),
             obtener_icono("palette", color="#003D95", tamano=16),
@@ -189,9 +192,11 @@ class PantallaConfiguracion(QWidget):
             "Los cambios de resolución, escala de letra, recordatorios y atajos se aplican al instante.",
             barra_inf,
         )
+        lbl_info_guardar.setWordWrap(True)
         lbl_info_guardar.setObjectName("subtitulo")
         self.btn_guardar_cfg = QPushButton("  Guardar y aplicar configuración", barra_inf)
         self.btn_guardar_cfg.setProperty("rol", "exito")
+        self.btn_guardar_cfg.setProperty("compact", True)
         self.btn_guardar_cfg.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_guardar_cfg, "save")
         self.btn_guardar_cfg.clicked.connect(self.accion_guardar_general)
@@ -220,9 +225,12 @@ class PantallaConfiguracion(QWidget):
 
         card_pantalla = QFrame(pag)
         card_pantalla.setProperty("card", True)
-        form_p = QFormLayout(card_pantalla)
-        form_p.setSpacing(12)
-        form_p.addRow(
+        self.form_graficos_pantalla = QFormLayout(card_pantalla)
+        self.form_graficos_pantalla.setFieldGrowthPolicy(
+            QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow
+        )
+        self.form_graficos_pantalla.setSpacing(12)
+        self.form_graficos_pantalla.addRow(
             QLabel("<b>Apariencia, Resolución de Ventana y Escala Visual</b>")
         )
 
@@ -237,29 +245,24 @@ class PantallaConfiguracion(QWidget):
             self._actualizar_visibilidad_resolucion
         )
 
-        self.widget_resolucion = QWidget(card_pantalla)
-        fila_res = QHBoxLayout(self.widget_resolucion)
-        fila_res.setContentsMargins(0, 0, 0, 0)
-        self.lbl_resolucion = QLabel("Resolución de la ventana:", self.widget_resolucion)
-        self.combo_resolucion = QComboBox(self.widget_resolucion)
+        self.combo_resolucion = QComboBox(card_pantalla)
         for etq, valor in RESOLUCIONES_DISPONIBLES:
             self.combo_resolucion.addItem(etq, valor)
-        fila_res.addWidget(self.lbl_resolucion)
-        fila_res.addWidget(self.combo_resolucion, 1)
 
         self.combo_tamano_fuente = QComboBox(card_pantalla)
         for etq, px in ESCALAS_FUENTE:
             self.combo_tamano_fuente.addItem(etq, px)
 
-        form_p.addRow("Tema de colores:", self.combo_tema)
-        form_p.addRow("Modo de visualización:", self.combo_modo_ventana)
-        form_p.addRow(self.widget_resolucion)
-        form_p.addRow("Tamaño de letra e interfaz:", self.combo_tamano_fuente)
+        self.form_graficos_pantalla.addRow("Tema de colores:", self.combo_tema)
+        self.form_graficos_pantalla.addRow("Modo de visualización:", self.combo_modo_ventana)
+        self.form_graficos_pantalla.addRow("Resolución de la ventana:", self.combo_resolucion)
+        self.form_graficos_pantalla.addRow("Tamaño de letra e interfaz:", self.combo_tamano_fuente)
         col.addWidget(card_pantalla)
 
         card_mini = QFrame(pag)
         card_mini.setProperty("card", True)
         form_m = QFormLayout(card_mini)
+        form_m.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form_m.setSpacing(12)
         form_m.addRow(QLabel("<b>Mini-ventana flotante del cronómetro</b>"))
 
@@ -288,11 +291,13 @@ class PantallaConfiguracion(QWidget):
         card_gen = QFrame(pag)
         card_gen.setProperty("card", True)
         form_gen = QFormLayout(card_gen)
+        form_gen.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form_gen.setSpacing(12)
         form_gen.addRow(QLabel("<b>Datos del Usuario y Reportes Corporativos</b>"))
 
         self.txt_usuario = QLineEdit(card_gen)
-        self.txt_usuario.setPlaceholderText("Ej. Andrés")
+        self.txt_usuario.setPlaceholderText("Ej. Andrés (para reportes y WhatsApp)")
+        self.txt_usuario.setToolTip("Nombre usado en encabezados de reportes PDF y resúmenes de WhatsApp")
         self.txt_empresa = QLineEdit(card_gen)
         self.txt_color_empresa = QLineEdit(card_gen)
         self.txt_color_empresa.setPlaceholderText("#003D95")
@@ -300,13 +305,14 @@ class PantallaConfiguracion(QWidget):
         self.txt_logo_ruta.setPlaceholderText("Automático (logo corporativo Gente Util)")
         self.btn_elegir_logo = QPushButton("Elegir imagen...", card_gen)
         self.btn_elegir_logo.setProperty("rol", "secundario")
+        self.btn_elegir_logo.setProperty("compact", True)
         self.btn_elegir_logo.clicked.connect(self.accion_elegir_logo)
 
         fila_logo = QHBoxLayout()
         fila_logo.addWidget(self.txt_logo_ruta, 1)
         fila_logo.addWidget(self.btn_elegir_logo)
 
-        form_gen.addRow("Tu nombre (para reportes y WhatsApp):", self.txt_usuario)
+        form_gen.addRow("Nombre para reportes:", self.txt_usuario)
         form_gen.addRow("Empresa:", self.txt_empresa)
         form_gen.addRow("Color primario en reportes PDF:", self.txt_color_empresa)
         form_gen.addRow("Logo para reportes PDF:", fila_logo)
@@ -315,35 +321,44 @@ class PantallaConfiguracion(QWidget):
         card_win = QFrame(pag)
         card_win.setProperty("card", True)
         col_win = QVBoxLayout(card_win)
-        col_win.setSpacing(10)
+        col_win.setSpacing(8)
         col_win.addWidget(QLabel("<b>Arranque con Windows</b>"))
 
-        self.chk_autostart = QCheckBox(
-            "Iniciar automáticamente al encender el portátil (inicio de sesión de Windows)",
-            card_win,
-        )
-        self.chk_iniciar_oculta = QCheckBox(
-            "Al iniciar con Windows, arrancar oculta en la bandeja del reloj "
-            "(desmarca esta opción para que la ventana principal se abra en pantalla)",
-            card_win,
-        )
-        self.chk_minimizar_al_cerrar = QCheckBox(
-            "Al hacer clic en la «X» de la ventana, mantener la app en segundo plano en la bandeja "
-            "(desmarcado: cerrar la ventana cierra la aplicación por completo)",
-            card_win,
-        )
-        col_win.addWidget(self.chk_autostart)
-        col_win.addWidget(self.chk_iniciar_oculta)
-        col_win.addWidget(self.chk_minimizar_al_cerrar)
+        def _agregar_check_con_ayuda(titulo: str, ayuda: str) -> QCheckBox:
+            chk = QCheckBox(titulo, card_win)
+            col_win.addWidget(chk)
+            lbl_ay = QLabel(ayuda, card_win)
+            lbl_ay.setObjectName("subtitulo")
+            lbl_ay.setWordWrap(True)
+            lbl_ay.setStyleSheet("padding-left: 24px; font-size: 12px;")
+            col_win.addWidget(lbl_ay)
+            return chk
 
+        self.chk_autostart = _agregar_check_con_ayuda(
+            "Iniciar automáticamente al encender el portátil",
+            "Abre el control de tiempos al iniciar sesión en Windows.",
+        )
+        self.chk_iniciar_oculta = _agregar_check_con_ayuda(
+            "Arrancar oculta en la bandeja del reloj",
+            "Desmarca esta opción para que la ventana principal aparezca en pantalla al iniciar.",
+        )
+        self.chk_minimizar_al_cerrar = _agregar_check_con_ayuda(
+            "Mantener en segundo plano al pulsar la «X»",
+            "Si está desmarcado, cerrar la ventana cierra la aplicación por completo.",
+        )
+
+        fila_acceso = QHBoxLayout()
         self.btn_crear_acceso_directo = QPushButton(
-            "  Crear acceso directo con logo en el Escritorio y Menú Inicio", card_win
+            "  Crear acceso directo en Escritorio y Menú", card_win
         )
         self.btn_crear_acceso_directo.setProperty("rol", "secundario")
+        self.btn_crear_acceso_directo.setProperty("compact", True)
         self.btn_crear_acceso_directo.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_crear_acceso_directo, "external-link", color="#0F172A")
         self.btn_crear_acceso_directo.clicked.connect(self.accion_crear_accesos_directos)
-        col_win.addWidget(self.btn_crear_acceso_directo)
+        fila_acceso.addWidget(self.btn_crear_acceso_directo)
+        fila_acceso.addStretch()
+        col_win.addLayout(fila_acceso)
         col.addWidget(card_win)
 
         col.addStretch()
@@ -371,25 +386,28 @@ class PantallaConfiguracion(QWidget):
         col_tonos.addWidget(lbl_tonos_tit)
         col_tonos.addWidget(lbl_tonos_sub)
 
-        # Interruptor maestro + Volumen + Probar
-        fila_audio_maestro = QHBoxLayout()
-        fila_audio_maestro.setSpacing(12)
+        # Interruptor maestro + toolbar separada para audios personalizados (evita recortes)
         self.chk_sonido = QCheckBox("Activar sonidos en las notificaciones", card_tonos)
-        fila_audio_maestro.addWidget(self.chk_sonido)
-        fila_audio_maestro.addStretch()
+        col_tonos.addWidget(self.chk_sonido)
+
+        fila_audio_maestro = QHBoxLayout()
+        fila_audio_maestro.setSpacing(8)
 
         self.btn_subir_sonido = QPushButton("  Subir audio propio...", card_tonos)
+        self.btn_subir_sonido.setProperty("compact", True)
         self.btn_subir_sonido.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_subir_sonido, "folder-open", color="#FFFFFF")
         self.btn_subir_sonido.clicked.connect(lambda: self._accion_subir_audio(None))
 
         self.btn_aplicar_todos_tonos = QPushButton("Usar tono 1 para todos", card_tonos)
         self.btn_aplicar_todos_tonos.setProperty("rol", "secundario")
+        self.btn_aplicar_todos_tonos.setProperty("compact", True)
         self.btn_aplicar_todos_tonos.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_aplicar_todos_tonos.clicked.connect(self._accion_aplicar_tono_a_todos)
 
         self.btn_eliminar_sonido_custom = QPushButton("  Quitar audio...", card_tonos)
         self.btn_eliminar_sonido_custom.setProperty("rol", "secundario")
+        self.btn_eliminar_sonido_custom.setProperty("compact", True)
         self.btn_eliminar_sonido_custom.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_eliminar_sonido_custom, "trash", color="#0F172A")
         self.btn_eliminar_sonido_custom.clicked.connect(self._accion_eliminar_audio_custom)
@@ -397,11 +415,12 @@ class PantallaConfiguracion(QWidget):
         fila_audio_maestro.addWidget(self.btn_subir_sonido)
         fila_audio_maestro.addWidget(self.btn_aplicar_todos_tonos)
         fila_audio_maestro.addWidget(self.btn_eliminar_sonido_custom)
+        fila_audio_maestro.addStretch()
         col_tonos.addLayout(fila_audio_maestro)
 
         fila_vol = QHBoxLayout()
         fila_vol.setSpacing(10)
-        lbl_vol = QLabel("<b>Volumen general:</b>", card_tonos)
+        lbl_vol = QLabel("<b>Volumen:</b>", card_tonos)
         self.slider_volumen = QSlider(Qt.Orientation.Horizontal, card_tonos)
         self.slider_volumen.setRange(0, 100)
         self.slider_volumen.setValue(70)
@@ -412,8 +431,9 @@ class PantallaConfiguracion(QWidget):
             lambda v: self.lbl_volumen_val.setText(f"{v} %")
         )
 
-        self.btn_probar_volumen = QPushButton("  Probar sonido", card_tonos)
+        self.btn_probar_volumen = QPushButton("  Probar", card_tonos)
         self.btn_probar_volumen.setProperty("rol", "secundario")
+        self.btn_probar_volumen.setProperty("compact", True)
         self.btn_probar_volumen.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_probar_volumen, "volume-2", color="#0F172A")
         self.btn_probar_volumen.clicked.connect(
@@ -436,12 +456,13 @@ class PantallaConfiguracion(QWidget):
             )
             fila_ev = QHBoxLayout(fila_box)
             fila_ev.setContentsMargins(12, 8, 12, 8)
-            fila_ev.setSpacing(10)
+            fila_ev.setSpacing(8)
 
             col_info = QVBoxLayout()
             col_info.setSpacing(2)
             lbl_e_tit = QLabel(f"<b>{titulo_ev}</b>", fila_box)
             lbl_e_tit.setStyleSheet("border: none; background: transparent;")
+            lbl_e_tit.setWordWrap(True)
             lbl_e_desc = QLabel(desc_ev, fila_box)
             lbl_e_desc.setObjectName("subtitulo")
             lbl_e_desc.setStyleSheet("border: none; background: transparent;")
@@ -450,12 +471,16 @@ class PantallaConfiguracion(QWidget):
             col_info.addWidget(lbl_e_desc)
 
             combo = QComboBox(fila_box)
-            combo.setMinimumWidth(260)
+            combo.setMinimumWidth(210)
+            combo.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+            )
             combo.activated.connect(lambda _idx, c=clave: self._probar_tono_de_clave(c))
             self.combos_tonos[clave] = combo
 
             btn_play = QPushButton("  Probar", fila_box)
             btn_play.setProperty("rol", "secundario")
+            btn_play.setProperty("compact", True)
             btn_play.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_play.setToolTip(f"Escuchar vista previa de «{titulo_ev}»")
             configurar_boton(btn_play, "volume-2", color="#003D95", tamano=14)
@@ -463,6 +488,7 @@ class PantallaConfiguracion(QWidget):
 
             btn_subir_ev = QPushButton("", fila_box)
             btn_subir_ev.setProperty("rol", "secundario")
+            btn_subir_ev.setProperty("compact", True)
             btn_subir_ev.setCursor(Qt.CursorShape.PointingHandCursor)
             btn_subir_ev.setToolTip(f"Elegir archivo .mp3 / .wav del computador para «{titulo_ev}»")
             configurar_boton(btn_subir_ev, "folder-open", color="#0F172A", tamano=15)
@@ -480,6 +506,7 @@ class PantallaConfiguracion(QWidget):
         card_rec = QFrame(pag)
         card_rec.setProperty("card", True)
         form_rec = QFormLayout(card_rec)
+        form_rec.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form_rec.setSpacing(12)
         form_rec.addRow(QLabel("<b>Modo de Notificación e Intervalos</b>"))
 
@@ -509,7 +536,7 @@ class PantallaConfiguracion(QWidget):
         form_rec.addRow("Cómo mostrar las notificaciones:", self.combo_estilo_aviso)
         form_rec.addRow("Preguntar «¿Sigues con...?» cada:", self.spin_rec_cont)
         form_rec.addRow("Repetir aviso si no respondes cada:", self.spin_rec_rep)
-        form_rec.addRow("Avisar si no hay actividad en curso tras:", self.spin_rec_inact)
+        form_rec.addRow("Sin actividad tras:", self.spin_rec_inact)
         form_rec.addRow("Recordatorios de horario:", fila_hor_avisos)
         col.addWidget(card_rec)
 
@@ -557,13 +584,15 @@ class PantallaConfiguracion(QWidget):
         card_atajos = QFrame(pag)
         card_atajos.setProperty("card", True)
         form_atajos = QFormLayout(card_atajos)
+        form_atajos.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form_atajos.setSpacing(10)
-        form_atajos.addRow(
-            QLabel(
-                "<b>Atajos de teclado opcionales</b> "
-                "(desactivados por defecto para no interferir con otros programas)"
-            )
+        lbl_atajos_tit = QLabel(
+            "<b>Atajos de teclado opcionales</b> "
+            "(desactivados por defecto para no interferir con otros programas)",
+            card_atajos,
         )
+        lbl_atajos_tit.setWordWrap(True)
+        form_atajos.addRow(lbl_atajos_tit)
 
         self.key_iniciar_pausar = QKeySequenceEdit(card_atajos)
         self.key_finalizar = QKeySequenceEdit(card_atajos)
@@ -646,6 +675,7 @@ class PantallaConfiguracion(QWidget):
             "Si compartes el portátil con otras personas, puedes activar un PIN numérico al abrir la aplicación.",
             card_pin,
         )
+        lbl_pin_ayuda.setWordWrap(True)
         lbl_pin_ayuda.setObjectName("subtitulo")
         col_pin.addWidget(lbl_pin_ayuda)
 
@@ -655,8 +685,9 @@ class PantallaConfiguracion(QWidget):
         self.txt_nuevo_pin.setPlaceholderText("Escribe un PIN de 4 o más dígitos")
         self.btn_ver_nuevo_pin = QPushButton("Ver", card_pin)
         self.btn_ver_nuevo_pin.setProperty("rol", "secundario")
+        self.btn_ver_nuevo_pin.setProperty("compact", True)
         self.btn_ver_nuevo_pin.setCheckable(True)
-        self.btn_ver_nuevo_pin.setFixedWidth(56)
+        self.btn_ver_nuevo_pin.setMinimumWidth(84)
         self.btn_ver_nuevo_pin.toggled.connect(
             lambda v: (
                 self.txt_nuevo_pin.setEchoMode(
@@ -666,8 +697,10 @@ class PantallaConfiguracion(QWidget):
             )
         )
         self.btn_fijar_pin = QPushButton("Establecer PIN", card_pin)
+        self.btn_fijar_pin.setProperty("compact", True)
         self.btn_quitar_pin = QPushButton("Desactivar PIN", card_pin)
         self.btn_quitar_pin.setProperty("rol", "secundario")
+        self.btn_quitar_pin.setProperty("compact", True)
         self.btn_fijar_pin.clicked.connect(self.accion_establecer_pin)
         self.btn_quitar_pin.clicked.connect(self.accion_quitar_pin)
         fila_pin.addWidget(self.txt_nuevo_pin, 1)
@@ -693,12 +726,15 @@ class PantallaConfiguracion(QWidget):
 
         fila_bak = QHBoxLayout()
         self.btn_backup_manual = QPushButton("  Crear copia de respaldo", card_bak)
+        self.btn_backup_manual.setProperty("compact", True)
         configurar_boton(self.btn_backup_manual, "archive")
         self.btn_backup_usb = QPushButton("  Exportar a USB o carpeta", card_bak)
         self.btn_backup_usb.setProperty("rol", "secundario")
+        self.btn_backup_usb.setProperty("compact", True)
         configurar_boton(self.btn_backup_usb, "share", color="#0F172A")
         self.btn_restaurar = QPushButton("  Restaurar copia (.db)", card_bak)
         self.btn_restaurar.setProperty("rol", "advertencia")
+        self.btn_restaurar.setProperty("compact", True)
         configurar_boton(self.btn_restaurar, "refresh-cw")
 
         self.btn_backup_manual.clicked.connect(self.accion_copia_manual)
@@ -708,6 +744,7 @@ class PantallaConfiguracion(QWidget):
         fila_bak.addWidget(self.btn_backup_manual)
         fila_bak.addWidget(self.btn_backup_usb)
         fila_bak.addWidget(self.btn_restaurar)
+        fila_bak.addStretch()
         col_bak.addLayout(fila_bak)
         col.addWidget(card_bak)
 
@@ -716,7 +753,7 @@ class PantallaConfiguracion(QWidget):
 
     def _actualizar_visibilidad_resolucion(self) -> None:
         es_ventana = self.combo_modo_ventana.currentData() in ("ventana", "sin_bordes")
-        self.widget_resolucion.setVisible(es_ventana)
+        self.form_graficos_pantalla.setRowVisible(self.combo_resolucion, es_ventana)
 
     def _fila_key_edit(self, editor: QKeySequenceEdit) -> QWidget:
         cont = QWidget(self)
@@ -725,6 +762,7 @@ class PantallaConfiguracion(QWidget):
         fila.setSpacing(6)
         btn_limpiar = QPushButton("  Quitar", cont)
         btn_limpiar.setProperty("rol", "secundario")
+        btn_limpiar.setProperty("compact", True)
         configurar_boton(btn_limpiar, "x", color="#0F172A", tamano=12)
         btn_limpiar.clicked.connect(editor.clear)
         fila.addWidget(editor, 1)

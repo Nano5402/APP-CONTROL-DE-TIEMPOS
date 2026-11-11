@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -59,23 +60,34 @@ class PantallaCierre(QWidget):
         self._ids_abiertas: list[int] = []
         self._ultimo_pdf: Path | None = None
 
-        layout = QVBoxLayout(self)
+        layout_ext = QVBoxLayout(self)
+        layout_ext.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }")
+        cont_scroll = QWidget(scroll)
+        layout = QVBoxLayout(cont_scroll)
         layout.setContentsMargins(24, 18, 24, 18)
         layout.setSpacing(12)
 
-        lbl_tit = QLabel("Cierre de Jornada y Resumen del Día", self)
+        lbl_tit = QLabel("Cierre de Jornada y Resumen del Día", cont_scroll)
         lbl_tit.setObjectName("tituloPantalla")
         layout.addWidget(lbl_tit)
 
         # Tarjeta de indicadores del día
-        card_ind = QFrame(self)
+        card_ind = QFrame(cont_scroll)
         card_ind.setObjectName("heroCronometro")
         capa_ind = QHBoxLayout(card_ind)
+        capa_ind.setSpacing(14)
 
-        self.lbl_semaforo = QLabel("—", self)
-        self.lbl_semaforo.setStyleSheet("font-size: 22px; font-weight: bold;")
-        self.lbl_desglose = QLabel("", self)
-        self.lbl_tiempos = QLabel("", self)
+        self.lbl_semaforo = QLabel("—", card_ind)
+        self.lbl_semaforo.setWordWrap(True)
+        self.lbl_semaforo.setStyleSheet("font-size: 20px; font-weight: bold;")
+        self.lbl_desglose = QLabel("", card_ind)
+        self.lbl_desglose.setWordWrap(True)
+        self.lbl_tiempos = QLabel("", card_ind)
+        self.lbl_tiempos.setWordWrap(True)
         self.lbl_tiempos.setObjectName("subtitulo")
 
         col_ind = QVBoxLayout()
@@ -84,8 +96,10 @@ class PantallaCierre(QWidget):
         col_ind.addWidget(self.lbl_tiempos)
         capa_ind.addLayout(col_ind, 1)
 
-        self.btn_cerrar_jornada = QPushButton("  Cerrar jornada, guardar copia y generar PDF", self)
+        self.btn_cerrar_jornada = QPushButton("  Cerrar jornada y generar PDF", card_ind)
         self.btn_cerrar_jornada.setProperty("rol", "exito")
+        self.btn_cerrar_jornada.setProperty("compact", True)
+        self.btn_cerrar_jornada.setToolTip("Cierra la jornada, guarda copia de seguridad y genera reporte PDF")
         self.btn_cerrar_jornada.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_cerrar_jornada, "flag")
         self.btn_cerrar_jornada.clicked.connect(self.accion_cerrar_jornada)
@@ -93,56 +107,65 @@ class PantallaCierre(QWidget):
         layout.addWidget(card_ind)
 
         # Asistente de actividades abiertas
-        self.card_asist = QFrame(self)
+        self.card_asist = QFrame(cont_scroll)
         self.card_asist.setProperty("card", True)
         col_asist = QVBoxLayout(self.card_asist)
         self.lbl_titulo_asist = QLabel(
             "<b>1. Tienes actividades abiertas — indica qué pasó con cada una antes de cerrar:</b>",
-            self,
+            self.card_asist,
         )
+        self.lbl_titulo_asist.setWordWrap(True)
         col_asist.addWidget(self.lbl_titulo_asist)
 
         self.lbl_todo_resuelto = QLabel(
             "Todas las actividades del día están completadas o resueltas. Ya puedes pulsar «Cerrar jornada».",
-            self,
+            self.card_asist,
         )
+        self.lbl_todo_resuelto.setWordWrap(True)
         self.lbl_todo_resuelto.setStyleSheet(
             "color: #15803D; font-weight: 600; padding: 6px 2px;"
         )
         col_asist.addWidget(self.lbl_todo_resuelto)
 
-        self.tabla_abiertas = QTableWidget(0, 4, self)
+        self.tabla_abiertas = QTableWidget(0, 4, self.card_asist)
         self.tabla_abiertas.setHorizontalHeaderLabels(
-            ["Actividad abierta", "¿Qué deseas hacer?", "% de avance hoy", "Motivo o nota"]
+            ["Actividad abierta", "¿Qué deseas hacer?", "% avance", "Motivo o nota"]
         )
+        self.tabla_abiertas.setMinimumHeight(140)
         self.tabla_abiertas.setShowGrid(False)
         self.tabla_abiertas.verticalHeader().setVisible(False)
-        self.tabla_abiertas.verticalHeader().setDefaultSectionSize(42)
+        self.tabla_abiertas.verticalHeader().setDefaultSectionSize(50)
         self.tabla_abiertas.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         self.tabla_abiertas.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla_abiertas.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla_abiertas.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
         col_asist.addWidget(self.tabla_abiertas)
         layout.addWidget(self.card_asist, 1)
 
         # Resumen para WhatsApp
-        card_wa = QFrame(self)
+        card_wa = QFrame(cont_scroll)
         card_wa.setProperty("card", True)
         col_wa = QVBoxLayout(card_wa)
         col_wa.addWidget(QLabel("<b>2. Resumen listo para enviar por WhatsApp</b>"))
-        self.txt_resumen_wa = QPlainTextEdit(self)
+        self.txt_resumen_wa = QPlainTextEdit(card_wa)
+        self.txt_resumen_wa.setMinimumHeight(130)
         col_wa.addWidget(self.txt_resumen_wa, 1)
 
         fila_wa = QHBoxLayout()
-        self.btn_generar_pdf_ahora = QPushButton("  Generar / Ver PDF del día", self)
+        fila_wa.setSpacing(8)
+        self.btn_generar_pdf_ahora = QPushButton("  Generar / Ver PDF", card_wa)
+        self.btn_generar_pdf_ahora.setProperty("compact", True)
         self.btn_generar_pdf_ahora.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_generar_pdf_ahora, "file-text")
         self.btn_generar_pdf_ahora.clicked.connect(self.accion_generar_pdf_ahora)
-        self.btn_abrir_carpeta_pdf = QPushButton("  Abrir carpeta del PDF", self)
+        self.btn_abrir_carpeta_pdf = QPushButton("  Abrir carpeta PDF", card_wa)
         self.btn_abrir_carpeta_pdf.setProperty("rol", "secundario")
+        self.btn_abrir_carpeta_pdf.setProperty("compact", True)
         self.btn_abrir_carpeta_pdf.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_abrir_carpeta_pdf, "archive", color="#0F172A")
         self.btn_abrir_carpeta_pdf.clicked.connect(self.accion_abrir_carpeta_pdf)
-        self.btn_copiar_wa = QPushButton("  Copiar resumen para WhatsApp", self)
+        self.btn_copiar_wa = QPushButton("  Copiar para WhatsApp", card_wa)
+        self.btn_copiar_wa.setProperty("compact", True)
         self.btn_copiar_wa.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_copiar_wa, "copy")
         self.btn_copiar_wa.clicked.connect(self.accion_copiar_resumen)
@@ -152,6 +175,9 @@ class PantallaCierre(QWidget):
         fila_wa.addWidget(self.btn_copiar_wa)
         col_wa.addLayout(fila_wa)
         layout.addWidget(card_wa, 1)
+
+        scroll.setWidget(cont_scroll)
+        layout_ext.addWidget(scroll)
 
         self.refrescar()
 
@@ -208,6 +234,7 @@ class PantallaCierre(QWidget):
 
                 spin = QSpinBox(self.tabla_abiertas)
                 spin.setRange(0, 99)
+                spin.setMinimumWidth(86)
                 spin.setValue(act.avance_pct or 50)
                 spin.setSuffix(" %")
                 # Oculto por defecto porque la primera opción es "Ya la terminé hoy (100 %)"

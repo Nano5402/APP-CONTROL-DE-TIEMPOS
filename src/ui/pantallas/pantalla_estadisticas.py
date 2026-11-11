@@ -18,10 +18,12 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QPushButton,
+    QScrollArea,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -111,80 +113,124 @@ class PantallaEstadisticas(QWidget):
         super().__init__(parent)
         self.bd = bd
 
-        layout = QVBoxLayout(self)
+        layout_ext = QVBoxLayout(self)
+        layout_ext.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }")
+        cont_scroll = QWidget(scroll)
+        layout = QVBoxLayout(cont_scroll)
         layout.setContentsMargins(20, 16, 20, 16)
         layout.setSpacing(12)
 
-        # Encabezado y selector de periodo
-        fila_sup = QHBoxLayout()
-        lbl_tit = QLabel("Estadísticas y Tendencias", self)
+        # Encabezado y selector de periodo en dos niveles claros para evitar recortes
+        lbl_tit = QLabel("Estadísticas y Tendencias", cont_scroll)
         lbl_tit.setObjectName("tituloPantalla")
+        layout.addWidget(lbl_tit)
+
+        card_filtros = QFrame(cont_scroll)
+        card_filtros.setProperty("card", True)
+        fila_sup = QHBoxLayout(card_filtros)
+        fila_sup.setContentsMargins(12, 8, 12, 8)
+        fila_sup.setSpacing(8)
 
         hoy = date.today()
         hace_30 = hoy - timedelta(days=29)
-        self.dt_desde = QDateEdit(QDate(hace_30.year, hace_30.month, hace_30.day), self)
+        self.dt_desde = QDateEdit(QDate(hace_30.year, hace_30.month, hace_30.day), card_filtros)
         self.dt_desde.setCalendarPopup(True)
         self.dt_desde.setDisplayFormat("dd/MM/yyyy")
 
-        self.dt_hasta = QDateEdit(QDate(hoy.year, hoy.month, hoy.day), self)
+        self.dt_hasta = QDateEdit(QDate(hoy.year, hoy.month, hoy.day), card_filtros)
         self.dt_hasta.setCalendarPopup(True)
         self.dt_hasta.setDisplayFormat("dd/MM/yyyy")
 
-        self.combo_escala = QComboBox(self)
-        self.combo_escala.addItem("Tendencia por día", "dia")
-        self.combo_escala.addItem("Tendencia por semana", "semana")
-        self.combo_escala.addItem("Tendencia por mes", "mes")
+        self.combo_escala = QComboBox(card_filtros)
+        self.combo_escala.addItem("Por día", "dia")
+        self.combo_escala.addItem("Por semana", "semana")
+        self.combo_escala.addItem("Por mes", "mes")
         self.combo_escala.currentIndexChanged.connect(self.refrescar)
 
-        self.btn_actualizar = QPushButton("Actualizar", self)
+        self.btn_actualizar = QPushButton("Actualizar", card_filtros)
+        self.btn_actualizar.setProperty("compact", True)
+        self.btn_actualizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_actualizar.clicked.connect(self.refrescar)
 
-        fila_sup.addWidget(lbl_tit)
-        fila_sup.addStretch()
-        fila_sup.addWidget(QLabel("Desde:"))
+        fila_sup.addWidget(QLabel("Desde:", card_filtros))
         fila_sup.addWidget(self.dt_desde)
-        fila_sup.addWidget(QLabel("Hasta:"))
+        fila_sup.addWidget(QLabel("Hasta:", card_filtros))
         fila_sup.addWidget(self.dt_hasta)
+        fila_sup.addWidget(QLabel("Escala:", card_filtros))
         fila_sup.addWidget(self.combo_escala)
+        fila_sup.addStretch()
         fila_sup.addWidget(self.btn_actualizar)
-        layout.addLayout(fila_sup)
+        layout.addWidget(card_filtros)
 
         # Tarjeta de gráfico de tendencia
-        card_graf = QFrame(self)
+        card_graf = QFrame(cont_scroll)
         card_graf.setProperty("card", True)
         col_graf = QVBoxLayout(card_graf)
-        col_graf.addWidget(QLabel("<b>Productividad en el periodo (%)</b>"))
+        col_graf.addWidget(QLabel("<b>Productividad en el periodo (%)</b>", card_graf))
         self.grafico = GraficoTendenciaWidget(card_graf)
         col_graf.addWidget(self.grafico)
         layout.addWidget(card_graf)
 
-        # Tablas inferiores: Categorías, Estimado vs Real, Solicitantes
-        fila_tablas = QHBoxLayout()
+        # Cuadrícula 2x2 amplia: Categorías, Solicitantes, Estimado vs Real y Revisiones
+        grid_tablas = QGridLayout()
+        grid_tablas.setSpacing(12)
 
-        self.tabla_cat = QTableWidget(0, 3, self)
-        self.tabla_cat.setHorizontalHeaderLabels(["Categoría", "Actividades", "Tiempo total"])
-        self.tabla_cat.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        def _crear_card_tabla(titulo: str, cabeceras: list[str]) -> tuple[QFrame, QTableWidget]:
+            card = QFrame(cont_scroll)
+            card.setProperty("card", True)
+            col = QVBoxLayout(card)
+            col.setContentsMargins(12, 10, 12, 10)
+            col.setSpacing(6)
+            col.addWidget(QLabel(f"<b>{titulo}</b>", card))
+            tbl = QTableWidget(0, len(cabeceras), card)
+            tbl.setHorizontalHeaderLabels(cabeceras)
+            tbl.setMinimumHeight(145)
+            tbl.setAlternatingRowColors(True)
+            tbl.setShowGrid(False)
+            tbl.verticalHeader().setVisible(False)
+            tbl.verticalHeader().setDefaultSectionSize(34)
+            tbl.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+            for idx in range(1, len(cabeceras)):
+                tbl.horizontalHeader().setSectionResizeMode(idx, QHeaderView.ResizeMode.ResizeToContents)
+            col.addWidget(tbl, 1)
+            return card, tbl
 
-        self.tabla_est = QTableWidget(0, 3, self)
-        self.tabla_est.setHorizontalHeaderLabels(["Grupo", "Estimado prom.", "Real prom."])
-        self.tabla_est.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-
-        self.tabla_sol = QTableWidget(0, 3, self)
-        self.tabla_sol.setHorizontalHeaderLabels(["Solicitante", "Solicitudes", "Tiempo"])
-        self.tabla_sol.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-
-        fila_tablas.addWidget(self.tabla_cat, 1)
-        fila_tablas.addWidget(self.tabla_est, 1)
-        fila_tablas.addWidget(self.tabla_sol, 1)
-        layout.addLayout(fila_tablas, 1)
+        card_cat, self.tabla_cat = _crear_card_tabla(
+            "Tiempo por categoría", ["Categoría", "Cant.", "Tiempo"]
+        )
+        card_sol, self.tabla_sol = _crear_card_tabla(
+            "Tiempo por solicitante", ["Solicitante", "Cant.", "Tiempo"]
+        )
+        card_est, self.tabla_est = _crear_card_tabla(
+            "Tiempo estimado vs. real", ["Grupo", "Est.", "Real"]
+        )
 
         # Resumen de revisiones y motivos (sin alertas)
-        card_rev = QFrame(self)
+        card_rev = QFrame(cont_scroll)
         card_rev.setProperty("card", True)
-        fila_rev = QHBoxLayout(card_rev)
-        self.lbl_revisiones = QLabel("", self)
-        fila_rev.addWidget(self.lbl_revisiones)
-        layout.addWidget(card_rev)
+        col_rev = QVBoxLayout(card_rev)
+        col_rev.setContentsMargins(12, 10, 12, 10)
+        col_rev.setSpacing(8)
+        col_rev.addWidget(QLabel("<b>Revisiones y motivos en el periodo</b>", card_rev))
+        self.lbl_revisiones = QLabel("", card_rev)
+        self.lbl_revisiones.setWordWrap(True)
+        self.lbl_revisiones.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
+        col_rev.addWidget(self.lbl_revisiones, 1)
+
+        grid_tablas.addWidget(card_cat, 0, 0)
+        grid_tablas.addWidget(card_sol, 0, 1)
+        grid_tablas.addWidget(card_est, 1, 0)
+        grid_tablas.addWidget(card_rev, 1, 1)
+        grid_tablas.setColumnStretch(0, 1)
+        grid_tablas.setColumnStretch(1, 1)
+        layout.addLayout(grid_tablas, 1)
+
+        scroll.setWidget(cont_scroll)
+        layout_ext.addWidget(scroll)
 
         self.refrescar()
 

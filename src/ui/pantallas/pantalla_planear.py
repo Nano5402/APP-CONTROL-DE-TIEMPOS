@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
     QSpinBox,
     QTableWidget,
     QTableWidgetItem,
@@ -158,34 +159,42 @@ class PantallaPlanear(QWidget):
         self.al_cambiar_plan = al_cambiar_plan
         self.al_ir_a_hoy = al_ir_a_hoy
 
-        layout = QVBoxLayout(self)
+        layout_ext = QVBoxLayout(self)
+        layout_ext.setContentsMargins(0, 0, 0, 0)
+        scroll = QScrollArea(self)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }")
+        cont_scroll = QWidget(scroll)
+        layout = QVBoxLayout(cont_scroll)
         layout.setContentsMargins(24, 18, 24, 18)
-        layout.setSpacing(14)
+        layout.setSpacing(12)
 
         # 1. Cabecera con título e indicadores clave en vivo
         fila_cabecera = QHBoxLayout()
-        fila_cabecera.setSpacing(12)
+        fila_cabecera.setSpacing(10)
 
         col_tit = QVBoxLayout()
         col_tit.setSpacing(2)
-        lbl_tit = QLabel("Planear mis actividades del día", self)
+        lbl_tit = QLabel("Planear mis actividades del día", cont_scroll)
         lbl_tit.setObjectName("tituloPantalla")
         lbl_sub = QLabel(
             "Paso 1: Agrega las tareas previstas para hoy · Paso 2: Copia el mensaje para WhatsApp.",
-            self,
+            cont_scroll,
         )
+        lbl_sub.setWordWrap(True)
         lbl_sub.setObjectName("subtitulo")
         col_tit.addWidget(lbl_tit)
         col_tit.addWidget(lbl_sub)
         fila_cabecera.addLayout(col_tit, 1)
 
-        self.lbl_chip_fecha = QLabel(self)
+        self.lbl_chip_fecha = QLabel(cont_scroll)
         self.lbl_chip_fecha.setObjectName("chipMetricaPlan")
 
-        self.lbl_chip_total = QLabel(self)
+        self.lbl_chip_total = QLabel(cont_scroll)
         self.lbl_chip_total.setObjectName("chipMetricaPlan")
 
-        self.lbl_chip_tiempo = QLabel(self)
+        self.lbl_chip_tiempo = QLabel(cont_scroll)
         self.lbl_chip_tiempo.setObjectName("chipMetricaPlan")
 
         fila_cabecera.addWidget(self.lbl_chip_fecha)
@@ -194,7 +203,7 @@ class PantallaPlanear(QWidget):
         layout.addLayout(fila_cabecera)
 
         # 2. Formulario limpio y ágil de alta de tareas
-        card_alta = QFrame(self)
+        card_alta = QFrame(cont_scroll)
         card_alta.setProperty("card", True)
         capa_alta = QVBoxLayout(card_alta)
         capa_alta.setContentsMargins(16, 14, 16, 14)
@@ -202,8 +211,9 @@ class PantallaPlanear(QWidget):
 
         fila1 = QHBoxLayout()
         fila1.setSpacing(10)
-        lbl_act = QLabel("<b>Actividad:</b>", self)
-        self.txt_nombre = QLineEdit(self)
+        lbl_act = QLabel("<b>Actividad:</b>", card_alta)
+        self.txt_nombre = QLineEdit(card_alta)
+        self.txt_nombre.setMinimumWidth(180)
         self.txt_nombre.setPlaceholderText(
             "¿Qué tarea vas a realizar? (ej. Flyers, Video institucional, Campaña...)"
         )
@@ -213,16 +223,17 @@ class PantallaPlanear(QWidget):
         self.completer.setFilterMode(Qt.MatchFlag.MatchContains)
         self.txt_nombre.setCompleter(self.completer)
 
-        lbl_cat = QLabel("<b>Categoría:</b>", self)
-        self.combo_categoria = QComboBox(self)
+        lbl_cat = QLabel("<b>Categoría:</b>", card_alta)
+        self.combo_categoria = QComboBox(card_alta)
         self.combo_categoria.setEditable(True)
-        self.combo_categoria.setMinimumWidth(180)
+        self.combo_categoria.setMinimumWidth(160)
         self.txt_categoria = self.combo_categoria.lineEdit()
         if self.txt_categoria is not None:
             self.txt_categoria.setPlaceholderText("Selecciona o escribe categoría")
 
-        self.btn_nueva_cat = QPushButton("  Nueva", self)
+        self.btn_nueva_cat = QPushButton("  Nueva", card_alta)
         self.btn_nueva_cat.setProperty("rol", "secundario")
+        self.btn_nueva_cat.setProperty("compact", True)
         self.btn_nueva_cat.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_nueva_cat.setToolTip("Crear una nueva categoría en el sistema")
         configurar_boton(self.btn_nueva_cat, "plus", color="#0F172A", tamano=12)
@@ -237,19 +248,22 @@ class PantallaPlanear(QWidget):
 
         fila2 = QHBoxLayout()
         fila2.setSpacing(10)
-        lbl_est = QLabel("Tiempo estimado (opcional):", self)
-        self.spin_estimado = QSpinBox(self)
+        lbl_est = QLabel("Estimado:", card_alta)
+        self.spin_estimado = QSpinBox(card_alta)
         self.spin_estimado.setRange(0, 600)
+        self.spin_estimado.setMinimumWidth(130)
         self.spin_estimado.setSuffix(" min")
         self.spin_estimado.setSpecialValueText("Sin estimado")
 
-        lbl_prio = QLabel("Prioridad:", self)
-        self.combo_prioridad = QComboBox(self)
+        lbl_prio = QLabel("Prioridad:", card_alta)
+        self.combo_prioridad = QComboBox(card_alta)
+        self.combo_prioridad.setMinimumWidth(120)
         for p in (Prioridad.NORMAL, Prioridad.MAXIMA, Prioridad.MINIMA):
             self.combo_prioridad.addItem(p.etiqueta(), p.value)
 
-        self.btn_agregar = QPushButton("  Agregar a mi plan de hoy", self)
+        self.btn_agregar = QPushButton("  Agregar al plan de hoy", card_alta)
         self.btn_agregar.setProperty("rol", "exito")
+        self.btn_agregar.setProperty("compact", True)
         self.btn_agregar.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_agregar, "plus")
         self.btn_agregar.clicked.connect(self.accion_agregar_planeada)
@@ -265,15 +279,15 @@ class PantallaPlanear(QWidget):
 
         # Fila 3: Chips rápidos de 1 clic para tareas frecuentes del equipo
         fila_chips = QHBoxLayout()
-        fila_chips.setSpacing(8)
-        lbl_frec = QLabel("⚡ Tareas frecuentes (1 clic):", self)
-        lbl_frec.setStyleSheet("font-weight: 700; font-size: 13px; padding-right: 4px;")
+        fila_chips.setSpacing(6)
+        lbl_frec = QLabel("⚡ Rápidas (1 clic):", card_alta)
+        lbl_frec.setStyleSheet("font-weight: 700; font-size: 12px; padding-right: 4px;")
         fila_chips.addWidget(lbl_frec)
 
-        self.btn_chip_flyers = QPushButton("  + Flyers", self)
-        self.btn_chip_redes = QPushButton("  + Redes sociales", self)
-        self.btn_chip_video = QPushButton("  + Video / Animación", self)
-        self.btn_chip_diseno = QPushButton("  + Diseño general", self)
+        self.btn_chip_flyers = QPushButton(" + Flyers", card_alta)
+        self.btn_chip_redes = QPushButton(" + Redes sociales", card_alta)
+        self.btn_chip_video = QPushButton(" + Video / Animación", card_alta)
+        self.btn_chip_diseno = QPushButton(" + Diseño general", card_alta)
 
         for chip in (self.btn_chip_flyers, self.btn_chip_redes, self.btn_chip_video, self.btn_chip_diseno):
             chip.setProperty("chip", True)
@@ -334,10 +348,11 @@ class PantallaPlanear(QWidget):
         fila_tit_tabla.addStretch()
         col_tabla.addLayout(fila_tit_tabla)
 
-        self.tabla_planeadas = QTableWidget(0, 5, self)
+        self.tabla_planeadas = QTableWidget(0, 5, card_tabla)
         self.tabla_planeadas.setHorizontalHeaderLabels(
-            ["#", "Actividad", "Categoría", "Estimado", "Prioridad"]
+            ["#", "Actividad", "Categoría", "Estim.", "Prioridad"]
         )
+        self.tabla_planeadas.setMinimumHeight(210)
         self.tabla_planeadas.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabla_planeadas.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tabla_planeadas.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
@@ -348,11 +363,9 @@ class PantallaPlanear(QWidget):
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Fixed)
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.tabla_planeadas.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
-        self.tabla_planeadas.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Fixed)
-        self.tabla_planeadas.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
-        self.tabla_planeadas.setColumnWidth(0, 42)
-        self.tabla_planeadas.setColumnWidth(3, 95)
-        self.tabla_planeadas.setColumnWidth(4, 95)
+        self.tabla_planeadas.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla_planeadas.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla_planeadas.setColumnWidth(0, 34)
         self.tabla_planeadas.itemSelectionChanged.connect(self._actualizar_estado_botones)
         self.tabla_planeadas.cellDoubleClicked.connect(self.accion_editar_planeada)
         col_tabla.addWidget(self.tabla_planeadas, 1)
@@ -360,77 +373,87 @@ class PantallaPlanear(QWidget):
         # Alias de compatibilidad
         self.lista_planeadas_hoy = self.tabla_planeadas
 
-        # Barra de acciones de la tabla
+        # Barra superior de gestión de fila (en dos filas limpias para que nada se recorte)
         fila_acciones = QHBoxLayout()
         fila_acciones.setSpacing(6)
 
-        self.btn_subir = QPushButton("  Subir", self)
+        self.btn_subir = QPushButton("  Subir", card_tabla)
         self.btn_subir.setProperty("rol", "secundario")
+        self.btn_subir.setProperty("compact", True)
         self.btn_subir.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_subir.setToolTip("Mueve la actividad hacia arriba en la lista y en el mensaje")
         configurar_boton(self.btn_subir, "chevron-up", color="#0F172A", tamano=12)
         self.btn_subir.clicked.connect(self.accion_subir_planeada)
 
-        self.btn_bajar = QPushButton("  Bajar", self)
+        self.btn_bajar = QPushButton("  Bajar", card_tabla)
         self.btn_bajar.setProperty("rol", "secundario")
+        self.btn_bajar.setProperty("compact", True)
         self.btn_bajar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_bajar.setToolTip("Mueve la actividad hacia abajo en la lista y en el mensaje")
         configurar_boton(self.btn_bajar, "chevron-down", color="#0F172A", tamano=12)
         self.btn_bajar.clicked.connect(self.accion_bajar_planeada)
 
-        self.btn_editar = QPushButton("  Editar", self)
+        self.btn_editar = QPushButton("  Editar", card_tabla)
         self.btn_editar.setProperty("rol", "secundario")
+        self.btn_editar.setProperty("compact", True)
         self.btn_editar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_editar.setToolTip("Modifica el nombre, categoría o tiempo estimado")
         configurar_boton(self.btn_editar, "edit", color="#0F172A", tamano=12)
         self.btn_editar.clicked.connect(self.accion_editar_planeada)
 
-        self.btn_quitar_planeada = QPushButton("  Quitar", self)
+        self.btn_quitar_planeada = QPushButton("  Quitar", card_tabla)
         self.btn_quitar_planeada.setProperty("rol", "secundario")
+        self.btn_quitar_planeada.setProperty("compact", True)
         self.btn_quitar_planeada.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_quitar_planeada.setToolTip("Quita la actividad seleccionada del plan de hoy")
         configurar_boton(self.btn_quitar_planeada, "trash", color="#0F172A", tamano=12)
         self.btn_quitar_planeada.clicked.connect(self.accion_quitar_planeada)
 
-        self.btn_limpiar_todo = QPushButton("  Limpiar todo el plan", self)
+        self.btn_limpiar_todo = QPushButton("  Limpiar todo", card_tabla)
         self.btn_limpiar_todo.setProperty("rol", "secundario")
+        self.btn_limpiar_todo.setProperty("compact", True)
         self.btn_limpiar_todo.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_limpiar_todo.setToolTip("Vacía todas las actividades planeadas de hoy para empezar de cero")
         configurar_boton(self.btn_limpiar_todo, "trash-2", color="#DC2626", tamano=12)
         self.btn_limpiar_todo.clicked.connect(self.accion_limpiar_todo_el_plan)
 
-        self.btn_iniciar_ahora = QPushButton("  ▶ Iniciar tarea ya", self)
-        self.btn_iniciar_ahora.setProperty("rol", "exito")
-        self.btn_iniciar_ahora.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_iniciar_ahora.setToolTip("Pasa de inmediato al cronómetro de Hoy con esta actividad corriendo")
-        self.btn_iniciar_ahora.clicked.connect(self.accion_iniciar_planeada)
-
         fila_acciones.addWidget(self.btn_subir)
         fila_acciones.addWidget(self.btn_bajar)
         fila_acciones.addWidget(self.btn_editar)
         fila_acciones.addWidget(self.btn_quitar_planeada)
-        fila_acciones.addWidget(self.btn_limpiar_todo)
         fila_acciones.addStretch()
-        fila_acciones.addWidget(self.btn_iniciar_ahora)
+        fila_acciones.addWidget(self.btn_limpiar_todo)
         col_tabla.addLayout(fila_acciones)
 
+        fila_iniciar = QHBoxLayout()
+        fila_iniciar.addStretch()
+        self.btn_iniciar_ahora = QPushButton("  ▶ Iniciar actividad seleccionada", card_tabla)
+        self.btn_iniciar_ahora.setProperty("rol", "exito")
+        self.btn_iniciar_ahora.setProperty("compact", True)
+        self.btn_iniciar_ahora.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_iniciar_ahora.setToolTip("Pasa de inmediato al cronómetro de Hoy con esta actividad corriendo")
+        self.btn_iniciar_ahora.clicked.connect(self.accion_iniciar_planeada)
+        fila_iniciar.addWidget(self.btn_iniciar_ahora)
+        col_tabla.addLayout(fila_iniciar)
+
         # Columna Derecha: Vista previa de WhatsApp
-        card_wa = QFrame(self)
+        card_wa = QFrame(cont_scroll)
         card_wa.setProperty("card", True)
         col_wa = QVBoxLayout(card_wa)
         col_wa.setContentsMargins(14, 12, 14, 12)
         col_wa.setSpacing(8)
 
-        lbl_tit_wa = QLabel("<b>Mensaje listo para enviar por WhatsApp</b>", self)
+        lbl_tit_wa = QLabel("<b>Mensaje listo para enviar por WhatsApp</b>", card_wa)
         col_wa.addWidget(lbl_tit_wa)
 
-        self.txt_plan_whatsapp = QPlainTextEdit(self)
+        self.txt_plan_whatsapp = QPlainTextEdit(card_wa)
+        self.txt_plan_whatsapp.setMinimumHeight(190)
         self.txt_plan_whatsapp.setPlaceholderText(
             "El mensaje para tu jefe y equipo se generará aquí automáticamente..."
         )
         col_wa.addWidget(self.txt_plan_whatsapp, 1)
 
-        self.lbl_feedback_wa = QLabel("", self)
+        self.lbl_feedback_wa = QLabel("", card_wa)
         self.lbl_feedback_wa.setStyleSheet("color: #16A34A; font-weight: 600; font-size: 11px;")
         self.lbl_feedback_wa.setVisible(False)
         col_wa.addWidget(self.lbl_feedback_wa)
@@ -438,26 +461,31 @@ class PantallaPlanear(QWidget):
         fila_wa_btns = QHBoxLayout()
         fila_wa_btns.setSpacing(8)
 
-        self.btn_copiar_wa = QPushButton("  Copiar plan para WhatsApp", self)
+        self.btn_copiar_wa = QPushButton("  Copiar para WhatsApp", card_wa)
         self.btn_copiar_wa.setProperty("rol", "exito")
+        self.btn_copiar_wa.setProperty("compact", True)
         self.btn_copiar_wa.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_copiar_wa, "copy")
         self.btn_copiar_wa.clicked.connect(self.accion_copiar_whatsapp)
 
-        self.btn_ir_a_hoy = QPushButton("  🚀 Ir al cronómetro", self)
+        self.btn_ir_a_hoy = QPushButton("  Ir a Hoy", card_wa)
         self.btn_ir_a_hoy.setProperty("rol", "secundario")
+        self.btn_ir_a_hoy.setProperty("compact", True)
         self.btn_ir_a_hoy.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ir_a_hoy.setToolTip("Comenzar a registrar tu jornada en la pantalla de Hoy")
         configurar_boton(self.btn_ir_a_hoy, "clock", color="#0F172A", tamano=13)
         self.btn_ir_a_hoy.clicked.connect(self._navegar_a_hoy)
 
-        fila_wa_btns.addWidget(self.btn_copiar_wa, 2)
-        fila_wa_btns.addWidget(self.btn_ir_a_hoy, 1)
+        fila_wa_btns.addWidget(self.btn_copiar_wa, 1)
+        fila_wa_btns.addWidget(self.btn_ir_a_hoy)
         col_wa.addLayout(fila_wa_btns)
 
         fila_central.addWidget(card_tabla, 3)
         fila_central.addWidget(card_wa, 2)
         layout.addLayout(fila_central, 1)
+
+        scroll.setWidget(cont_scroll)
+        layout_ext.addWidget(scroll)
 
         with self.bd.sesion() as s:
             RepoCategorias(s).asegurar_categorias_base()

@@ -53,7 +53,9 @@ class DialogoPIN(QDialog):
         lbl_tit.setStyleSheet("font-size: 16px; font-weight: bold;")
         layout.addWidget(lbl_tit)
 
-        layout.addWidget(QLabel("Escribe tu PIN numérico para entrar a la aplicación:"))
+        lbl_sub_pin = QLabel("Escribe tu PIN numérico para entrar a la aplicación:", self)
+        lbl_sub_pin.setWordWrap(True)
+        layout.addWidget(lbl_sub_pin)
 
         fila_input = QHBoxLayout()
         self.txt_pin = QLineEdit(self)
@@ -63,8 +65,9 @@ class DialogoPIN(QDialog):
 
         self.btn_ver_pin = QPushButton("Ver", self)
         self.btn_ver_pin.setProperty("rol", "secundario")
+        self.btn_ver_pin.setProperty("compact", True)
         self.btn_ver_pin.setCheckable(True)
-        self.btn_ver_pin.setFixedWidth(56)
+        self.btn_ver_pin.setMinimumWidth(84)
         self.btn_ver_pin.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_ver_pin.toggled.connect(self._alternar_ver_pin)
 
@@ -131,7 +134,7 @@ class DialogoPausa(QDialog):
     def __init__(self, nombre_actividad: str, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Pausar actividad")
-        self.setMinimumWidth(440)
+        self.setMinimumWidth(480)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(20, 18, 20, 18)
@@ -296,6 +299,7 @@ class DialogoRevision(QDialog):
         layout.addWidget(lbl_ayuda)
 
         form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form.setSpacing(10)
 
         self.combo_solicitante = QComboBox(self)
@@ -378,6 +382,7 @@ class DialogoReasignar(QDialog):
         layout.addWidget(lbl_ayuda)
 
         form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form.setSpacing(10)
 
         self.txt_persona = QLineEdit(self)
@@ -433,6 +438,7 @@ class DialogoCorregirActividad(QDialog):
         layout.addWidget(lbl_tit)
 
         form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form.setSpacing(10)
 
         self.txt_nombre = QLineEdit(actividad.nombre, self)
@@ -556,6 +562,7 @@ class DialogoAprobacionIngeniero(QDialog):
         layout.addWidget(lbl_tit)
 
         form = QFormLayout()
+        form.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.ExpandingFieldsGrow)
         form.setSpacing(10)
 
         self.combo_decision = QComboBox(self)

@@ -121,10 +121,12 @@ class PantallaHoy(QWidget):
         lbl_tit = QLabel("Hoy — Panel de Actividades", self)
         lbl_tit.setObjectName("tituloPantalla")
         self.lbl_resumen_dia = QLabel("", self)
+        self.lbl_resumen_dia.setWordWrap(True)
+        self.lbl_resumen_dia.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self.lbl_resumen_dia.setStyleSheet("font-size: 13px; font-weight: 600;")
         fila_enc.addWidget(lbl_tit)
         fila_enc.addStretch()
-        fila_enc.addWidget(self.lbl_resumen_dia)
+        fila_enc.addWidget(self.lbl_resumen_dia, 1)
         layout.addLayout(fila_enc)
 
         # Tarjeta Hero de cronómetro activo y controles contextuales
@@ -144,11 +146,13 @@ class PantallaHoy(QWidget):
         col_info.addLayout(fila_badge)
 
         self.lbl_activa_titulo = QLabel("Ninguna actividad en curso", self)
+        self.lbl_activa_titulo.setWordWrap(True)
         self.lbl_activa_titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
         self.lbl_activa_detalle = QLabel(
             "Elige una actividad de la tabla de abajo y pulsa «Iniciar», o escribe una rápida.",
             self,
         )
+        self.lbl_activa_detalle.setWordWrap(True)
         self.lbl_activa_detalle.setObjectName("subtitulo")
         col_info.addWidget(self.lbl_activa_titulo)
         col_info.addWidget(self.lbl_activa_detalle)
@@ -176,6 +180,7 @@ class PantallaHoy(QWidget):
             self.btn_finalizar,
             self.btn_siguiente,
         ):
+            b.setProperty("compact", True)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.btn_iniciar.clicked.connect(self.accion_iniciar_seleccionada)
@@ -227,41 +232,50 @@ class PantallaHoy(QWidget):
         self.lbl_meta.setStyleSheet("font-weight: 600;")
         self.barra_meta = QProgressBar(self)
         self.barra_meta.setRange(0, 100)
+        self.barra_meta.setMinimumWidth(130)
         self.lbl_referencia = QLabel("", self)
         self.lbl_referencia.setObjectName("subtitulo")
+        self.lbl_referencia.setWordWrap(True)
         fila_barra.addWidget(self.lbl_meta)
         fila_barra.addWidget(self.barra_meta, 1)
-        fila_barra.addWidget(self.lbl_referencia)
+        fila_barra.addWidget(self.lbl_referencia, 1)
         capa_meta.addLayout(fila_barra)
 
         fila_rapida = QHBoxLayout()
-        self.btn_iniciar_flyer_barra = QPushButton("  + Iniciar siguiente Flyer", self)
+        fila_rapida.setSpacing(8)
+        self.btn_iniciar_flyer_barra = QPushButton("  + Siguiente Flyer", self)
         self.btn_iniciar_flyer_barra.setProperty("rol", "exito")
+        self.btn_iniciar_flyer_barra.setProperty("compact", True)
         self.btn_iniciar_flyer_barra.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_iniciar_flyer_barra, "zap")
         self.btn_iniciar_flyer_barra.clicked.connect(self.accion_iniciar_flyer_rapido)
 
-        lbl_rap = QLabel("O tarea rápida:", self)
+        lbl_rap = QLabel("Rápida:", self)
         lbl_rap.setStyleSheet("font-weight: 600;")
 
         self.txt_no_planeada = QLineEdit(self)
+        self.txt_no_planeada.setMinimumWidth(160)
         self.txt_no_planeada.setPlaceholderText(
-            "Escribe otra actividad que surgió de momento y pulsa Enter..."
+            "Escribe otra tarea que surgió y pulsa Enter..."
         )
         self.txt_no_planeada.returnPressed.connect(self.accion_iniciar_no_planeada_rapida)
 
         self.combo_cat_rapida = QComboBox(self)
-        self.combo_cat_rapida.setMinimumWidth(150)
+        self.combo_cat_rapida.setMinimumWidth(130)
+        self.combo_cat_rapida.setSizeAdjustPolicy(
+            QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+        )
 
         self.btn_no_planeada = QPushButton("  Empezar ya", self)
+        self.btn_no_planeada.setProperty("compact", True)
         self.btn_no_planeada.setCursor(Qt.CursorShape.PointingHandCursor)
         configurar_boton(self.btn_no_planeada, "play")
         self.btn_no_planeada.clicked.connect(self.accion_iniciar_no_planeada_rapida)
 
         fila_rapida.addWidget(self.btn_iniciar_flyer_barra)
         fila_rapida.addWidget(lbl_rap)
-        fila_rapida.addWidget(self.txt_no_planeada, 1)
-        fila_rapida.addWidget(self.combo_cat_rapida)
+        fila_rapida.addWidget(self.txt_no_planeada, 2)
+        fila_rapida.addWidget(self.combo_cat_rapida, 1)
         fila_rapida.addWidget(self.btn_no_planeada)
         capa_meta.addLayout(fila_rapida)
 
@@ -281,25 +295,30 @@ class PantallaHoy(QWidget):
         self.tabla = QTableWidget(0, 7, self)
         self.tabla.setHorizontalHeaderLabels(
             [
-                "Actividad (doble clic para iniciar)",
-                "Tipo / Solicitante",
-                "Prioridad",
+                "Actividad",
+                "Tipo",
+                "Prio.",
                 "Estado",
-                "Estimado",
-                "Tiempo real",
-                "Revisiones / Notas",
+                "Est.",
+                "Tiempo",
+                "Notas",
             ]
         )
+        self.tabla.setMinimumHeight(180)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla.setAlternatingRowColors(True)
         self.tabla.setShowGrid(False)
         self.tabla.verticalHeader().setVisible(False)
-        self.tabla.verticalHeader().setDefaultSectionSize(38)
+        self.tabla.verticalHeader().setDefaultSectionSize(42)
         self.tabla.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
-        self.tabla.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
-        self.tabla.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Interactive)
+        self.tabla.setColumnWidth(1, 130)
+        for col_idx in (2, 3, 4, 5, 6):
+            self.tabla.horizontalHeader().setSectionResizeMode(
+                col_idx, QHeaderView.ResizeMode.ResizeToContents
+            )
         self.tabla.itemDoubleClicked.connect(lambda _item: self.accion_iniciar_seleccionada())
         self.tabla.itemSelectionChanged.connect(self._actualizar_acciones_segun_seleccion)
         layout.addWidget(self.tabla, 1)
@@ -307,7 +326,7 @@ class PantallaHoy(QWidget):
         # Barra inferior contextual: solo muestra lo que aplica a la fila seleccionada
         fila_sec = QHBoxLayout()
         fila_sec.setSpacing(8)
-        self.lbl_acciones_fila = QLabel("Opciones de la actividad seleccionada:", self)
+        self.lbl_acciones_fila = QLabel("Opciones:", self)
         self.lbl_acciones_fila.setObjectName("subtitulo")
 
         self.btn_aprobacion = QPushButton("  Aprobar / Rechazar", self)
@@ -333,6 +352,7 @@ class PantallaHoy(QWidget):
             self.btn_corregir,
             self.btn_eliminar,
         ):
+            b.setProperty("compact", True)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self.btn_aprobacion.clicked.connect(self.accion_decision_ingeniero)
@@ -434,7 +454,7 @@ class PantallaHoy(QWidget):
                 configurar_boton(self.btn_iniciar_flyer, "zap")
                 self.btn_iniciar_flyer.setVisible(True)
                 self.btn_iniciar_flyer.setEnabled(True)
-                self.btn_iniciar_flyer_barra.setText(f"  + Iniciar {sig_flyer}")
+                self.btn_iniciar_flyer_barra.setText(f"  + {sig_flyer}")
                 self.btn_iniciar_flyer_barra.setToolTip(f"Inicia de inmediato {sig_flyer} bajo la categoría Flyers")
                 return None, 0
 
@@ -444,7 +464,7 @@ class PantallaHoy(QWidget):
             nombre_sig = sig_flyer if es_flyer else None
             self.nombre_siguiente_sugerido = nombre_sig
 
-            self.btn_iniciar_flyer_barra.setText(f"  + Iniciar {sig_flyer}")
+            self.btn_iniciar_flyer_barra.setText(f"  + {sig_flyer}")
             self.btn_iniciar_flyer_barra.setToolTip(
                 f"Inicia de inmediato {sig_flyer} bajo la categoría Flyers (pausará la actividad actual)"
             )
@@ -467,10 +487,10 @@ class PantallaHoy(QWidget):
 
             # Regla solicitada: SOLO la categoría Flyers muestra la opción de iniciar otro Flyer al terminar
             if es_flyer and nombre_sig:
-                self.btn_finalizar.setText("  Terminar este Flyer")
+                self.btn_finalizar.setText("  Terminar Flyer")
                 self.btn_finalizar.setToolTip("Finaliza este Flyer y detiene el reloj (úselo si por ahora no han enviado más flyers)")
                 configurar_boton(self.btn_finalizar, "stop")
-                self.btn_siguiente.setText(f"  Terminar e iniciar {nombre_sig}")
+                self.btn_siguiente.setText(f"  Siguiente: {nombre_sig}")
                 self.btn_siguiente.setToolTip(f"Finaliza este Flyer e inicia de inmediato {nombre_sig} (ideal para cuando llegaron varios seguidos)")
                 configurar_boton(self.btn_siguiente, "skip-forward")
                 self.btn_siguiente.setVisible(True)
@@ -526,6 +546,7 @@ class PantallaHoy(QWidget):
                 it_nom.setData(Qt.ItemDataRole.UserRole, act.id)
 
                 it_tipo = QTableWidgetItem(_etiqueta_tipo_visual(act))
+                it_tipo.setToolTip(it_tipo.text())
                 it_prio = QTableWidgetItem(_etiqueta_prioridad_visual(act.prioridad))
                 it_estado = QTableWidgetItem(_etiqueta_estado_visual(act))
 

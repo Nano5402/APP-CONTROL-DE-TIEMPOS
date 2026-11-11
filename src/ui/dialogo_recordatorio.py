@@ -38,13 +38,14 @@ class DialogoRecordatorio(QDialog):
 
         self.setWindowTitle(aviso.titulo)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        self.setMinimumWidth(440)
+        self.setMinimumWidth(540)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(12)
 
         self.lbl_titulo = QLabel(aviso.titulo, self)
+        self.lbl_titulo.setWordWrap(True)
         self.lbl_titulo.setStyleSheet("font-size: 17px; font-weight: bold;")
         self.lbl_mensaje = QLabel(aviso.mensaje, self)
         self.lbl_mensaje.setWordWrap(True)
@@ -90,17 +91,18 @@ class DialogoRecordatorio(QDialog):
             self.btn_pausar.clicked.connect(self._elegir_pausar)
 
             fila_botones = QHBoxLayout()
-            fila_botones.setSpacing(8)
-            fila_botones.addWidget(self.btn_si, 2)
+            fila_botones.setSpacing(10)
+            fila_botones.addWidget(self.btn_si, 1)
             fila_botones.addWidget(self.btn_no, 1)
             fila_botones.addWidget(self.btn_pausar, 1)
             layout.addLayout(fila_botones)
 
             # Botón discreto para mostrar opciones avanzadas solo si hace falta
             self.btn_opciones = QPushButton(
-                "  ¿Terminaste hace unos minutos o quieres indicar motivo de pausa?", self
+                "  Ajustar hora de fin o indicar motivo de pausa", self
             )
             self.btn_opciones.setProperty("rol", "secundario")
+            self.btn_opciones.setProperty("compact", True)
             self.btn_opciones.setCheckable(True)
             configurar_boton(self.btn_opciones, "settings", color="#0F172A")
             layout.addWidget(self.btn_opciones)

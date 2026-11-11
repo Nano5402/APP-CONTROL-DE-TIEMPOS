@@ -18,11 +18,14 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDateEdit,
     QFrame,
+    QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
     QPlainTextEdit,
     QPushButton,
+    QScrollArea,
+    QSplitter,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
@@ -65,8 +68,10 @@ class PantallaHistorial(QWidget):
         card_filtros = QFrame(self)
         card_filtros.setProperty("card", True)
         col_filtros = QVBoxLayout(card_filtros)
+        col_filtros.setSpacing(8)
 
         fila_fechas = QHBoxLayout()
+        fila_fechas.setSpacing(8)
         hoy = QDate.currentDate()
         self.dt_desde = QDateEdit(hoy.addDays(-6), self)
         self.dt_desde.setCalendarPopup(True)
@@ -78,15 +83,24 @@ class PantallaHistorial(QWidget):
 
         btn_hoy = QPushButton("Hoy", self)
         btn_hoy.setProperty("rol", "secundario")
+        btn_hoy.setProperty("compact", True)
         btn_hoy.clicked.connect(self._rango_hoy)
 
         btn_sem = QPushButton("Esta semana", self)
         btn_sem.setProperty("rol", "secundario")
+        btn_sem.setProperty("compact", True)
         btn_sem.clicked.connect(self._rango_semana_actual)
 
         btn_mes = QPushButton("Este mes", self)
         btn_mes.setProperty("rol", "secundario")
+        btn_mes.setProperty("compact", True)
         btn_mes.clicked.connect(self._rango_mes_actual)
+
+        self.btn_filtrar = QPushButton("  Consultar", self)
+        self.btn_filtrar.setProperty("compact", True)
+        self.btn_filtrar.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_filtrar, "clipboard", color="#FFFFFF")
+        self.btn_filtrar.clicked.connect(self.aplicar_filtros)
 
         fila_fechas.addWidget(QLabel("Desde:"))
         fila_fechas.addWidget(self.dt_desde)
@@ -96,34 +110,43 @@ class PantallaHistorial(QWidget):
         fila_fechas.addWidget(btn_sem)
         fila_fechas.addWidget(btn_mes)
         fila_fechas.addStretch()
+        fila_fechas.addWidget(self.btn_filtrar)
         col_filtros.addLayout(fila_fechas)
 
-        fila_combos = QHBoxLayout()
+        grid_combos = QGridLayout()
+        grid_combos.setHorizontalSpacing(10)
+        grid_combos.setVerticalSpacing(6)
         self.combo_categoria = QComboBox(self)
         self.combo_estado = QComboBox(self)
         self.combo_solicitante = QComboBox(self)
         self.combo_tipo = QComboBox(self)
 
-        self.btn_filtrar = QPushButton("  Consultar historial", self)
-        self.btn_filtrar.setCursor(Qt.CursorShape.PointingHandCursor)
-        configurar_boton(self.btn_filtrar, "clipboard", color="#FFFFFF")
-        self.btn_filtrar.clicked.connect(self.aplicar_filtros)
+        for cb in (
+            self.combo_categoria,
+            self.combo_estado,
+            self.combo_solicitante,
+            self.combo_tipo,
+        ):
+            cb.setSizeAdjustPolicy(
+                QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon
+            )
 
-        fila_combos.addWidget(QLabel("Categoría:"))
-        fila_combos.addWidget(self.combo_categoria)
-        fila_combos.addWidget(QLabel("Estado:"))
-        fila_combos.addWidget(self.combo_estado)
-        fila_combos.addWidget(QLabel("Solicitante:"))
-        fila_combos.addWidget(self.combo_solicitante)
-        fila_combos.addWidget(QLabel("Tipo:"))
-        fila_combos.addWidget(self.combo_tipo)
-        fila_combos.addStretch()
-        fila_combos.addWidget(self.btn_filtrar)
-        col_filtros.addLayout(fila_combos)
+        grid_combos.addWidget(QLabel("Categoría:"), 0, 0)
+        grid_combos.addWidget(self.combo_categoria, 0, 1)
+        grid_combos.addWidget(QLabel("Estado:"), 0, 2)
+        grid_combos.addWidget(self.combo_estado, 0, 3)
+        grid_combos.addWidget(QLabel("Solicitante:"), 0, 4)
+        grid_combos.addWidget(self.combo_solicitante, 0, 5)
+        grid_combos.addWidget(QLabel("Tipo:"), 0, 6)
+        grid_combos.addWidget(self.combo_tipo, 0, 7)
+        for col_s in (1, 3, 5, 7):
+            grid_combos.setColumnStretch(col_s, 1)
+        col_filtros.addLayout(grid_combos)
         layout.addWidget(card_filtros)
 
-        # Panel dividido: tabla de actividades + panel de detalle y ediciones
-        fila_cuerpo = QHBoxLayout()
+        # Panel dividido verticalmente: tabla ancha arriba + detalle y ediciones abajo
+        splitter = QSplitter(Qt.Orientation.Vertical, self)
+        splitter.setChildrenCollapsible(False)
 
         self.tabla = QTableWidget(0, 7, self)
         self.tabla.setHorizontalHeaderLabels(
@@ -131,36 +154,59 @@ class PantallaHistorial(QWidget):
                 "Fecha",
                 "Actividad",
                 "Categoría",
-                "Tipo / Solicitante",
+                "Tipo",
                 "Estado",
-                "Tiempo total",
-                "Revisiones / Editado",
+                "Tiempo",
+                "Notas",
             ]
         )
+        self.tabla.setMinimumHeight(195)
         self.tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.tabla.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         self.tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla.setAlternatingRowColors(True)
+        self.tabla.setShowGrid(False)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.verticalHeader().setDefaultSectionSize(38)
         self.tabla.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.tabla.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
+        self.tabla.setColumnWidth(3, 115)
+        self.tabla.horizontalHeader().setSectionResizeMode(6, QHeaderView.ResizeMode.Interactive)
+        self.tabla.setColumnWidth(6, 110)
+        for col_idx in (0, 2, 4, 5):
+            self.tabla.horizontalHeader().setSectionResizeMode(
+                col_idx, QHeaderView.ResizeMode.ResizeToContents
+            )
         self.tabla.itemSelectionChanged.connect(self._mostrar_detalle_seleccionada)
 
         card_det = QFrame(self)
         card_det.setProperty("card", True)
+        card_det.setMinimumHeight(150)
         col_det = QVBoxLayout(card_det)
-        col_det.addWidget(QLabel("<b>Detalle de la actividad y trazabilidad</b>"))
+        col_det.setContentsMargins(14, 12, 14, 12)
+        col_det.setSpacing(8)
+
+        fila_det_head = QHBoxLayout()
+        fila_det_head.addWidget(QLabel("<b>Detalle de la actividad y trazabilidad</b>"))
+        fila_det_head.addStretch()
+
+        self.btn_corregir = QPushButton("  Corregir actividad", self)
+        self.btn_corregir.setProperty("compact", True)
+        self.btn_corregir.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_corregir, "edit", color="#0F172A")
+        self.btn_corregir.clicked.connect(self.accion_corregir_seleccionada)
+        fila_det_head.addWidget(self.btn_corregir)
+        col_det.addLayout(fila_det_head)
+
         self.txt_detalle = QPlainTextEdit(self)
         self.txt_detalle.setReadOnly(True)
         col_det.addWidget(self.txt_detalle, 1)
 
-        self.btn_corregir = QPushButton("  Corregir registro seleccionado (con motivo)", self)
-        self.btn_corregir.setCursor(Qt.CursorShape.PointingHandCursor)
-        configurar_boton(self.btn_corregir, "edit", color="#0F172A")
-        self.btn_corregir.clicked.connect(self.accion_corregir_seleccionada)
-        col_det.addWidget(self.btn_corregir)
-
-        fila_cuerpo.addWidget(self.tabla, 2)
-        fila_cuerpo.addWidget(card_det, 1)
-        layout.addLayout(fila_cuerpo, 1)
+        splitter.addWidget(self.tabla)
+        splitter.addWidget(card_det)
+        splitter.setStretchFactor(0, 3)
+        splitter.setStretchFactor(1, 2)
+        layout.addWidget(splitter, 1)
 
         self._cargar_combos()
         self.aplicar_filtros()
@@ -245,13 +291,19 @@ class PantallaHistorial(QWidget):
                 if act.editado:
                     rev_txt += " · ★ Editado"
 
+                it_tipo = QTableWidgetItem(f"{act.tipo}{sol_txt}")
+                it_tipo.setToolTip(it_tipo.text())
+                it_notas = QTableWidgetItem(rev_txt)
+                if rev_txt:
+                    it_notas.setToolTip(rev_txt)
+
                 self.tabla.setItem(i, 0, it_fecha)
                 self.tabla.setItem(i, 1, QTableWidgetItem(nom_txt))
                 self.tabla.setItem(i, 2, QTableWidgetItem(cat_txt))
-                self.tabla.setItem(i, 3, QTableWidgetItem(f"{act.tipo}{sol_txt}"))
+                self.tabla.setItem(i, 3, it_tipo)
                 self.tabla.setItem(i, 4, QTableWidgetItem(act.estado))
                 self.tabla.setItem(i, 5, QTableWidgetItem(formatear_reloj_hms(desglose.segundos_total)))
-                self.tabla.setItem(i, 6, QTableWidgetItem(rev_txt))
+                self.tabla.setItem(i, 6, it_notas)
 
         if self.tabla.rowCount() > 0:
             self.tabla.selectRow(0)

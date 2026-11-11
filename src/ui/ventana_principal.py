@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QMainWindow,
     QPushButton,
+    QScrollArea,
     QSizeGrip,
     QSizePolicy,
     QStackedWidget,
@@ -190,9 +191,9 @@ class VentanaPrincipal(QMainWindow):
         # Barra lateral de navegación
         sidebar = QFrame(contenedor)
         sidebar.setObjectName("sidebar")
-        sidebar.setFixedWidth(242)
+        sidebar.setFixedWidth(260)
         col_nav = QVBoxLayout(sidebar)
-        col_nav.setContentsMargins(14, 16, 14, 16)
+        col_nav.setContentsMargins(12, 12, 12, 12)
         col_nav.setSpacing(4)
 
         # Bloque de marca corporativa
@@ -218,49 +219,62 @@ class VentanaPrincipal(QMainWindow):
         self.grupo_nav = QButtonGroup(self)
         self.grupo_nav.setExclusive(True)
 
-        lbl_sec_op = QLabel("OPERACIÓN DIARIA", sidebar)
-        lbl_sec_op.setObjectName("seccionSidebar")
-        col_nav.addWidget(lbl_sec_op)
+        scroll_nav = QScrollArea(sidebar)
+        scroll_nav.setWidgetResizable(True)
+        scroll_nav.setFrameShape(QFrame.Shape.NoFrame)
+        scroll_nav.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll_nav.setStyleSheet("QScrollArea, QScrollArea > QWidget > QWidget { background: transparent; border: none; }")
+        cont_nav_btns = QWidget(scroll_nav)
+        col_btns = QVBoxLayout(cont_nav_btns)
+        col_btns.setContentsMargins(0, 2, 0, 2)
+        col_btns.setSpacing(3)
 
-        self.btn_nav_hoy = self._crear_boton_nav("Hoy · Cronómetro", 0, "clock", sidebar)
-        self.btn_nav_planear = self._crear_boton_nav("Planear el día", 1, "clipboard", sidebar)
-        self.btn_nav_extra = self._crear_boton_nav("Actividad extra", 2, "zap", sidebar)
-        self.btn_nav_cierre = self._crear_boton_nav("Cierre de jornada", 3, "flag", sidebar)
+        lbl_sec_op = QLabel("OPERACIÓN DIARIA", cont_nav_btns)
+        lbl_sec_op.setObjectName("seccionSidebar")
+        col_btns.addWidget(lbl_sec_op)
+
+        self.btn_nav_hoy = self._crear_boton_nav("Hoy · Cronómetro", 0, "clock", cont_nav_btns)
+        self.btn_nav_planear = self._crear_boton_nav("Planear el día", 1, "clipboard", cont_nav_btns)
+        self.btn_nav_extra = self._crear_boton_nav("Actividad extra", 2, "zap", cont_nav_btns)
+        self.btn_nav_cierre = self._crear_boton_nav("Cierre de jornada", 3, "flag", cont_nav_btns)
         for b in (
             self.btn_nav_hoy,
             self.btn_nav_planear,
             self.btn_nav_extra,
             self.btn_nav_cierre,
         ):
-            col_nav.addWidget(b)
+            col_btns.addWidget(b)
 
-        lbl_sec_an = QLabel("ANÁLISIS Y REPORTES", sidebar)
+        lbl_sec_an = QLabel("ANÁLISIS Y REPORTES", cont_nav_btns)
         lbl_sec_an.setObjectName("seccionSidebar")
-        col_nav.addWidget(lbl_sec_an)
+        col_btns.addWidget(lbl_sec_an)
 
-        self.btn_nav_historial = self._crear_boton_nav("Historial", 4, "archive", sidebar)
-        self.btn_nav_reportes = self._crear_boton_nav("Reportes PDF", 5, "file-text", sidebar)
-        self.btn_nav_estadisticas = self._crear_boton_nav("Estadísticas", 6, "bar-chart", sidebar)
+        self.btn_nav_historial = self._crear_boton_nav("Historial", 4, "archive", cont_nav_btns)
+        self.btn_nav_reportes = self._crear_boton_nav("Reportes PDF", 5, "file-text", cont_nav_btns)
+        self.btn_nav_estadisticas = self._crear_boton_nav("Estadísticas", 6, "bar-chart", cont_nav_btns)
         for b in (
             self.btn_nav_historial,
             self.btn_nav_reportes,
             self.btn_nav_estadisticas,
         ):
-            col_nav.addWidget(b)
+            col_btns.addWidget(b)
 
-        lbl_sec_sis = QLabel("SISTEMA", sidebar)
+        lbl_sec_sis = QLabel("SISTEMA", cont_nav_btns)
         lbl_sec_sis.setObjectName("seccionSidebar")
-        col_nav.addWidget(lbl_sec_sis)
+        col_btns.addWidget(lbl_sec_sis)
 
-        self.btn_nav_config = self._crear_boton_nav("Configuración", 7, "settings", sidebar)
-        col_nav.addWidget(self.btn_nav_config)
+        self.btn_nav_config = self._crear_boton_nav("Configuración", 7, "settings", cont_nav_btns)
+        col_btns.addWidget(self.btn_nav_config)
+        col_btns.addStretch()
 
-        col_nav.addStretch()
+        scroll_nav.setWidget(cont_nav_btns)
+        col_nav.addWidget(scroll_nav, 1)
 
         self.btn_toggle_mini = QPushButton("  Mini-ventana flotante", sidebar)
         self.btn_toggle_mini.setCheckable(True)
+        self.btn_toggle_mini.setProperty("compact", True)
         self.btn_toggle_mini.setCursor(Qt.CursorShape.PointingHandCursor)
-        configurar_boton(self.btn_toggle_mini, "window", color="#CBD5E1", tamano=16)
+        configurar_boton(self.btn_toggle_mini, "window", color="#CBD5E1", tamano=15)
         self.btn_toggle_mini.toggled.connect(self.mostrar_ocultar_mini_widget)
         col_nav.addWidget(self.btn_toggle_mini)
 
