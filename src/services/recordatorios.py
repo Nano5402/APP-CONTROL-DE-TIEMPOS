@@ -7,9 +7,10 @@ Tipos de aviso que evalúa:
      ``recordatorio.repetir_sin_respuesta_min`` (2 min por defecto), registra
      ``sin_respuesta`` en ``recordatorios_log``, el cronómetro sigue contando y
      vuelve a lanzar el aviso.
-2. **Finalización (`Superaste el tiempo estimado`)**:
-   - Cuando el tiempo trabajado supera el estimado de la actividad (o el promedio
-     histórico de su categoría si no tiene estimado). Se emite una vez por actividad.
+2. **Finalización (`Tiempo estimado alcanzado`)**:
+   - Únicamente cuando la actividad tiene un ``tiempo_estimado_min`` explícito (> 0)
+     y el tiempo trabajado lo alcanza o supera. Se emite una sola vez por estimado
+     (persistido en BD entre reinicios). Si la tarea se creó sin estimado, nunca se emite.
 3. **Inicio sin actividad (`No tienes ninguna actividad en curso`)**:
    - En horario laboral, si no hay actividad en curso ni pausa de almuerzo abierta
      durante ``recordatorio.inicio_sin_actividad_min`` minutos.
@@ -21,6 +22,7 @@ Tipos de aviso que evalúa:
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from enum import StrEnum
@@ -64,6 +66,11 @@ class AvisoRecordatorio:
 class ServicioRecordatorios:
     """Evalúa qué avisos corresponden en cada instante y registra las respuestas."""
 
+    _CLAVE_FIN_NOTIFICADAS = "recordatorio.finalizacion_notificadas"
+    _CLAVE_ALMUERZO_FECHA = "recordatorio.almuerzo_fecha"
+    _CLAVE_SALIDA_FECHA = "recordatorio.salida_fecha"
+    _MAX_HISTORIAL_FIN = 200
+
     def __init__(self, s: Session) -> None:
         self.s = s
         self.config = RepoConfiguracion(s)
@@ -104,31 +111,9 @@ class ServicioRecordatorios:
         return max(1, self.config.obtener_int("recordatorio.continuidad_min", 10))
 
     def tiempo_referencia_min(self, actividad: Actividad) -> int | None:
-        """Tiempo estimado de la actividad o promedio histórico de su categoría (RF-04, 7.3)."""
+        """Devuelve el tiempo estimado explícito de la actividad, o ``None`` si no tiene."""
         if actividad.tiempo_estimado_min and actividad.tiempo_estimado_min > 0:
-            return actividad.tiempo_estimado_min
-        if actividad.categoria_id is None:
-            return None
-
-        # Promedio histórico de actividades completadas de la misma categoría
-        sub = (
-            select(
-                Actividad.id,
-                func.sum(SesionTiempo.duracion_seg).label("total_seg"),
-            )
-            .join(SesionTiempo, SesionTiempo.actividad_id == Actividad.id)
-            .where(
-                Actividad.categoria_id == actividad.categoria_id,
-                Actividad.estado == EstadoActividad.COMPLETADA.value,
-                Actividad.es_revision.is_(False),
-                Actividad.id != actividad.id,
-            )
-            .group_by(Actividad.id)
-        ).subquery()
-
-        prom_seg = self.s.scalar(select(func.avg(sub.c.total_seg)))
-        if prom_seg and prom_seg >= 60:
-            return int(round(prom_seg / 60))
+            return int(actividad.tiempo_estimado_min)
         return None
 
     # ------------------------------------------------------------------
@@ -228,25 +213,60 @@ class ServicioRecordatorios:
             )
         return None
 
+    def _leer_finalizaciones_notificadas(self) -> dict[int, int]:
+        crudo = self.config.obtener(self._CLAVE_FIN_NOTIFICADAS, "") or ""
+        if not crudo:
+            return {}
+        try:
+            data = json.loads(crudo)
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(data, dict):
+            return {}
+        resultado: dict[int, int] = {}
+        for k, v in data.items():
+            try:
+                resultado[int(k)] = int(v)
+            except (TypeError, ValueError):
+                continue
+        return resultado
+
+    def _registrar_finalizacion_notificada(self, actividad_id: int, meta_min: int) -> None:
+        notificadas = self._leer_finalizaciones_notificadas()
+        notificadas.pop(actividad_id, None)
+        notificadas[actividad_id] = meta_min
+        if len(notificadas) > self._MAX_HISTORIAL_FIN:
+            notificadas = dict(list(notificadas.items())[-self._MAX_HISTORIAL_FIN :])
+        serializado = json.dumps({str(k): v for k, v in notificadas.items()})
+        self.config.guardar(self._CLAVE_FIN_NOTIFICADAS, serializado)
+        self._finalizacion_notificada_ids.add(actividad_id)
+        self.s.flush()
+
     def _evaluar_finalizacion(
         self, actividad: Actividad, instante: datetime
     ) -> AvisoRecordatorio | None:
-        if actividad.id in self._finalizacion_notificada_ids:
-            return None
         meta_min = self.tiempo_referencia_min(actividad)
         if meta_min is None:
             return None
 
+        notificadas = self._leer_finalizaciones_notificadas()
+        meta_previa = notificadas.get(actividad.id)
+        if meta_previa is not None and meta_previa >= meta_min:
+            self._finalizacion_notificada_ids.add(actividad.id)
+            return None
+        if meta_previa is None and actividad.id in self._finalizacion_notificada_ids:
+            return None
+
         trabajado_seg = self.cron.segundos_trabajados(actividad, momento_actual=instante)
         if trabajado_seg >= meta_min * 60:
-            self._finalizacion_notificada_ids.add(actividad.id)
+            self._registrar_finalizacion_notificada(actividad.id, meta_min)
             lleva_min = trabajado_seg // 60
             return AvisoRecordatorio(
                 tipo=TipoAviso.FINALIZACION,
                 titulo="Tiempo estimado alcanzado",
                 mensaje=(
                     f"Llevas {lleva_min} min en «{actividad.nombre}» "
-                    f"(referencia: {meta_min} min). ¿Ya la finalizaste?"
+                    f"(estimado: {meta_min} min). ¿Ya la finalizaste?"
                 ),
                 actividad_id=actividad.id,
                 actividad_nombre=actividad.nombre,
@@ -305,10 +325,20 @@ class ServicioRecordatorios:
             )
         return None
 
+    def _notificado_hoy(self, fecha_cache: date | None, clave_cfg: str, fecha: date) -> bool:
+        if fecha_cache == fecha:
+            return True
+        return self.config.obtener(clave_cfg) == fecha.isoformat()
+
+    def _marcar_notificado_hoy(self, clave_cfg: str, fecha: date) -> None:
+        self.config.guardar(clave_cfg, fecha.isoformat())
+        self.s.flush()
+
     def _evaluar_almuerzo(self, instante: datetime) -> AvisoRecordatorio | None:
         if not self.config.obtener_bool("recordatorio.aviso_almuerzo", True):
             return None
-        if self._almuerzo_notificado_fecha == instante.date():
+        if self._notificado_hoy(self._almuerzo_notificado_fecha, self._CLAVE_ALMUERZO_FECHA, instante.date()):
+            self._almuerzo_notificado_fecha = instante.date()
             return None
 
         bloques = self.horarios.bloques_del_dia(instante.weekday())
@@ -319,6 +349,7 @@ class ServicioRecordatorios:
         fin_almuerzo = bloques[1].hora_inicio
         if inicio_almuerzo <= instante.time() < fin_almuerzo:
             self._almuerzo_notificado_fecha = instante.date()
+            self._marcar_notificado_hoy(self._CLAVE_ALMUERZO_FECHA, instante.date())
             return AvisoRecordatorio(
                 tipo=TipoAviso.ALMUERZO,
                 titulo="Hora de almuerzo",
@@ -332,7 +363,8 @@ class ServicioRecordatorios:
     def _evaluar_salida(self, instante: datetime) -> AvisoRecordatorio | None:
         if not self.config.obtener_bool("recordatorio.aviso_salida", True):
             return None
-        if self._salida_notificada_fecha == instante.date():
+        if self._notificado_hoy(self._salida_notificada_fecha, self._CLAVE_SALIDA_FECHA, instante.date()):
+            self._salida_notificada_fecha = instante.date()
             return None
 
         bloques = self.horarios.bloques_del_dia(instante.weekday())
@@ -346,6 +378,7 @@ class ServicioRecordatorios:
 
         if instante.time() >= hora_salida:
             self._salida_notificada_fecha = instante.date()
+            self._marcar_notificado_hoy(self._CLAVE_SALIDA_FECHA, instante.date())
             return AvisoRecordatorio(
                 tipo=TipoAviso.SALIDA,
                 titulo="Fin de la jornada laboral",

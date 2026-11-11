@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
@@ -113,37 +113,76 @@ def test_continuidad_sin_respuesta_repite_y_respuestas_si_no_pausar(s):
     assert act.editado is True
 
 
-def test_recordatorio_finalizacion_por_estimado_y_por_promedio_historico(s):
+def test_recordatorio_finalizacion_solo_con_estimado_explicito_y_persiste_en_reinicio(s):
     srv_act = ServicioActividades(s)
     cron = ServicioCronometro(s)
     srv_rec = ServicioRecordatorios(s)
     cat = RepoCategorias(s).obtener_o_crear("Posts")
 
-    # Actividad previa completada en 20 min → promedio de la categoría = 20 min
+    # Actividad previa completada en 58 min en la misma categoría
     previa = srv_act.crear_planeada(
-        "Post 1",
+        "Post previo",
         categoria_id=cat.id,
         momento=datetime(2026, 11, 8, 9, 0),
     )
     cron.iniciar(previa, momento=datetime(2026, 11, 8, 9, 0))
-    cron.finalizar(previa, momento=datetime(2026, 11, 8, 9, 20))
+    cron.finalizar(previa, momento=datetime(2026, 11, 8, 9, 58))
 
-    # Nueva actividad sin estimado propio pero en la misma categoría
-    nueva = srv_act.crear_planeada(
-        "Post 2",
+    # 1. Nueva actividad SIN tiempo estimado en la misma categoría:
+    # nunca debe inventar el promedio histórico (58 min) ni avisar finalización
+    sin_est = srv_act.crear_planeada(
+        "Post sin estimado",
         categoria_id=cat.id,
-        intervalo_recordatorio_min=60,
-        momento=datetime(2026, 11, 9, 9, 0),
+        intervalo_recordatorio_min=180,
+        momento=datetime(2026, 11, 9, 8, 0),
     )
-    assert srv_rec.tiempo_referencia_min(nueva) == 20
+    assert srv_rec.tiempo_referencia_min(sin_est) is None
 
-    cron.iniciar(nueva, momento=datetime(2026, 11, 9, 9, 0))
-    assert srv_rec.evaluar(datetime(2026, 11, 9, 9, 19)) == []
+    cron.iniciar(sin_est, momento=datetime(2026, 11, 9, 8, 0))
+    assert srv_rec.evaluar(datetime(2026, 11, 9, 9, 0)) == []  # > 58 min reales sin aviso
+    cron.finalizar(sin_est, momento=datetime(2026, 11, 9, 9, 5))
 
-    avisos = srv_rec.evaluar(datetime(2026, 11, 9, 9, 20))
+    # 2. Actividad CON tiempo estimado explícito de 20 min: avisa una única vez, incluso tras reiniciar
+    con_est = srv_act.crear_planeada(
+        "Post con estimado",
+        categoria_id=cat.id,
+        tiempo_estimado_min=20,
+        intervalo_recordatorio_min=180,
+        momento=datetime(2026, 11, 9, 9, 10),
+    )
+    assert srv_rec.tiempo_referencia_min(con_est) == 20
+
+    cron.iniciar(con_est, momento=datetime(2026, 11, 9, 9, 10))
+    assert srv_rec.evaluar(datetime(2026, 11, 9, 9, 29)) == []
+
+    avisos = srv_rec.evaluar(datetime(2026, 11, 9, 9, 30))
     assert [a.tipo for a in avisos] == [TipoAviso.FINALIZACION]
-    # No se repite una segunda vez para la misma actividad
-    assert srv_rec.evaluar(datetime(2026, 11, 9, 9, 25)) == []
+    assert "estimado: 20 min" in avisos[0].mensaje
+    # No se repite en la misma sesión
+    assert srv_rec.evaluar(datetime(2026, 11, 9, 9, 35)) == []
+
+    # Al simular un reinicio de la app (nueva instancia del servicio), NO vuelve a salir
+    srv_rec_reinicio = ServicioRecordatorios(s)
+    assert srv_rec_reinicio.evaluar(datetime(2026, 11, 9, 9, 40)) == []
+
+    # Si el usuario sube el estimado explícito a 40 min, vuelve a avisar una sola vez al alcanzarlo
+    con_est.tiempo_estimado_min = 40
+    s.flush()
+    avisos_nuevo = srv_rec_reinicio.evaluar(datetime(2026, 11, 9, 9, 50))
+    assert [a.tipo for a in avisos_nuevo] == [TipoAviso.FINALIZACION]
+    assert "estimado: 40 min" in avisos_nuevo[0].mensaje
+    assert ServicioRecordatorios(s).evaluar(datetime(2026, 11, 9, 9, 55)) == []
+
+
+def test_almuerzo_y_salida_no_repiten_tras_reinicio_mismo_dia(s):
+    srv_rec = ServicioRecordatorios(s)
+    assert [a.tipo for a in srv_rec.evaluar(datetime(2026, 11, 9, 12, 5))] == [TipoAviso.ALMUERZO]
+    assert [a.tipo for a in srv_rec.evaluar(datetime(2026, 11, 9, 16, 50))] == [TipoAviso.SALIDA]
+
+    # Simula reinicio el mismo día
+    srv_reinicio = ServicioRecordatorios(s)
+    assert srv_reinicio.evaluar(datetime(2026, 11, 9, 12, 10)) == []
+    assert srv_reinicio.evaluar(datetime(2026, 11, 9, 16, 55)) == []
 
 
 def test_avisos_sin_actividad_almuerzo_y_salida(s):
@@ -191,3 +230,69 @@ def test_dialogo_recordatorio_ui_offscreen( monkeypatch):
     assert dlg.respuesta_elegida == RespuestaRecordatorio.NO
     assert dlg.ajuste_minutos == 3
     assert dlg.motivo_ingresado == "Olvidé parar"
+
+
+def test_coordinador_no_avisa_sin_estimado_ni_repite_finalizacion_al_reiniciar(bd, monkeypatch):
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from PySide6.QtWidgets import QApplication, QMainWindow
+
+    from data.repositorios.configuracion import RepoConfiguracion
+    from data.tiempo import ahora
+    from ui.bandeja import CoordinadorRecordatoriosUI
+
+    _app = QApplication.instance() or QApplication([])
+    ventana = QMainWindow()
+
+    t_ref = ahora()
+    with bd.sesion() as sesion:
+        cfg = RepoConfiguracion(sesion)
+        cfg.guardar("aviso.sonido", False)
+        cfg.guardar("aviso.estilo", "notificacion")
+        cfg.guardar("recordatorio.aviso_almuerzo", False)
+        cfg.guardar("recordatorio.aviso_salida", False)
+
+        cat = RepoCategorias(sesion).obtener_o_crear("Piezas")
+        srv_act = ServicioActividades(sesion)
+        cron = ServicioCronometro(sesion)
+
+        prev = srv_act.crear_planeada("Previa 58m", categoria_id=cat.id, momento=t_ref - timedelta(days=1))
+        cron.iniciar(prev, momento=t_ref - timedelta(days=1, minutes=58))
+        cron.finalizar(prev, momento=t_ref - timedelta(days=1))
+
+        sin_est = srv_act.crear_planeada(
+            "Tarea sin estimado",
+            categoria_id=cat.id,
+            intervalo_recordatorio_min=300,
+            momento=t_ref - timedelta(minutes=70),
+        )
+        cron.iniciar(sin_est, momento=t_ref - timedelta(minutes=70))
+
+    coord1 = CoordinadorRecordatoriosUI(bd, ventana)
+    avisos_sin_est = [a for a in coord1.verificar_ahora() if a.tipo == TipoAviso.FINALIZACION]
+    assert avisos_sin_est == []
+
+    # Ahora con estimado explícito de 15 min: avisa 1 vez y no repite al reiniciar coordinador
+    with bd.sesion() as sesion:
+        cron = ServicioCronometro(sesion)
+        activa_prev = cron.actividad_en_curso()
+        if activa_prev is not None:
+            cron.finalizar(activa_prev, momento=t_ref - timedelta(minutes=30))
+        cat = RepoCategorias(sesion).obtener_o_crear("Piezas")
+        con_est = ServicioActividades(sesion).crear_planeada(
+            "Tarea con estimado",
+            categoria_id=cat.id,
+            tiempo_estimado_min=15,
+            intervalo_recordatorio_min=300,
+            momento=t_ref - timedelta(minutes=25),
+        )
+        cron.iniciar(con_est, momento=t_ref - timedelta(minutes=25))
+
+    avisos_1 = [a for a in coord1.verificar_ahora() if a.tipo == TipoAviso.FINALIZACION]
+    assert len(avisos_1) == 1
+    assert "estimado: 15 min" in avisos_1[0].mensaje
+
+    # Simula cerrar y volver a abrir la aplicación (nuevo CoordinadorRecordatoriosUI sin estado en RAM)
+    coord2 = CoordinadorRecordatoriosUI(bd, ventana)
+    avisos_2 = [a for a in coord2.verificar_ahora() if a.tipo == TipoAviso.FINALIZACION]
+    assert avisos_2 == []
+    ventana.close()

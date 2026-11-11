@@ -262,18 +262,25 @@ class CoordinadorRecordatoriosUI(QObject):
     ) -> None:
         if self._dialogo_abierto is not None and self._dialogo_abierto.isVisible():
             if aviso.tipo == TipoAviso.CONTINUIDAD:
-                self._dialogo_abierto.actualizar_aviso(aviso)
-            elif mostrar_tray_si_ocupado and self.bandeja:
-                self.bandeja.showMessage(
-                    aviso.titulo,
-                    aviso.mensaje,
-                    QSystemTrayIcon.MessageIcon.Information,
-                    6000,
-                )
-            self._dialogo_abierto.raise_()
-            self._dialogo_abierto.activateWindow()
-            QApplication.alert(self._dialogo_abierto, 0)
-            return
+                if self._dialogo_abierto.aviso.tipo == TipoAviso.CONTINUIDAD:
+                    self._dialogo_abierto.actualizar_aviso(aviso)
+                    self._dialogo_abierto.raise_()
+                    self._dialogo_abierto.activateWindow()
+                    QApplication.alert(self._dialogo_abierto, 0)
+                    return
+                self._dialogo_abierto.close()
+            else:
+                if mostrar_tray_si_ocupado and self.bandeja:
+                    self.bandeja.showMessage(
+                        aviso.titulo,
+                        aviso.mensaje,
+                        QSystemTrayIcon.MessageIcon.Information,
+                        6000,
+                    )
+                self._dialogo_abierto.raise_()
+                self._dialogo_abierto.activateWindow()
+                QApplication.alert(self._dialogo_abierto, 0)
+                return
 
         usar_padre = (
             self.ventana is not None
