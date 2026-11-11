@@ -47,7 +47,7 @@ CONFIGURACION_POR_DEFECTO: dict[str, str] = {
     "semaforo.verde_min": "85",
     "semaforo.amarillo_min": "60",
     # Meta de tiempo efectivo (RF-10) — provisional, se define en la beta
-    "meta.tiempo_efectivo_pct": "80",
+    "meta.tiempo_efectivo_pct": "100",
     # Recordatorios (RF-04)
     "recordatorio.continuidad_min": "10",
     "recordatorio.repetir_sin_respuesta_min": "2",  # provisional

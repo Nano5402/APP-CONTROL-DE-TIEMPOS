@@ -46,6 +46,7 @@ from services.cronometro import (
     ServicioCronometro,
 )
 from services.productividad import ServicioProductividad
+from services.whatsapp import formatear_duracion_corta
 from ui.dialogos import (
     DialogoAprobacionIngeniero,
     DialogoCorregirActividad,
@@ -228,7 +229,7 @@ class PantallaHoy(QWidget):
         capa_meta.setSpacing(8)
 
         fila_barra = QHBoxLayout()
-        self.lbl_meta = QLabel("Meta de tiempo efectivo:", self)
+        self.lbl_meta = QLabel("Tiempo en jornada hoy:", self)
         self.lbl_meta.setStyleSheet("font-weight: 600;")
         self.barra_meta = QProgressBar(self)
         self.barra_meta.setRange(0, 100)
@@ -580,10 +581,23 @@ class PantallaHoy(QWidget):
             elif todas:
                 self.tabla.selectRow(0)
 
-            self.barra_meta.setValue(int(round(res_prod.progreso_meta_pct)))
-            ef_min = res_prod.tiempo_efectivo_seg // 60
-            meta_min = res_prod.meta_tiempo_seg // 60
-            self.lbl_meta.setText(f"Tiempo efectivo hoy: {ef_min} / {meta_min} min")
+            if res_prod.es_laboral and res_prod.duracion_jornada_seg > 0:
+                bruto_seg = res_prod.tiempo_bruto_jornada_seg
+                pct_jor = min(
+                    100,
+                    int(round((bruto_seg / res_prod.duracion_jornada_seg) * 100.0)),
+                )
+                self.barra_meta.setValue(pct_jor)
+                self.lbl_meta.setText(
+                    f"Bruto en jornada: {formatear_duracion_corta(bruto_seg)} / "
+                    f"{formatear_duracion_corta(res_prod.duracion_jornada_seg)}"
+                )
+            else:
+                self.barra_meta.setValue(0)
+                self.lbl_meta.setText(
+                    "Día no laboral · Fuera de horario: "
+                    f"{formatear_duracion_corta(res_prod.tiempo_fuera_horario_seg)}"
+                )
             if res_prod.datos_referencia:
                 self.lbl_referencia.setText(res_prod.datos_referencia[0].mensaje)
             else:

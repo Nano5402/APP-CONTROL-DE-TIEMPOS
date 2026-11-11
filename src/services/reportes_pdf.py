@@ -1,973 +1,1426 @@
-"""Servicio de generación de reportes ejecutivos en PDF (RF-08, RF-05b, RF-06).
+"""Generación de reportes PDF corporativos elegantes y gráficos (RF-08, RF-10).
 
-Genera los 4 tipos de PDF definidos en el plan con diseño ejecutivo corporativo
-de Gente Util S.A.:
-1. **PDF general del día** (laboral): encabezado con el logo oficial de Gente Util S.A.,
-   ficha del colaborador, tarjetas KPI con semáforo, barras de sub-indicadores
-   (Cumplimiento, Eficiencia, Foco), tabla de actividades con fila de totales,
-   detalle de extras, actividades arrastradas, revisiones y pausas.
-2. **PDF de día no laboral**: sin porcentaje de productividad, solo tiempo fuera
-   de horario y actividades atendidas.
-3. **PDF específico**: filtrado por actividad, categoría, solicitante o rango de fechas.
-4. **PDF semanal o mensual**: resumen ejecutivo con tabla de evolución de tendencia,
-   tiempo por categoría, estimado vs. real, solicitantes y revisiones.
+Cuatro modalidades unificadas sobre ``LienzoPDF``:
+1. Reporte diario laboral (productividad, bruto en jornada, línea de tiempo y tablas).
+2. Reporte de día no laboral (registro de trabajo fuera de horario).
+3. Reporte específico con filtros (rango de fechas, categoría, solicitante o tipo).
+4. Reporte periódico Semanal o Mensual (tendencia diaria, comparativos y desviación).
 """
 
 from __future__ import annotations
 
-import base64
-import html
-from datetime import date, datetime
+from dataclasses import dataclass
+from datetime import date, datetime, time
 from pathlib import Path
 
+from PySide6.QtCore import QRectF, Qt
+from PySide6.QtGui import QColor
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from config import rutas
-from data.enums import EstadoActividad, TipoActividad
-from data.models import Actividad, Jornada, Pausa, Usuario
+from data.enums import (
+    EstadoActividad,
+    MotivoRevision,
+    Prioridad,
+    TipoActividad,
+    TipoPausa,
+    TipoRevision,
+)
+from data.models import Actividad, Horario, Jornada, Pausa, SesionTiempo, Usuario
 from data.repositorios.configuracion import RepoConfiguracion
-from reports.generador_pdf import renderizar_html_a_pdf
+from data.repositorios.horarios import RepoHorarios
+from data.tiempo import ahora
+from reports.generador_pdf import (
+    ANCHO_CONTENIDO,
+    MARGEN_X,
+    LienzoPDF,
+    PaletaPDF,
+)
+from reports.graficos_pdf import (
+    BloqueHorarioTimeline,
+    ItemBarraHorizontal,
+    ItemEstimadoRealGrafico,
+    PuntoTendenciaGrafico,
+    SegmentoTimeline,
+    color_por_nivel_pct,
+    dibujar_barras_horizontales,
+    dibujar_card_kpi_donut,
+    dibujar_card_kpi_jornada,
+    dibujar_card_kpi_metrica,
+    dibujar_card_subindicadores,
+    dibujar_desglose_revisiones,
+    dibujar_estimado_vs_real,
+    dibujar_tendencia_vertical,
+    dibujar_timeline_jornada,
+)
 from services.actividades import ServicioActividades
 from services.estadisticas import ServicioEstadisticas
 from services.historial import FiltrosHistorial, ServicioHistorial
-from services.productividad import NivelSemaforo, ServicioProductividad
+from services.productividad import NivelSemaforo, ResultadoProductividad, ServicioProductividad
 from services.whatsapp import formatear_duracion_corta
 
+_DIAS_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+_DIAS_CORTOS_ES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]
+_MESES_ES = [
+    "",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+]
 
-def _esc(texto: object) -> str:
-    return html.escape("" if texto is None else str(texto))
-
-
-def _color_semaforo(sem: NivelSemaforo) -> tuple[str, str, str]:
-    """Devuelve ``(color_texto, color_fondo, color_borde)`` según el nivel del semáforo."""
-    return {
-        NivelSemaforo.EXCELENTE: ("#15803D", "#F0FDF4", "#86EFAC"),
-        NivelSemaforo.ACEPTABLE: ("#B45309", "#FFFBEB", "#FCD34D"),
-        NivelSemaforo.POR_MEJORAR: ("#B91C1C", "#FEF2F2", "#FCA5A5"),
-        NivelSemaforo.NO_APLICA: ("#475569", "#F8FAFC", "#CBD5E1"),
-    }[sem]
-
-
-_ETIQUETAS_TIPO_ACT = {
-    "planeada": "Planeada",
-    "extra": "Extra / Urgente",
-    "no_planeada": "No planeada",
-    "arrastrada": "Arrastrada",
+_ETIQUETAS_TIPO_PAUSA = {
+    TipoPausa.ALMUERZO.value: "Descanso de almuerzo",
+    TipoPausa.PRIORIDAD.value: "Cambio a prioridad mayor",
+    TipoPausa.EXTERNA.value: "Causa externa / falla técnica",
+    TipoPausa.PERSONAL.value: "Baño / hidratación / pausa activa",
+    TipoPausa.FIN_JORNADA.value: "Cierre / fin de jornada",
+    TipoPausa.OTRO.value: "Otra pausa breve",
 }
 
-_ETIQUETAS_ESTADO_ACT = {
-    "completada": ("✓ Completada", "#15803D", "#DCFCE7"),
-    "en_curso": ("▶ En curso", "#003D95", "#DBEAFE"),
-    "pausada": ("⏸ Pausada", "#B45309", "#FEF3C7"),
-    "arrastrada": ("↪ Arrastrada", "#9A3412", "#FFEDD5"),
-    "pendiente": ("• Pendiente", "#475569", "#F1F5F9"),
-    "aplazada": ("Aplazada", "#64748B", "#F1F5F9"),
-    "rechazada": ("Rechazada", "#B91C1C", "#FEE2E2"),
-    "eliminada": ("Eliminada", "#64748B", "#F1F5F9"),
-}
-
-_ETIQUETAS_PAUSA = {
-    "almuerzo": "Almuerzo",
-    "bano_hidratacion": "Baño / Hidratación",
-    "pausa_activa": "Pausa activa",
-    "reunion": "Reunión",
-    "urgencia_aprobada": "Atención de urgencia",
-    "esperando_insumos": "Esperando insumos / respuesta",
-    "falla_tecnica": "Falla técnica / Luz / Internet",
-    "fin_jornada": "Cierre / Fin de jornada",
-    "personal": "Asunto personal",
-    "otro": "Otro motivo",
-}
-
-_ETIQUETAS_PRIORIDAD = {
-    "maxima": ("MÁXIMA", "#B91C1C"),
-    "alta": ("Alta", "#D97706"),
-    "media": ("Media", "#003D95"),
-    "baja": ("Baja", "#475569"),
-}
-
-_ETIQUETAS_APROBACION = {
-    "aprobado": "Aprobada",
-    "aprobada": "Aprobada",
-    "no_requiere": "Directa (Jefe / Doctoras)",
-    "no_requerida": "Directa (Jefe / Doctoras)",
-    "pendiente": "Pendiente",
-    "rechazado": "Rechazada",
-    "rechazada": "Rechazada",
-}
-
-_ETIQUETAS_MOTIVO_REV = {
-    "error_propio": "Ajuste técnico propio",
-    "cambio_criterio": "Cambio de criterio del solicitante",
-    "info_incompleta": "Información inicial incompleta",
-    "ajuste_estilo": "Ajuste de texto o estilo",
-    "otro": "Otro",
-}
+_ETIQUETAS_MOTIVO_REV = {e.value: e.etiqueta() for e in MotivoRevision}
+_ETIQUETAS_TIPO_REV = {e.value: e.etiqueta() for e in TipoRevision}
+_ETIQUETAS_ESTADO = {e.value: e.etiqueta() for e in EstadoActividad}
+_ETIQUETAS_PRIORIDAD = {e.value: e.etiqueta() for e in Prioridad}
+_ETIQUETAS_TIPO_ACT = {e.value: e.etiqueta() for e in TipoActividad}
 
 
-def _logo_img_html(logo_ruta: str | None) -> str:
-    """Incrusta el logo oficial en base64 con suavizado de alta calidad y proporción exacta."""
-    if not logo_ruta:
-        return ""
-    p = Path(logo_ruta)
-    if not p.is_file():
-        return ""
-    try:
-        from PySide6.QtCore import QBuffer, QByteArray, QIODevice, Qt
-        from PySide6.QtGui import QImage
+@dataclass(frozen=True)
+class _DatosCabecera:
+    """Metadatos corporativos y del colaborador para la portada del reporte."""
 
-        img = QImage(str(p))
-        if not img.isNull() and img.height() > 0:
-            alto = 68
-            ancho = max(68, int(round(img.width() * (alto / img.height()))))
-            if ancho > 220:
-                ancho = 220
-                alto = max(40, int(round(img.height() * (ancho / img.width()))))
-            # Suavizado bicúbico previo (evita el escalado nearest-neighbor de QTextDocument)
-            img_suave = img.scaled(
-                ancho,
-                alto,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-            ba = QByteArray()
-            buf = QBuffer(ba)
-            buf.open(QIODevice.OpenModeFlag.WriteOnly)
-            img_suave.save(buf, "PNG")
-            b64 = bytes(ba.toBase64()).decode("ascii")
-            return f'<img src="data:image/png;base64,{b64}" width="{ancho}" height="{alto}" />'
-
-        raw = p.read_bytes()
-        b64 = base64.b64encode(raw).decode("ascii")
-        mime = "image/svg+xml" if p.suffix.lower() == ".svg" else "image/png"
-        return f'<img src="data:{mime};base64,{b64}" width="180" height="68" />'
-    except Exception:
-        uri = p.resolve().as_uri()
-        return f'<img src="{uri}" width="180" height="68" />'
+    usuario: str
+    cargo: str
+    area: str
+    empresa: str
+    color_primario: str
+    ruta_logo: str | None
+    emitido: str
 
 
-def _barra_progreso_html(porcentaje: float | None, color: str = "#003D95") -> str:
-    """Dibuja una barra de progreso horizontal compatible con ``QTextDocument``."""
-    pct = max(0, min(100, int(round(porcentaje or 0.0))))
-    if pct <= 0:
-        return (
-            '<table width="100%" cellspacing="0" cellpadding="0">'
-            '<tr><td bgcolor="#E2E8F0" height="7" style="font-size:1pt;">&nbsp;</td></tr>'
-            "</table>"
-        )
-    if pct >= 100:
-        return (
-            '<table width="100%" cellspacing="0" cellpadding="0">'
-            f'<tr><td bgcolor="{color}" height="7" style="font-size:1pt;">&nbsp;</td></tr>'
-            "</table>"
-        )
-    return (
-        '<table width="100%" cellspacing="0" cellpadding="0"><tr>'
-        f'<td width="{pct}%" bgcolor="{color}" height="7" style="font-size:1pt;">&nbsp;</td>'
-        f'<td width="{100 - pct}%" bgcolor="#E2E8F0" height="7" style="font-size:1pt;">&nbsp;</td>'
-        "</tr></table>"
+def _plural(n: int, singular: str, plural: str | None = None) -> str:
+    """Devuelve '1 elemento' o 'N elementos' según gramática en español."""
+    if plural is None:
+        plural = singular + ("es" if singular[-1:] in "dlrnzj" else "s")
+    return f"{n} {singular if n == 1 else plural}"
+
+
+def _fecha_larga_es(f: date) -> str:
+    return f"{_DIAS_ES[f.weekday()]}, {f.day} de {_MESES_ES[f.month]} de {f.year}"
+
+
+def _etiqueta_tipo(tipo: str) -> str:
+    return _ETIQUETAS_TIPO_ACT.get(tipo, tipo.replace("_", " ").capitalize())
+
+
+def _etiqueta_estado(act: Actividad) -> str:
+    if act.estado == EstadoActividad.ARRASTRADA.value:
+        return f"Arrastrada ({act.avance_pct or 0}%)"
+    if act.estado in _ETIQUETAS_ESTADO:
+        return _ETIQUETAS_ESTADO[act.estado]
+    return act.estado.replace("_", " ").capitalize()
+
+
+def _etiqueta_prioridad(prio: str) -> str:
+    return _ETIQUETAS_PRIORIDAD.get(prio, prio.capitalize())
+
+
+def _colores_semaforo(semaforo: NivelSemaforo, pal: PaletaPDF) -> tuple[QColor, QColor, QColor]:
+    """Devuelve ``(fondo_pill, texto_pill, arco)`` acorde con el semáforo."""
+    if semaforo == NivelSemaforo.EXCELENTE:
+        return pal.verde_suave, pal.verde, pal.verde
+    if semaforo == NivelSemaforo.ACEPTABLE:
+        return pal.azul_suave, pal.azul, pal.azul
+    if semaforo == NivelSemaforo.MEJORABLE:
+        return pal.ambar_suave, pal.ambar, pal.ambar
+    if semaforo == NivelSemaforo.CRITICO:
+        return pal.rojo_suave, pal.rojo, pal.rojo
+    return pal.neutro_suave, pal.neutro, pal.neutro
+
+
+def _color_sesion(act: Actividad, pal: PaletaPDF) -> QColor:
+    if act.es_revision:
+        return pal.rojo
+    if act.tipo == TipoActividad.PLANEADA.value:
+        return pal.azul
+    if act.tipo == TipoActividad.EXTRA.value:
+        return pal.ambar
+    return pal.morado
+
+
+def _minutos_dia(dt: datetime) -> float:
+    return dt.hour * 60.0 + dt.minute + dt.second / 60.0
+
+
+def _etiqueta_horario_bloques(bloques: list[Horario]) -> str:
+    if not bloques:
+        return "Día sin horario programado"
+    partes = [f"{b.hora_inicio:%H:%M}–{b.hora_fin:%H:%M}" for b in bloques]
+    return "Horario: " + " · ".join(partes)
+
+
+def _cargar_cabecera(s: Session) -> _DatosCabecera:
+    usuario = s.scalars(select(Usuario).limit(1)).first()
+    cfg = RepoConfiguracion(s)
+    logo_cfg = cfg.obtener("empresa.logo_ruta", "") or ""
+    ruta_logo = Path(logo_cfg) if logo_cfg and Path(logo_cfg).exists() else rutas.ruta_logo_por_defecto()
+    return _DatosCabecera(
+        usuario=usuario.nombre if usuario else "Usuario",
+        cargo=cfg.obtener("usuario.cargo", "Diseño Gráfico") or "Diseño Gráfico",
+        area=cfg.obtener("usuario.area", "Operaciones y Marca") or "Operaciones y Marca",
+        empresa=cfg.obtener("empresa.nombre", "Gente Util") or "Gente Util",
+        color_primario=cfg.obtener("empresa.color_primario", "#003D95") or "#003D95",
+        ruta_logo=str(ruta_logo) if ruta_logo and ruta_logo.exists() else None,
+        emitido=ahora().strftime("%d/%m/%Y %H:%M"),
     )
 
 
-def _titulo_seccion_html(numero: str, titulo: str, color_primario: str = "#003D95") -> str:
-    """Genera un encabezado de sección corporativo con numeración y barra de acento."""
-    return f"""
-    <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:14px; margin-bottom:6px;">
-      <tr>
-        <td width="24" bgcolor="{color_primario}" align="center" valign="middle"
-            style="color:#FFFFFF; font-weight:bold; font-size:9pt; padding:4px 0;">
-          {_esc(numero)}
-        </td>
-        <td bgcolor="#F1F5F9" valign="middle"
-            style="color:#0F172A; font-weight:bold; font-size:10pt; padding:4px 10px; border-bottom:2px solid {color_primario};">
-          {_esc(titulo.upper())}
-        </td>
-      </tr>
-    </table>
-    """
-
-
-def _envolver_html(
-    *,
-    titulo: str,
-    subtitulo: str,
-    empresa: str,
-    usuario: str,
-    cargo_area: str = "",
-    cuerpo_html: str,
-    color_primario: str = "#003D95",
-    logo_ruta: str | None = None,
-) -> str:
-    logo_html = _logo_img_html(logo_ruta)
-    usr_mostrar = _esc(usuario) if usuario else "Sin registrar"
-    cargo_mostrar = _esc(cargo_area) if cargo_area else "Diseño y Comunicaciones"
-    fecha_emision = datetime.now().strftime("%d/%m/%Y %H:%M")
-
-    celda_logo = (
-        f'<td width="34%" valign="middle" style="padding:2px 0;">{logo_html}</td>'
-        if logo_html
-        else f'<td width="34%" valign="middle"><b style="font-size:16pt; color:{color_primario};">{_esc(empresa)}</b></td>'
-    )
-
-    return f"""<!DOCTYPE html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<style>
-  body {{
-    font-family: "Segoe UI", Arial, sans-serif;
-    font-size: 9pt;
-    color: #0F172A;
-    margin: 0;
-    padding: 0;
-  }}
-  p {{
-    margin: 4px 0;
-  }}
-  table.datos {{
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 8px;
-  }}
-  table.datos th {{
-    background-color: {color_primario};
-    color: #FFFFFF;
-    text-align: left;
-    padding: 6px 7px;
-    font-size: 8.5pt;
-    font-weight: bold;
-    border: 1px solid {color_primario};
-  }}
-  table.datos td {{
-    padding: 5px 7px;
-    font-size: 8.5pt;
-    color: #1E293B;
-    border: 1px solid #CBD5E1;
-  }}
-</style>
-</head>
-<body>
-  <!-- CABECERA CORPORATIVA GENTE UTIL S.A. -->
-  <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:6px;">
-    <tr>
-      {celda_logo}
-      <td width="66%" align="right" valign="middle">
-        <div style="font-size:8pt; font-weight:bold; color:{color_primario}; letter-spacing:0.5px;">
-          SISTEMA DE GESTIÓN Y CONTROL DE TIEMPOS
-        </div>
-        <div style="font-size:14pt; font-weight:bold; color:#0F172A; margin-top:2px;">
-          {_esc(titulo)}
-        </div>
-        <div style="font-size:9pt; color:#475569; margin-top:2px;">
-          {_esc(subtitulo)}
-        </div>
-      </td>
-    </tr>
-  </table>
-
-  <!-- LÍNEA INSTITUCIONAL -->
-  <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:8px;">
-    <tr>
-      <td width="78%" bgcolor="{color_primario}" height="3" style="font-size:1pt;">&nbsp;</td>
-      <td width="22%" bgcolor="#D97706" height="3" style="font-size:1pt;">&nbsp;</td>
-    </tr>
-  </table>
-
-  <!-- FICHA DE IDENTIFICACIÓN DEL REPORTE -->
-  <table width="100%" cellspacing="0" cellpadding="6"
-         style="background-color:#F8FAFC; border:1px solid #CBD5E1; margin-bottom:10px;">
-    <tr>
-      <td width="28%" style="border-right:1px solid #E2E8F0; font-size:8.5pt;">
-        <span style="color:#64748B; font-size:7.5pt; font-weight:bold;">EMPRESA</span><br/>
-        <b style="color:#0F172A;">{_esc(empresa)}</b>
-      </td>
-      <td width="28%" style="border-right:1px solid #E2E8F0; font-size:8.5pt;">
-        <span style="color:#64748B; font-size:7.5pt; font-weight:bold;">COLABORADOR</span><br/>
-        <b style="color:#0F172A;">{usr_mostrar}</b>
-      </td>
-      <td width="24%" style="border-right:1px solid #E2E8F0; font-size:8.5pt;">
-        <span style="color:#64748B; font-size:7.5pt; font-weight:bold;">CARGO / ÁREA</span><br/>
-        <span style="color:#1E293B;">{cargo_mostrar}</span>
-      </td>
-      <td width="20%" style="font-size:8.5pt;">
-        <span style="color:#64748B; font-size:7.5pt; font-weight:bold;">EMISIÓN</span><br/>
-        <span style="color:#1E293B;">{fecha_emision}</span>
-      </td>
-    </tr>
-  </table>
-
-  {cuerpo_html}
-
-  <!-- BLOQUE DE FIRMAS Y PIE DE PÁGINA -->
-  <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:22px;">
-    <tr>
-      <td width="44%" align="center" style="padding-top:18px; border-top:1px solid #94A3B8; font-size:8pt; color:#334155;">
-        <b>{usr_mostrar}</b><br/>
-        <span style="color:#64748B;">Colaborador · {cargo_mostrar}</span>
-      </td>
-      <td width="12%">&nbsp;</td>
-      <td width="44%" align="center" style="padding-top:18px; border-top:1px solid #94A3B8; font-size:8pt; color:#334155;">
-        <b>Jefatura / Supervisión Inmediata</b><br/>
-        <span style="color:#64748B;">{_esc(empresa)}</span>
-      </td>
-    </tr>
-  </table>
-
-  <table width="100%" cellspacing="0" cellpadding="0" style="margin-top:12px; border-top:1px solid #E2E8F0;">
-    <tr>
-      <td style="padding-top:5px; font-size:7.5pt; color:#64748B;">
-        Documento generado localmente por <b>{rutas.NOMBRE_VISIBLE} v{rutas.VERSION}</b> — {_esc(empresa)}
-      </td>
-      <td align="right" style="padding-top:5px; font-size:7.5pt; color:#64748B;">
-        Emitido el {fecha_emision}
-      </td>
-    </tr>
-  </table>
-</body>
-</html>"""
+def _limpiar_nombre_archivo(texto: str) -> str:
+    limpio = "".join(c if c.isalnum() or c in "-_" else "_" for c in texto.lower())
+    return limpio[:40].strip("_") or "reporte"
 
 
 class ServicioReportesPDF:
-    """Genera y guarda los reportes PDF ejecutivos de la aplicación."""
+    """Construye los 4 tipos de reporte PDF corporativos listos para dirección."""
 
-    def __init__(self, s: Session, carpeta_salida: Path | None = None) -> None:
+    def __init__(self, s: Session) -> None:
         self.s = s
-        self.config = RepoConfiguracion(s)
         self.srv_act = ServicioActividades(s)
-        self.srv_prod = ServicioProductividad(s)
         self.srv_hist = ServicioHistorial(s)
+        self.srv_prod = ServicioProductividad(s)
         self.srv_est = ServicioEstadisticas(s)
-        self.carpeta = carpeta_salida or rutas.carpeta_reportes()
-
-    def _datos_cabecera(self) -> tuple[str, str, str, str, str | None]:
-        usr = self.s.scalar(select(Usuario).limit(1))
-        nombre_usr = usr.nombre.strip() if usr and usr.nombre else ""
-        cargo_cfg = self.config.obtener("usuario.cargo", "") or ""
-        area_cfg = self.config.obtener("usuario.area", "") or ""
-        partes_cargo = [p.strip() for p in (cargo_cfg, area_cfg) if p and p.strip()]
-        cargo_area = (
-            " · ".join(partes_cargo) if partes_cargo else "Diseño y Comunicaciones"
-        )
-        empresa = (
-            self.config.obtener("empresa.nombre", "Gente Util S.A.") or "Gente Util S.A."
-        )
-        color = self.config.obtener("empresa.color_primario", "#003D95") or "#003D95"
-        logo = self.config.obtener("empresa.logo_ruta", None)
-        defecto = rutas.ruta_logo_por_defecto()
-        if (
-            not logo
-            or not Path(logo).is_file()
-            or Path(logo).name == "logo_gente_util.svg"
-        ):
-            logo = str(defecto) if defecto.is_file() else None
-        return empresa, nombre_usr, cargo_area, color, logo
 
     # ------------------------------------------------------------------
-    # 1. PDF general del día y 4. PDF de día no laboral (RF-08, RF-05b)
+    # Recolección de datos gráficos auxiliares
+    # ------------------------------------------------------------------
+
+    def _construir_timeline_dia(
+        self,
+        jornada: Jornada,
+        actividades: list[Actividad],
+        pausas: list[Pausa],
+        pal: PaletaPDF,
+    ) -> tuple[list[BloqueHorarioTimeline], list[SegmentoTimeline], str]:
+        bloques_bd = RepoHorarios(self.s).bloques_del_dia(jornada.fecha.weekday())
+        bloques = [
+            BloqueHorarioTimeline(
+                inicio_min=b.hora_inicio.hour * 60 + b.hora_inicio.minute,
+                fin_min=b.hora_fin.hour * 60 + b.hora_fin.minute,
+            )
+            for b in bloques_bd
+        ]
+
+        segmentos: list[SegmentoTimeline] = []
+        inicios_sesion: list[datetime] = []
+        fines_sesion: list[datetime] = []
+        conteo_ses = 0
+
+        act_ids = {a.id: a for a in actividades}
+        inicio_dia = datetime.combine(jornada.fecha, time.min)
+        fin_dia = datetime.combine(jornada.fecha, time.max)
+        sesiones = list(
+            self.s.scalars(
+                select(SesionTiempo)
+                .where(SesionTiempo.inicio >= inicio_dia, SesionTiempo.inicio <= fin_dia)
+                .order_by(SesionTiempo.inicio.asc())
+            )
+        )
+        for ses in sesiones:
+            act = act_ids.get(ses.actividad_id) or self.s.get(Actividad, ses.actividad_id)
+            if act is None or act.estado == EstadoActividad.ELIMINADA.value:
+                continue
+            ini_dt = ses.inicio
+            fin_dt = ses.fin or ini_dt
+            if fin_dt < ini_dt:
+                fin_dt = ini_dt
+            inicios_sesion.append(ini_dt)
+            fines_sesion.append(fin_dt)
+            conteo_ses += 1
+            segmentos.append(
+                SegmentoTimeline(
+                    inicio_min=_minutos_dia(ini_dt),
+                    fin_min=max(_minutos_dia(ini_dt) + 2.0, _minutos_dia(fin_dt)),
+                    etiqueta=act.nombre,
+                    color=_color_sesion(act, pal),
+                    es_pausa=False,
+                    es_fuera_horario=bool(ses.fuera_horario),
+                )
+            )
+
+        conteo_pausas_reales = 0
+        for p in pausas:
+            if not p.fin or p.fin <= p.inicio:
+                continue
+            dur = int((p.fin - p.inicio).total_seconds())
+            if dur <= 0:
+                continue
+            if p.tipo == TipoPausa.ALMUERZO.value:
+                col_p = QColor("#94A3B8")
+            elif p.es_externa:
+                col_p = QColor("#0EA5E9")
+            else:
+                conteo_pausas_reales += 1
+                col_p = QColor("#F59E0B")
+            segmentos.append(
+                SegmentoTimeline(
+                    inicio_min=_minutos_dia(p.inicio),
+                    fin_min=_minutos_dia(p.fin),
+                    etiqueta=_ETIQUETAS_TIPO_PAUSA.get(p.tipo, "Pausa"),
+                    color=col_p,
+                    es_pausa=True,
+                )
+            )
+
+        if inicios_sesion:
+            primera = min(inicios_sesion).strftime("%H:%M")
+            ultima = max(fines_sesion).strftime("%H:%M")
+            resumen = (
+                f"Primera actividad: {primera}  ·  Última actividad: {ultima}  ·  "
+                f"{_plural(conteo_ses, 'sesión', 'sesiones')}  ·  "
+                f"{_plural(conteo_pausas_reales, 'pausa breve', 'pausas breves')}"
+            )
+        else:
+            resumen = "No se registraron sesiones activas durante la jornada"
+
+        return bloques, segmentos, resumen
+
+    def _tiempos_directos_actividad(
+        self,
+        act: Actividad,
+        *,
+        solo_fecha: date | None = None,
+    ) -> tuple[int, int, int, int]:
+        """Devuelve ``(seg_directo, seg_fuera_horario, cant_revs_hijas, seg_revs_hijas)``.
+
+        Evita duplicar el tiempo de la tarea raíz sobre sus filas de revisión hijas.
+        """
+        consulta = select(SesionTiempo).where(SesionTiempo.actividad_id == act.id)
+        if solo_fecha is not None:
+            consulta = consulta.where(
+                SesionTiempo.inicio >= datetime.combine(solo_fecha, time.min),
+                SesionTiempo.inicio <= datetime.combine(solo_fecha, time.max),
+            )
+        sesiones = list(self.s.scalars(consulta))
+        seg_dir = sum(s.duracion_seg for s in sesiones)
+        seg_fh = sum(s.duracion_seg for s in sesiones if s.fuera_horario)
+
+        if act.es_revision:
+            return seg_dir, seg_fh, 0, 0
+
+        revs = list(
+            self.s.scalars(
+                select(Actividad).where(
+                    Actividad.actividad_padre_id == act.id,
+                    Actividad.estado != EstadoActividad.ELIMINADA.value,
+                )
+            )
+        )
+        seg_rev = 0
+        for r in revs:
+            q_rev = select(SesionTiempo).where(SesionTiempo.actividad_id == r.id)
+            if solo_fecha is not None:
+                q_rev = q_rev.where(
+                    SesionTiempo.inicio >= datetime.combine(solo_fecha, time.min),
+                    SesionTiempo.inicio <= datetime.combine(solo_fecha, time.max),
+                )
+            seg_rev += sum(sr.duracion_seg for sr in self.s.scalars(q_rev))
+        return seg_dir, seg_fh, len(revs), seg_rev
+
+    def _agrupar_categorias_actividades(
+        self,
+        actividades: list[Actividad],
+        pal: PaletaPDF,
+        *,
+        solo_fecha: date | None = None,
+    ) -> list[ItemBarraHorizontal]:
+        """Agrupa segundos directos invertidos por categoría sin duplicar revisiones."""
+        totales: dict[str, tuple[int, int, QColor]] = {}
+        for act in actividades:
+            seg, _, _, _ = self._tiempos_directos_actividad(act, solo_fecha=solo_fecha)
+            if seg <= 0:
+                continue
+            cat_nom = act.categoria.nombre if act.categoria else "Sin categoría"
+            cat_hex = act.categoria.color if act.categoria and act.categoria.color else None
+            col = QColor(cat_hex) if cat_hex else pal.primario
+            if not col.isValid():
+                col = pal.primario
+            prev_seg, prev_cnt, prev_col = totales.get(cat_nom, (0, 0, col))
+            totales[cat_nom] = (prev_seg + seg, prev_cnt + 1, prev_col)
+
+        gran_total = sum(v[0] for v in totales.values()) or 1
+        salida: list[ItemBarraHorizontal] = []
+        for nom, (seg, cnt, col) in sorted(totales.items(), key=lambda x: x[1][0], reverse=True):
+            pct = seg / gran_total * 100.0
+            salida.append(
+                ItemBarraHorizontal(
+                    etiqueta=nom,
+                    valor=float(seg),
+                    texto_valor=f"{formatear_duracion_corta(seg)} ({pct:.0f}%)",
+                    color=col,
+                    subetiqueta=f"{cnt} act.",
+                )
+            )
+        return salida
+
+    def _pausas_jornada(self, jornada_id: int) -> list[Pausa]:
+        return list(
+            self.s.scalars(
+                select(Pausa).where(Pausa.jornada_id == jornada_id).order_by(Pausa.inicio.asc())
+            )
+        )
+
+    def _revisiones_jornada(self, jornada_id: int) -> list[Actividad]:
+        return list(
+            self.s.scalars(
+                select(Actividad)
+                .where(
+                    Actividad.jornada_id == jornada_id,
+                    Actividad.es_revision.is_(True),
+                    Actividad.estado != EstadoActividad.ELIMINADA.value,
+                )
+                .order_by(Actividad.creada_en.asc())
+            )
+        )
+
+    # ------------------------------------------------------------------
+    # Tablas compartidas (Actividades, Revisiones, Pausas)
+    # ------------------------------------------------------------------
+
+    def _dibujar_tabla_actividades_dia(
+        self,
+        lienzo: LienzoPDF,
+        actividades: list[Actividad],
+        titulo_seccion: str,
+        *,
+        con_fecha: bool = False,
+        solo_fecha: date | None = None,
+    ) -> None:
+        if not actividades:
+            lienzo.dibujar_seccion(titulo_seccion, alto_min_siguiente=38.0)
+            lienzo.dibujar_nota_vacia("No se registraron actividades en esta sección.")
+            return
+
+        filas: list[list[str]] = []
+        total_seg_global = 0
+        total_revs_global = 0
+
+        for act in actividades:
+            seg_dir, seg_fh, cant_revs, seg_revs = self._tiempos_directos_actividad(
+                act, solo_fecha=solo_fecha
+            )
+            total_seg_global += seg_dir
+            total_revs_global += cant_revs
+
+            cat = act.categoria.nombre if act.categoria else "Sin categoría"
+            sol = act.solicitante.nombre if act.solicitante else "Iniciativa propia"
+
+            detalles_nom = [act.nombre]
+            if act.descripcion:
+                desc_corta = act.descripcion.strip()
+                if len(desc_corta) > 130:
+                    desc_corta = desc_corta[:127] + "..."
+                detalles_nom.append(desc_corta)
+            detalles_nom.append(f"Solicita: {sol} · Prioridad {_etiqueta_prioridad(act.prioridad)}")
+            if act.es_revision:
+                detalles_nom.append("↩ Actividad de revisión / devolución")
+
+            est_txt = _etiqueta_estado(act)
+            nota_est = (act.motivo_urgencia or act.reasignacion_motivo or act.notas or "").strip()
+            if nota_est:
+                mot_corto = nota_est[:52] + "..." if len(nota_est) > 55 else nota_est
+                est_txt = f"{est_txt}\n{mot_corto}"
+
+            tiempo_lineas = [formatear_duracion_corta(seg_dir)]
+            if seg_fh > 0:
+                tiempo_lineas.append(f"Extra: {formatear_duracion_corta(seg_fh)}")
+            if act.tiempo_estimado_min:
+                tiempo_lineas.append(f"Est: {act.tiempo_estimado_min} min")
+
+            cambios_txt = f"{cant_revs} rev." if cant_revs > 0 else "Sin cambios"
+            if seg_revs > 0:
+                cambios_txt += f"\n({formatear_duracion_corta(seg_revs)})"
+
+            tipo_cat_txt = f"{cat}\n[{_etiqueta_tipo(act.tipo)}]"
+
+            if con_fecha:
+                fecha_txt = act.jornada.fecha.strftime("%d/%m/%Y") if act.jornada else "—"
+                filas.append(
+                    [
+                        fecha_txt,
+                        "\n".join(detalles_nom),
+                        tipo_cat_txt,
+                        est_txt,
+                        "\n".join(tiempo_lineas),
+                    ]
+                )
+            else:
+                filas.append(
+                    [
+                        "\n".join(detalles_nom),
+                        tipo_cat_txt,
+                        est_txt,
+                        "\n".join(tiempo_lineas),
+                        cambios_txt,
+                    ]
+                )
+
+        if con_fecha:
+            # 744 px exactos: 72 + 312 + 132 + 116 + 112 = 744
+            columnas = [
+                ("Fecha", 72.0, Qt.AlignmentFlag.AlignLeft),
+                ("Actividad y detalle", 312.0, Qt.AlignmentFlag.AlignLeft),
+                ("Categoría y Tipo", 132.0, Qt.AlignmentFlag.AlignLeft),
+                ("Estado", 116.0, Qt.AlignmentFlag.AlignLeft),
+                ("Tiempo", 112.0, Qt.AlignmentFlag.AlignRight),
+            ]
+            fila_totales = [
+                "Total",
+                _plural(len(actividades), "actividad registrada", "actividades registradas"),
+                "—",
+                "—",
+                formatear_duracion_corta(total_seg_global),
+            ]
+        else:
+            # 744 px exactos: 304 + 128 + 106 + 110 + 96 = 744
+            columnas = [
+                ("Actividad y detalle", 304.0, Qt.AlignmentFlag.AlignLeft),
+                ("Categoría y Tipo", 128.0, Qt.AlignmentFlag.AlignLeft),
+                ("Estado", 106.0, Qt.AlignmentFlag.AlignLeft),
+                ("Tiempo", 110.0, Qt.AlignmentFlag.AlignRight),
+                ("Cambios", 96.0, Qt.AlignmentFlag.AlignRight),
+            ]
+            fila_totales = [
+                f"Total ({_plural(len(actividades), 'actividad', 'actividades')})",
+                "—",
+                "—",
+                formatear_duracion_corta(total_seg_global),
+                f"{total_revs_global} rev.",
+            ]
+
+        lienzo.dibujar_seccion(
+            titulo_seccion,
+            subtitulo=f"{_plural(len(actividades), 'registro')} · {formatear_duracion_corta(total_seg_global)}",
+            alto_min_siguiente=78.0,
+        )
+        lienzo.dibujar_tabla_paginada(columnas, filas, fila_totales=fila_totales)
+
+    def _dibujar_resumen_destacados_dia(
+        self,
+        lienzo: LienzoPDF,
+        extras: list[Actividad],
+        arrastradas_pend: list[Actividad],
+        fecha_dia: date,
+    ) -> None:
+        """Tabla compacta sin duplicación de extras y pendientes/arrastradas del día."""
+        if not extras and not arrastradas_pend:
+            return
+        filas: list[list[str]] = []
+        vistos: set[tuple[str, int]] = set()
+        for act in extras:
+            vistos.add(("extra", act.id))
+            seg_dir, _, _, _ = self._tiempos_directos_actividad(act, solo_fecha=fecha_dia)
+            sol = act.solicitante.nombre if act.solicitante else "Iniciativa propia"
+            filas.append(
+                [
+                    "Extra atendida",
+                    act.nombre,
+                    f"{sol} · {_etiqueta_estado(act)}",
+                    formatear_duracion_corta(seg_dir),
+                ]
+            )
+        for act in arrastradas_pend:
+            seg_dir, _, _, _ = self._tiempos_directos_actividad(act, solo_fecha=fecha_dia)
+            nota = (act.notas or act.motivo_urgencia or "Continúa en próxima jornada").strip()
+            filas.append(
+                [
+                    _etiqueta_estado(act),
+                    act.nombre,
+                    nota[:85] + "..." if len(nota) > 88 else nota,
+                    formatear_duracion_corta(seg_dir),
+                ]
+            )
+
+        # 128 + 250 + 266 + 100 = 744 px
+        columnas = [
+            ("Situación", 128.0, Qt.AlignmentFlag.AlignLeft),
+            ("Actividad", 250.0, Qt.AlignmentFlag.AlignLeft),
+            ("Solicitante / Seguimiento", 266.0, Qt.AlignmentFlag.AlignLeft),
+            ("Tiempo", 100.0, Qt.AlignmentFlag.AlignRight),
+        ]
+        lienzo.dibujar_seccion(
+            "Extras y seguimiento de cierre",
+            subtitulo=_plural(len(filas), "destacado"),
+            alto_min_siguiente=78.0,
+        )
+        lienzo.dibujar_tabla_paginada(columnas, filas, tam_pt=7.8)
+
+    def _dibujar_seccion_revisiones(
+        self, lienzo: LienzoPDF, revisiones: list[Actividad], *, solo_fecha: date | None = None
+    ) -> None:
+        if not revisiones:
+            return
+        filas: list[list[str]] = []
+        total_seg = 0
+        for r in revisiones:
+            seg_dir, _, _, _ = self._tiempos_directos_actividad(r, solo_fecha=solo_fecha)
+            total_seg += seg_dir
+            sol = (
+                r.revision_solicitante.nombre
+                if r.revision_solicitante
+                else (r.solicitante.nombre if r.solicitante else "—")
+            )
+            tipo_lbl = _ETIQUETAS_TIPO_REV.get(r.revision_tipo or "", r.revision_tipo or "—")
+            mot_lbl = _ETIQUETAS_MOTIVO_REV.get(r.revision_motivo or "", r.revision_motivo or "—")
+            comentario = (r.revision_que_cambiar or r.descripcion or r.notas or "—").strip()
+            filas.append(
+                [
+                    r.nombre,
+                    f"{tipo_lbl}\n{mot_lbl}",
+                    sol,
+                    formatear_duracion_corta(seg_dir),
+                    comentario,
+                ]
+            )
+        # 200 + 128 + 126 + 96 + 194 = 744 px ("Tiempo" tiene 96 px: imposible partirse)
+        columnas = [
+            ("Actividad", 200.0, Qt.AlignmentFlag.AlignLeft),
+            ("Tipo / Motivo", 128.0, Qt.AlignmentFlag.AlignLeft),
+            ("Solicitante", 126.0, Qt.AlignmentFlag.AlignLeft),
+            ("Tiempo", 96.0, Qt.AlignmentFlag.AlignRight),
+            ("Observación", 194.0, Qt.AlignmentFlag.AlignLeft),
+        ]
+        totales = [
+            f"Total ({_plural(len(revisiones), 'revisión', 'revisiones')})",
+            "—",
+            "—",
+            formatear_duracion_corta(total_seg),
+            "—",
+        ]
+        lienzo.dibujar_seccion(
+            "Revisiones y devoluciones",
+            subtitulo=f"{_plural(len(revisiones), 'ajuste')} · {formatear_duracion_corta(total_seg)}",
+            alto_min_siguiente=78.0,
+        )
+        lienzo.dibujar_tabla_paginada(columnas, filas, fila_totales=totales)
+
+    def _dibujar_seccion_pausas(
+        self,
+        lienzo: LienzoPDF,
+        pausas: list[Pausa],
+        res: ResultadoProductividad,
+    ) -> None:
+        """Lista las pausas reales filtrando marcadores de 0 min de cierre de jornada."""
+        filas: list[list[str]] = []
+        for p in pausas:
+            dur = int((p.fin - p.inicio).total_seconds()) if p.fin else 0
+            if p.tipo == TipoPausa.FIN_JORNADA.value and dur <= 0:
+                continue
+            horario = f"{p.inicio:%H:%M} – {p.fin:%H:%M}" if p.fin else f"{p.inicio:%H:%M} – En curso"
+            etq_tipo = _ETIQUETAS_TIPO_PAUSA.get(p.tipo, p.tipo)
+            if p.tipo == TipoPausa.ALMUERZO.value:
+                alcance = "Bloque no laboral"
+            elif p.es_externa:
+                alcance = "Causa externa (no penaliza foco)"
+            else:
+                alcance = "Pausa en jornada"
+            filas.append(
+                [
+                    horario,
+                    etq_tipo,
+                    alcance,
+                    formatear_duracion_corta(dur),
+                    (p.motivo or "—").strip(),
+                ]
+            )
+
+        if not filas:
+            return
+
+        # 124 + 196 + 150 + 84 + 190 = 744 px
+        columnas = [
+            ("Horario", 124.0, Qt.AlignmentFlag.AlignLeft),
+            ("Tipo de pausa", 196.0, Qt.AlignmentFlag.AlignLeft),
+            ("Alcance", 150.0, Qt.AlignmentFlag.AlignLeft),
+            ("Duración", 84.0, Qt.AlignmentFlag.AlignRight),
+            ("Motivo / Nota", 190.0, Qt.AlignmentFlag.AlignLeft),
+        ]
+        totales = [
+            "Pausas laborales breves",
+            "(excluye almuerzo)",
+            f"Externas: {formatear_duracion_corta(res.tiempo_pausas_externas_seg)}",
+            formatear_duracion_corta(res.tiempo_pausas_seg),
+            "—",
+        ]
+        lienzo.dibujar_seccion(
+            "Registro de pausas y descansos",
+            subtitulo=f"Pausas breves: {formatear_duracion_corta(res.tiempo_pausas_seg)}",
+            alto_min_siguiente=78.0,
+        )
+        lienzo.dibujar_tabla_paginada(columnas, filas, fila_totales=totales)
+
+    # ------------------------------------------------------------------
+    # 1. Reporte Diario Laboral
     # ------------------------------------------------------------------
 
     def generar_pdf_jornada(
-        self, jornada: Jornada, *, ruta_destino: Path | str | None = None
+        self,
+        jornada: Jornada,
+        ruta_destino: Path | str | None = None,
     ) -> Path:
-        """Genera el PDF ejecutivo de cierre de ``jornada`` (laboral o día no laboral)."""
-        if not jornada.es_laboral:
+        """Genera el reporte PDF diario (delega a no laboral si aplica)."""
+        if not jornada.es_laboral or jornada.duracion_jornada_seg <= 0:
             return self.generar_pdf_dia_no_laboral(jornada, ruta_destino=ruta_destino)
 
+        cab = _cargar_cabecera(self.s)
         res = self.srv_prod.calcular_jornada(jornada)
-        empresa, usuario, cargo_area, color_emp, logo = self._datos_cabecera()
-
-        visibles = self.srv_act.listar_visibles_jornada(jornada.id)
-        principales = [a for a in visibles if not a.es_revision]
-        completadas = [
-            a for a in principales if a.estado == EstadoActividad.COMPLETADA.value
-        ]
-        extras = [a for a in principales if a.tipo == TipoActividad.EXTRA.value]
-        arrastradas = [
-            a for a in principales if a.estado == EstadoActividad.ARRASTRADA.value
-        ]
-        revisiones = [a for a in visibles if a.es_revision]
-        pausas = list(
-            self.s.scalars(
-                select(Pausa)
-                .where(Pausa.jornada_id == jornada.id)
-                .order_by(Pausa.inicio)
-            )
-        )
-
-        col_sem_txt, col_sem_bg, col_sem_borde = _color_semaforo(res.semaforo)
-        prod_txt = (
-            f"{res.productividad_pct:.1f}%"
-            if res.productividad_pct is not None
-            else "N/A"
-        )
-        c_txt = (
-            f"{res.cumplimiento_pct:.1f}%"
-            if res.cumplimiento_pct is not None
-            else "N/A"
-        )
-        e_txt = (
-            f"{res.eficiencia_pct:.1f}%"
-            if res.eficiencia_pct is not None
-            else "N/A"
-        )
-        f_txt = f"{res.foco_pct:.1f}%" if res.foco_pct is not None else "N/A"
-
-        secciones: list[str] = [
-            # Tarjetas KPI Ejecutivas (4 columnas)
-            f"""
-            <table width="100%" cellspacing="0" cellpadding="8" style="margin-bottom:10px;">
-              <tr>
-                <td width="27%" valign="top"
-                    style="background-color:{col_sem_bg}; border:2px solid {col_sem_borde};">
-                  <div style="font-size:7.5pt; font-weight:bold; color:{col_sem_txt};">
-                    PRODUCTIVIDAD DEL DÍA
-                  </div>
-                  <div style="font-size:18pt; font-weight:bold; color:{col_sem_txt}; margin:2px 0;">
-                    {prod_txt}
-                  </div>
-                  <div style="font-size:8.5pt; font-weight:bold; color:{col_sem_txt};">
-                    {_esc(res.semaforo.etiqueta().upper())}
-                  </div>
-                </td>
-                <td width="2%" style="border:none;">&nbsp;</td>
-                <td width="25%" valign="top"
-                    style="background-color:#F8FAFC; border:1px solid #CBD5E1;">
-                  <div style="font-size:7.5pt; font-weight:bold; color:#475569;">
-                    TIEMPO EFECTIVO
-                  </div>
-                  <div style="font-size:14pt; font-weight:bold; color:{color_emp}; margin:3px 0;">
-                    {formatear_duracion_corta(res.tiempo_efectivo_seg)}
-                  </div>
-                  <div style="font-size:8pt; color:#475569;">
-                    Meta: <b>{formatear_duracion_corta(res.meta_tiempo_seg)}</b> ({res.progreso_meta_pct:.0f}%)
-                  </div>
-                </td>
-                <td width="2%" style="border:none;">&nbsp;</td>
-                <td width="22%" valign="top"
-                    style="background-color:#F8FAFC; border:1px solid #CBD5E1;">
-                  <div style="font-size:7.5pt; font-weight:bold; color:#475569;">
-                    ACTIVIDADES
-                  </div>
-                  <div style="font-size:14pt; font-weight:bold; color:#0F172A; margin:3px 0;">
-                    {len(completadas)} / {len(principales)}
-                  </div>
-                  <div style="font-size:8pt; color:#475569;">
-                    Extras: <b>{len(extras)}</b> · Arrastradas: <b>{len(arrastradas)}</b>
-                  </div>
-                </td>
-                <td width="2%" style="border:none;">&nbsp;</td>
-                <td width="20%" valign="top"
-                    style="background-color:#F8FAFC; border:1px solid #CBD5E1;">
-                  <div style="font-size:7.5pt; font-weight:bold; color:#475569;">
-                    PAUSAS Y EXTRAS
-                  </div>
-                  <div style="font-size:11pt; font-weight:bold; color:#0F172A; margin:3px 0;">
-                    Pausas: {formatear_duracion_corta(res.tiempo_pausas_seg)}
-                  </div>
-                  <div style="font-size:8pt; color:#475569;">
-                    Fuera hor.: <b>{formatear_duracion_corta(res.tiempo_fuera_horario_seg)}</b>
-                  </div>
-                </td>
-              </tr>
-            </table>
-            """,
-            # Desglose visual de los 3 sub-indicadores de la fórmula (40 / 30 / 30)
-            f"""
-            <table width="100%" cellspacing="0" cellpadding="6"
-                   style="background-color:#FFFFFF; border:1px solid #CBD5E1; margin-bottom:10px;">
-              <tr>
-                <td width="33%" style="border-right:1px solid #E2E8F0;">
-                  <div style="font-size:8pt; color:#334155; margin-bottom:3px;">
-                    <b>1. Cumplimiento del plan</b> (peso 40%): <b style="color:{color_emp};">{c_txt}</b>
-                  </div>
-                  {_barra_progreso_html(res.cumplimiento_pct, color_emp)}
-                </td>
-                <td width="33%" style="border-right:1px solid #E2E8F0;">
-                  <div style="font-size:8pt; color:#334155; margin-bottom:3px;">
-                    <b>2. Eficiencia vs. estimado</b> (peso 30%): <b style="color:#0284C7;">{e_txt}</b>
-                  </div>
-                  {_barra_progreso_html(res.eficiencia_pct, "#0284C7")}
-                </td>
-                <td width="34%">
-                  <div style="font-size:8pt; color:#334155; margin-bottom:3px;">
-                    <b>3. Foco en jornada</b> (peso 30%): <b style="color:#15803D;">{f_txt}</b>
-                  </div>
-                  {_barra_progreso_html(res.foco_pct, "#15803D")}
-                </td>
-              </tr>
-            </table>
-            """,
-        ]
-
-        # 1. Tabla general de actividades del día
-        secciones.append(
-            _titulo_seccion_html("1", "Actividades de la jornada", color_emp)
-        )
-        secciones.append(self._tabla_actividades_html(principales))
-
-        idx_sec = 2
-
-        # 2. Detalle de actividades extra
-        if extras:
-            secciones.append(
-                _titulo_seccion_html(
-                    str(idx_sec), "Detalle de actividades extra y urgencias", color_emp
-                )
-            )
-            idx_sec += 1
-            filas_ex = []
-            for i, ex in enumerate(extras):
-                bg = "#FFFFFF" if i % 2 == 0 else "#F8FAFC"
-                des = self.srv_act.desglose_tiempos(ex)
-                sol = ex.solicitante.nombre if ex.solicitante else "—"
-                prio_txt, prio_col = _ETIQUETAS_PRIORIDAD.get(
-                    ex.prioridad or "media", (ex.prioridad or "Media", "#003D95")
-                )
-                aprob_txt = _ETIQUETAS_APROBACION.get(
-                    ex.aprobacion_estado or "", ex.aprobacion_estado or "—"
-                )
-                canal_txt = f" ({ex.aprobacion_canal})" if ex.aprobacion_canal else ""
-                filas_ex.append(
-                    f'<tr style="background-color:{bg};">'
-                    f"<td><b>{_esc(ex.nombre)}</b></td>"
-                    f"<td>{_esc(sol)}</td>"
-                    f'<td><b style="color:{prio_col};">{_esc(prio_txt)}</b></td>'
-                    f"<td>{_esc(aprob_txt)}{_esc(canal_txt)}</td>"
-                    f"<td>{_esc(ex.motivo_urgencia or '—')}</td>"
-                    f'<td align="right"><b>{formatear_duracion_corta(des.segundos_total)}</b></td>'
-                    f"</tr>"
-                )
-            secciones.append(
-                '<table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr>'
-                "<th>Actividad extra</th><th>Solicitante</th><th>Prioridad</th>"
-                "<th>Aprobación</th><th>Motivo / Contexto</th><th>Tiempo real</th>"
-                "</tr></thead><tbody>" + "".join(filas_ex) + "</tbody></table>"
-            )
-
-        # 3. Actividades arrastradas
-        if arrastradas:
-            secciones.append(
-                _titulo_seccion_html(
-                    str(idx_sec),
-                    "Actividades arrastradas para la siguiente jornada",
-                    color_emp,
-                )
-            )
-            idx_sec += 1
-            filas_arr = []
-            for i, a in enumerate(arrastradas):
-                bg = "#FFFFFF" if i % 2 == 0 else "#F8FAFC"
-                motivo_arr = a.pausas[-1].motivo if a.pausas else (a.notas or "—")
-                filas_arr.append(
-                    f'<tr style="background-color:{bg};">'
-                    f"<td><b>{_esc(a.nombre)}</b></td>"
-                    f'<td width="18%" align="center"><b style="color:#B45309;">{a.avance_pct or 0}%</b></td>'
-                    f"<td>{_esc(motivo_arr)}</td>"
-                    f"</tr>"
-                )
-            secciones.append(
-                '<table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr>'
-                "<th>Actividad</th><th>% de Avance</th><th>Justificación / Motivo de arrastre</th>"
-                "</tr></thead><tbody>" + "".join(filas_arr) + "</tbody></table>"
-            )
-
-        # 4. Revisiones y sus motivos
-        secciones.append(
-            _titulo_seccion_html(
-                str(idx_sec),
-                f"Revisiones y ajustes solicitados ({len(revisiones)})",
-                color_emp,
-            )
-        )
-        idx_sec += 1
-        if revisiones:
-            filas_rev = []
-            for i, rv in enumerate(revisiones):
-                bg = "#FFFFFF" if i % 2 == 0 else "#F8FAFC"
-                sol_r = rv.revision_solicitante.nombre if rv.revision_solicitante else "—"
-                seg_r = sum(s.duracion_seg for s in rv.sesiones)
-                mot_r = _ETIQUETAS_MOTIVO_REV.get(
-                    rv.revision_motivo or "", rv.revision_motivo or "—"
-                )
-                filas_rev.append(
-                    f'<tr style="background-color:{bg};">'
-                    f"<td><b>{_esc(rv.nombre)}</b></td>"
-                    f"<td>{_esc(sol_r)}</td>"
-                    f"<td>{_esc((rv.revision_tipo or '—').capitalize())}</td>"
-                    f"<td>{_esc(mot_r)}</td>"
-                    f"<td>{_esc(rv.revision_que_cambiar or '—')}</td>"
-                    f'<td align="right"><b>{formatear_duracion_corta(seg_r)}</b></td>'
-                    f"</tr>"
-                )
-            secciones.append(
-                '<table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr>'
-                "<th>Pieza / Actividad</th><th>Solicitante</th><th>Magnitud</th>"
-                "<th>Causa</th><th>Detalle del ajuste</th><th>Tiempo</th>"
-                "</tr></thead><tbody>" + "".join(filas_rev) + "</tbody></table>"
-            )
-        else:
-            secciones.append(
-                '<p style="color:#475569; font-style:italic;">No se registraron revisiones ni reprocesos durante esta jornada.</p>'
-            )
-
-        # 5. Pausas e interrupciones
-        if pausas:
-            secciones.append(
-                _titulo_seccion_html(
-                    str(idx_sec), "Registro de pausas e interrupciones", color_emp
-                )
-            )
-            filas_p = []
-            for i, p in enumerate(pausas):
-                bg = "#FFFFFF" if i % 2 == 0 else "#F8FAFC"
-                dur_p = (
-                    formatear_duracion_corta(int((p.fin - p.inicio).total_seconds()))
-                    if p.fin
-                    else "En curso"
-                )
-                act_nom = p.actividad.nombre if p.actividad else "Jornada general"
-                tipo_p = _ETIQUETAS_PAUSA.get(p.tipo, p.tipo)
-                horario_p = f"{p.inicio:%H:%M} – {p.fin.strftime('%H:%M') if p.fin else '...'}"
-                filas_p.append(
-                    f'<tr style="background-color:{bg};">'
-                    f"<td><b>{_esc(tipo_p)}</b></td>"
-                    f"<td>{_esc(act_nom)}</td>"
-                    f"<td>{horario_p} ({dur_p})</td>"
-                    f"<td>{_esc(p.motivo or '—')}</td>"
-                    f"</tr>"
-                )
-            secciones.append(
-                '<table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr>'
-                "<th>Tipo de pausa</th><th>Actividad asociada</th><th>Horario y duración</th><th>Observación / Motivo</th>"
-                "</tr></thead><tbody>" + "".join(filas_p) + "</tbody></table>"
-            )
-
-        html_doc = _envolver_html(
-            titulo="Reporte Diario de Productividad y Tiempos",
-            subtitulo=f"Jornada laboral del {jornada.fecha:%d/%m/%Y}",
-            empresa=empresa,
-            usuario=usuario,
-            cargo_area=cargo_area,
-            cuerpo_html="\n".join(secciones),
-            color_primario=color_emp,
-            logo_ruta=logo,
-        )
+        actividades = self.srv_act.listar_visibles_jornada(jornada.id)
+        pausas = self._pausas_jornada(jornada.id)
+        revisiones = self._revisiones_jornada(jornada.id)
+        bloques_bd = RepoHorarios(self.s).bloques_del_dia(jornada.fecha.weekday())
 
         destino = (
             Path(ruta_destino)
             if ruta_destino
-            else self.carpeta / f"reporte_diario_{jornada.fecha:%Y%m%d}.pdf"
+            else rutas.carpeta_reportes() / f"Reporte_Diario_{jornada.fecha:%Y-%m-%d}.pdf"
         )
-        return renderizar_html_a_pdf(html_doc, destino)
+        lienzo = LienzoPDF(
+            destino,
+            titulo_doc="Reporte Diario de Productividad",
+            empresa=cab.empresa,
+            subtitulo_continuacion=_fecha_larga_es(jornada.fecha),
+            color_primario=cab.color_primario,
+            emitido_texto=cab.emitido,
+        )
+        pal = lienzo.paleta
 
-    def generar_pdf_dia_no_laboral(
-        self, jornada: Jornada, *, ruta_destino: Path | str | None = None
-    ) -> Path:
-        """Genera el PDF aparte para trabajo en día no laboral, sin porcentaje (RF-05b, RF-08)."""
-        res = self.srv_prod.calcular_jornada(jornada)
-        empresa, usuario, cargo_area, color_emp, logo = self._datos_cabecera()
-        visibles = [
+        # 1. Banner corporativo + ficha colaborador
+        lienzo.dibujar_cabecera_hero(
+            eyebrow=f"{cab.empresa} · Gestión de Productividad",
+            titulo="Reporte Diario de Productividad",
+            subtitulo=_fecha_larga_es(jornada.fecha),
+            estado_badge=jornada.estado.upper(),
+            horario_texto=_etiqueta_horario_bloques(bloques_bd),
+            ruta_logo=cab.ruta_logo,
+        )
+        lienzo.dibujar_tira_metadatos(
+            [
+                ("Colaborador", cab.usuario),
+                ("Cargo", cab.cargo),
+                ("Área", cab.area),
+                ("Jornada programada", formatear_duracion_corta(res.duracion_jornada_seg)),
+            ]
+        )
+
+        # 2. Fila de 4 tarjetas KPI gráficas (SIN "Meta: 6h17min")
+        y_kpi = lienzo.y
+        gap = 10.0
+        w_card = (ANCHO_CONTENIDO - 3.0 * gap) / 4.0
+        h_card = 114.0
+
+        f_sem, t_sem, arc_sem = _colores_semaforo(res.semaforo, pal)
+        dibujar_card_kpi_donut(
+            lienzo,
+            QRectF(MARGEN_X, y_kpi, w_card, h_card),
+            eyebrow="Productividad",
+            pct=res.productividad_pct,
+            etiqueta_badge=res.semaforo.etiqueta(),
+            fondo_badge=f_sem,
+            texto_badge=t_sem,
+            subtitulo="Índice ponderado de desempeño diario.",
+            color_arco=arc_sem,
+        )
+
+        bruto_jor_seg = res.tiempo_bruto_jornada_seg
+        pct_jor = (
+            (bruto_jor_seg / res.duracion_jornada_seg * 100.0)
+            if res.duracion_jornada_seg > 0
+            else 0.0
+        )
+        dibujar_card_kpi_jornada(
+            lienzo,
+            QRectF(MARGEN_X + (w_card + gap), y_kpi, w_card, h_card),
+            bruto_txt=formatear_duracion_corta(bruto_jor_seg),
+            jornada_txt=formatear_duracion_corta(res.duracion_jornada_seg),
+            pct_cobertura=pct_jor,
+            efectivo_seg=res.tiempo_efectivo_seg,
+            pausas_seg=res.tiempo_pausas_seg,
+            jornada_seg=res.duracion_jornada_seg,
+            sublinea_1=f"Efectivo: {formatear_duracion_corta(res.tiempo_efectivo_seg)}",
+            sublinea_2=f"Pausas breves: {formatear_duracion_corta(res.tiempo_pausas_seg)}",
+        )
+
+        comp_tot = sum(1 for a in actividades if a.estado == EstadoActividad.COMPLETADA.value)
+        rev_comp = sum(
+            1
+            for a in actividades
+            if a.es_revision and a.estado == EstadoActividad.COMPLETADA.value
+        )
+        total_prog = max(len(actividades), res.planeadas_total)
+        sub_tipos = (
+            f"{res.planeadas_completadas} plan. · {res.extras_completadas} extra · "
+            f"{res.no_planeadas_completadas} no plan."
+            + (f" · {rev_comp} rev." if rev_comp > 0 else "")
+        )
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + 2.0 * (w_card + gap), y_kpi, w_card, h_card),
+            eyebrow="Actividades",
+            valor=f"{comp_tot} / {total_prog}",
+            color_acento=pal.verde,
+            sublinea_1=sub_tipos,
+            sublinea_2=f"{res.arrastradas} arrastradas · {res.pendientes} pendientes",
+            barra_segmentos=[
+                (float(res.planeadas_completadas), pal.azul),
+                (float(res.extras_completadas), pal.ambar),
+                (float(res.no_planeadas_completadas), pal.morado),
+                (float(rev_comp), pal.rojo),
+            ],
+            barra_total=float(max(total_prog, comp_tot, 1)),
+        )
+
+        sub_alm = (
+            f"Almuerzo (libre): {formatear_duracion_corta(res.tiempo_almuerzo_seg)}"
+            if res.tiempo_almuerzo_seg > 0
+            else f"Pausas externas: {formatear_duracion_corta(res.tiempo_pausas_externas_seg)}"
+        )
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + 3.0 * (w_card + gap), y_kpi, w_card, h_card),
+            eyebrow="Tiempo total invertido",
+            valor=formatear_duracion_corta(res.tiempo_bruto_total_seg),
+            color_acento=pal.morado,
+            sublinea_1=f"Fuera de horario: {formatear_duracion_corta(res.tiempo_fuera_horario_seg)}",
+            sublinea_2=sub_alm,
+            barra_segmentos=[
+                (float(bruto_jor_seg), pal.primario),
+                (float(res.tiempo_fuera_horario_seg), pal.morado),
+            ],
+            barra_total=float(max(res.tiempo_bruto_total_seg, 1)),
+        )
+        lienzo.y = y_kpi + h_card + 12.0
+
+        # 3. Fila analítica: Subindicadores (izq) + Línea de tiempo Gantt (der)
+        w_c = round(RepoConfiguracion(self.s).obtener_float("productividad.peso_cumplimiento", 0.40) * 100)
+        w_e = round(RepoConfiguracion(self.s).obtener_float("productividad.peso_eficiencia", 0.30) * 100)
+        w_f = round(RepoConfiguracion(self.s).obtener_float("productividad.peso_foco", 0.30) * 100)
+        nota_pesos = f"Pesos: Cumpl. {w_c}% · Efic. {w_e}% · Foco {w_f}%"
+        if res.eficiencia_pct is None:
+            nota_pesos += " (Efic. se pondera al tener estimados)."
+
+        y_ana = lienzo.y
+        h_ana = 174.0
+        dibujar_card_subindicadores(
+            lienzo,
+            QRectF(MARGEN_X, y_ana, 248.0, h_ana),
+            cumplimiento_pct=res.cumplimiento_pct,
+            eficiencia_pct=res.eficiencia_pct,
+            foco_pct=res.foco_pct,
+            nota_pesos=nota_pesos,
+        )
+        bloques_tl, segs_tl, resumen_tl = self._construir_timeline_dia(
+            jornada, actividades, pausas, pal
+        )
+        dibujar_timeline_jornada(
+            lienzo,
+            QRectF(MARGEN_X + 260.0, y_ana, ANCHO_CONTENIDO - 260.0, h_ana),
+            bloques=bloques_tl,
+            segmentos=segs_tl,
+            resumen_pie=resumen_tl,
+        )
+        lienzo.y = y_ana + h_ana + 12.0
+
+        # 4. Gráfico de distribución por categoría (compacto)
+        items_cat = self._agrupar_categorias_actividades(
+            actividades, pal, solo_fecha=jornada.fecha
+        )
+        if items_cat:
+            est_h = 48.0 + min(6, len(items_cat)) * 26.0
+            lienzo.asegurar_espacio(est_h + 10.0)
+            usado_cat = dibujar_barras_horizontales(
+                lienzo,
+                QRectF(MARGEN_X, lienzo.y, ANCHO_CONTENIDO, est_h),
+                titulo="Distribución de tiempo por categoría",
+                items=items_cat,
+                max_items=6,
+            )
+            lienzo.y += usado_cat + 14.0
+
+        # 5. Tablas detalladas auto-paginadas (sin duplicar tiempos ni repetir tablas)
+        self._dibujar_tabla_actividades_dia(
+            lienzo,
+            actividades,
+            "Detalle de actividades del día",
+            solo_fecha=jornada.fecha,
+        )
+
+        extras = [a for a in actividades if a.tipo == TipoActividad.EXTRA.value]
+        arrastradas_pend = [
             a
-            for a in self.srv_act.listar_visibles_jornada(jornada.id)
-            if not a.es_revision
+            for a in actividades
+            if a.estado in (EstadoActividad.ARRASTRADA.value, EstadoActividad.PENDIENTE.value)
         ]
+        self._dibujar_resumen_destacados_dia(lienzo, extras, arrastradas_pend, jornada.fecha)
 
-        cuerpo = f"""
-        <table width="100%" cellspacing="0" cellpadding="10"
-               style="background-color:#EFF6FF; border:1px solid #93C5FD; margin-bottom:10px;">
-          <tr>
-            <td>
-              <div style="font-size:10pt; font-weight:bold; color:{color_emp};">
-                REGISTRO DE APOYO EN DÍA NO LABORAL ({jornada.fecha:%d/%m/%Y})
-              </div>
-              <div style="margin-top:4px; font-size:9pt; color:#1E293B;">
-                Tiempo total invertido fuera de horario habitual:
-                <b style="color:{color_emp}; font-size:11pt;">{formatear_duracion_corta(res.tiempo_fuera_horario_seg)}</b>
-              </div>
-              <div style="margin-top:3px; font-size:8pt; color:#475569; font-style:italic;">
-                Nota: Conforme a los lineamientos de medición, el trabajo en días no laborales se reporta como tiempo adicional y no genera calificación porcentual de productividad.
-              </div>
-            </td>
-          </tr>
-        </table>
-        {_titulo_seccion_html("1", "Actividades atendidas", color_emp)}
-        {self._tabla_actividades_html(visibles)}
-        """
+        self._dibujar_seccion_revisiones(lienzo, revisiones, solo_fecha=jornada.fecha)
+        self._dibujar_seccion_pausas(lienzo, pausas, res)
 
-        html_doc = _envolver_html(
-            titulo="Reporte de Actividades en Día No Laboral",
-            subtitulo=f"Fecha: {jornada.fecha:%d/%m/%Y} · Registro fuera de horario",
-            empresa=empresa,
-            usuario=usuario,
-            cargo_area=cargo_area,
-            cuerpo_html=cuerpo,
-            color_primario=color_emp,
-            logo_ruta=logo,
-        )
-        destino = (
-            Path(ruta_destino)
-            if ruta_destino
-            else self.carpeta / f"reporte_dia_no_laboral_{jornada.fecha:%Y%m%d}.pdf"
-        )
-        return renderizar_html_a_pdf(html_doc, destino)
+        # 6. Firmas
+        lienzo.dibujar_firmas(cab.usuario)
+        return lienzo.finalizar()
 
     # ------------------------------------------------------------------
-    # 2. PDF específico (por actividad, categoría, solicitante o fechas)
+    # 2. Reporte Día No Laboral
+    # ------------------------------------------------------------------
+
+    def generar_pdf_dia_no_laboral(
+        self,
+        jornada: Jornada,
+        ruta_destino: Path | str | None = None,
+    ) -> Path:
+        """Genera el reporte para sábado no laboral, domingo o festivo."""
+        cab = _cargar_cabecera(self.s)
+        res = self.srv_prod.calcular_jornada(jornada)
+        actividades = self.srv_act.listar_visibles_jornada(jornada.id)
+        pausas = self._pausas_jornada(jornada.id)
+
+        destino = (
+            Path(ruta_destino)
+            if ruta_destino
+            else rutas.carpeta_reportes() / f"Reporte_no_laboral_{jornada.fecha:%Y-%m-%d}.pdf"
+        )
+        lienzo = LienzoPDF(
+            destino,
+            titulo_doc="Registro de Día No Laboral",
+            empresa=cab.empresa,
+            subtitulo_continuacion=_fecha_larga_es(jornada.fecha),
+            color_primario=cab.color_primario,
+            emitido_texto=cab.emitido,
+        )
+        pal = lienzo.paleta
+
+        lienzo.dibujar_cabecera_hero(
+            eyebrow=f"{cab.empresa} · Registro Extraordinario",
+            titulo="Registro de Día No Laboral",
+            subtitulo=_fecha_larga_es(jornada.fecha),
+            estado_badge="NO LABORAL",
+            horario_texto="Sin porcentaje de productividad aplicable",
+            ruta_logo=cab.ruta_logo,
+        )
+        lienzo.dibujar_tira_metadatos(
+            [
+                ("Colaborador", cab.usuario),
+                ("Cargo", cab.cargo),
+                ("Área", cab.area),
+                ("Clasificación", "Trabajo fuera de horario"),
+            ]
+        )
+
+        # 3 tarjetas KPI ejecutivas
+        y_kpi = lienzo.y
+        gap = 12.0
+        w3 = (ANCHO_CONTENIDO - 2.0 * gap) / 3.0
+        h3 = 100.0
+        completadas = sum(
+            1 for a in actividades if a.estado == EstadoActividad.COMPLETADA.value
+        )
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X, y_kpi, w3, h3),
+            eyebrow="Tiempo fuera de horario",
+            valor=formatear_duracion_corta(res.tiempo_fuera_horario_seg),
+            color_acento=pal.primario,
+            sublinea_1="Todo el tiempo trabajado en días no",
+            sublinea_2="laborales se contabiliza como extra.",
+        )
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + (w3 + gap), y_kpi, w3, h3),
+            eyebrow="Actividades registradas",
+            valor=str(len(actividades)),
+            color_acento=pal.verde,
+            sublinea_1=f"Completadas: {completadas}",
+            sublinea_2=f"En seguimiento: {len(actividades) - completadas}",
+        )
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + 2.0 * (w3 + gap), y_kpi, w3, h3),
+            eyebrow="Pausas registradas",
+            valor=formatear_duracion_corta(res.tiempo_pausas_seg),
+            color_acento=pal.ambar,
+            sublinea_1=f"Almuerzo: {formatear_duracion_corta(res.tiempo_almuerzo_seg)}",
+            sublinea_2=f"Estado jornada: {jornada.estado.upper()}",
+        )
+        lienzo.y = y_kpi + h3 + 12.0
+
+        # Línea de tiempo + categorías
+        bloques_tl, segs_tl, resumen_tl = self._construir_timeline_dia(
+            jornada, actividades, pausas, pal
+        )
+        if segs_tl:
+            dibujar_timeline_jornada(
+                lienzo,
+                QRectF(MARGEN_X, lienzo.y, ANCHO_CONTENIDO, 168.0),
+                bloques=bloques_tl,
+                segmentos=segs_tl,
+                resumen_pie=resumen_tl,
+            )
+            lienzo.y += 180.0
+
+        items_cat = self._agrupar_categorias_actividades(
+            actividades, pal, solo_fecha=jornada.fecha
+        )
+        if items_cat:
+            est_h = 48.0 + min(6, len(items_cat)) * 26.0
+            lienzo.asegurar_espacio(est_h + 10.0)
+            usado = dibujar_barras_horizontales(
+                lienzo,
+                QRectF(MARGEN_X, lienzo.y, ANCHO_CONTENIDO, est_h),
+                titulo="Tiempo por categoría en día no laboral",
+                items=items_cat,
+            )
+            lienzo.y += usado + 12.0
+
+        self._dibujar_tabla_actividades_dia(
+            lienzo,
+            actividades,
+            "Actividades registradas",
+            solo_fecha=jornada.fecha,
+        )
+        self._dibujar_seccion_pausas(lienzo, pausas, res)
+        lienzo.dibujar_firmas(cab.usuario)
+        return lienzo.finalizar()
+
+    # ------------------------------------------------------------------
+    # 3. Reporte Específico por Filtros
     # ------------------------------------------------------------------
 
     def generar_pdf_especifico(
         self,
         filtros: FiltrosHistorial,
-        *,
-        titulo_filtro: str = "Reporte específico de actividades",
+        titulo_filtro: str = "Reporte específico",
         ruta_destino: Path | str | None = None,
     ) -> Path:
-        empresa, usuario, cargo_area, color_emp, logo = self._datos_cabecera()
-        actividades = [
-            a for a in self.srv_hist.buscar_actividades(filtros) if not a.es_revision
-        ]
-        total_seg = sum(
-            self.srv_act.desglose_tiempos(a).segundos_total for a in actividades
-        )
-        completadas = sum(
-            1 for a in actividades if a.estado == EstadoActividad.COMPLETADA.value
-        )
+        """Genera un reporte filtrado por fecha, categoría, solicitante o tipo."""
+        cab = _cargar_cabecera(self.s)
+        actividades = self.srv_hist.buscar_actividades(filtros)
 
-        cuerpo = f"""
-        <table width="100%" cellspacing="0" cellpadding="8"
-               style="background-color:#F8FAFC; border:1px solid #CBD5E1; margin-bottom:10px;">
-          <tr>
-            <td width="36%" style="border-right:1px solid #E2E8F0;">
-              <span style="font-size:7.5pt; color:#64748B; font-weight:bold;">CRITERIO / FILTRO</span><br/>
-              <b style="font-size:9.5pt; color:{color_emp};">{_esc(titulo_filtro)}</b>
-            </td>
-            <td width="26%" style="border-right:1px solid #E2E8F0;">
-              <span style="font-size:7.5pt; color:#64748B; font-weight:bold;">PERIODO CONSULTADO</span><br/>
-              <b>{filtros.fecha_desde:%d/%m/%Y} al {filtros.fecha_hasta:%d/%m/%Y}</b>
-            </td>
-            <td width="18%" style="border-right:1px solid #E2E8F0;">
-              <span style="font-size:7.5pt; color:#64748B; font-weight:bold;">ACTIVIDADES</span><br/>
-              <b>{len(actividades)}</b> ({completadas} compl.)
-            </td>
-            <td width="20%">
-              <span style="font-size:7.5pt; color:#64748B; font-weight:bold;">TIEMPO ACUMULADO</span><br/>
-              <b style="font-size:10.5pt; color:{color_emp};">{formatear_duracion_corta(total_seg)}</b>
-            </td>
-          </tr>
-        </table>
-        {_titulo_seccion_html("1", "Detalle de actividades encontradas", color_emp)}
-        {self._tabla_actividades_html(actividades, incluir_fecha=True)}
-        """
-        html_doc = _envolver_html(
-            titulo=titulo_filtro,
-            subtitulo=f"Periodo del {filtros.fecha_desde:%d/%m/%Y} al {filtros.fecha_hasta:%d/%m/%Y}",
-            empresa=empresa,
-            usuario=usuario,
-            cargo_area=cargo_area,
-            cuerpo_html=cuerpo,
-            color_primario=color_emp,
-            logo_ruta=logo,
-        )
+        rango_txt = "Todo el historial disponible"
+        if filtros.fecha_desde and filtros.fecha_hasta:
+            rango_txt = f"{filtros.fecha_desde:%d/%m/%Y} al {filtros.fecha_hasta:%d/%m/%Y}"
+        elif filtros.fecha_desde:
+            rango_txt = f"Desde {filtros.fecha_desde:%d/%m/%Y}"
+        elif filtros.fecha_hasta:
+            rango_txt = f"Hasta {filtros.fecha_hasta:%d/%m/%Y}"
+
+        seg_totales = 0
+        seg_fuera = 0
+        completadas = 0
+        por_estado: dict[str, int] = {}
+        for a in actividades:
+            seg_dir, seg_fh, _, _ = self._tiempos_directos_actividad(a)
+            seg_totales += seg_dir
+            seg_fuera += seg_fh
+            if a.estado == EstadoActividad.COMPLETADA.value:
+                completadas += 1
+            est_lbl = _ETIQUETAS_ESTADO.get(a.estado, a.estado)
+            por_estado[est_lbl] = por_estado.get(est_lbl, 0) + 1
+
         destino = (
             Path(ruta_destino)
             if ruta_destino
-            else self.carpeta
-            / f"reporte_especifico_{filtros.fecha_desde:%Y%m%d}_{filtros.fecha_hasta:%Y%m%d}.pdf"
+            else rutas.carpeta_reportes()
+            / f"Reporte_Especifico_{_limpiar_nombre_archivo(titulo_filtro)}_{ahora():%Y%m%d}.pdf"
         )
-        return renderizar_html_a_pdf(html_doc, destino)
+        lienzo = LienzoPDF(
+            destino,
+            titulo_doc=titulo_filtro,
+            empresa=cab.empresa,
+            subtitulo_continuacion=rango_txt,
+            color_primario=cab.color_primario,
+            emitido_texto=cab.emitido,
+        )
+        pal = lienzo.paleta
+
+        lienzo.dibujar_cabecera_hero(
+            eyebrow=f"{cab.empresa} · Consulta Filtrada",
+            titulo=titulo_filtro,
+            subtitulo=f"Período consultado: {rango_txt}",
+            estado_badge="FILTRADO",
+            horario_texto=f"{len(actividades)} actividades encontradas",
+            ruta_logo=cab.ruta_logo,
+        )
+        lienzo.dibujar_tira_metadatos(
+            [
+                ("Colaborador", cab.usuario),
+                ("Cargo", cab.cargo),
+                ("Período", rango_txt),
+                ("Tipo filtro", _etiqueta_tipo(filtros.tipo) if filtros.tipo else "Todos"),
+            ]
+        )
+
+        # 3 KPIs de síntesis
+        y_kpi = lienzo.y
+        gap = 12.0
+        w3 = (ANCHO_CONTENIDO - 2.0 * gap) / 3.0
+        h3 = 100.0
+        pct_comp = (completadas / len(actividades) * 100.0) if actividades else 0.0
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X, y_kpi, w3, h3),
+            eyebrow="Tiempo total acumulado",
+            valor=formatear_duracion_corta(seg_totales),
+            color_acento=pal.primario,
+            sublinea_1=f"En horario: {formatear_duracion_corta(max(0, seg_totales - seg_fuera))}",
+            sublinea_2=f"Fuera de horario: {formatear_duracion_corta(seg_fuera)}",
+        )
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + (w3 + gap), y_kpi, w3, h3),
+            eyebrow="Actividades encontradas",
+            valor=str(len(actividades)),
+            color_acento=pal.verde,
+            sublinea_1=f"Completadas: {completadas} ({pct_comp:.0f}%)",
+            sublinea_2=f"Otros estados: {len(actividades) - completadas}",
+        )
+        prom_seg = int(seg_totales / len(actividades)) if actividades else 0
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + 2.0 * (w3 + gap), y_kpi, w3, h3),
+            eyebrow="Promedio por actividad",
+            valor=formatear_duracion_corta(prom_seg),
+            color_acento=pal.morado,
+            sublinea_1="Cálculo sobre sesiones acumuladas",
+            sublinea_2="del conjunto filtrado.",
+        )
+        lienzo.y = y_kpi + h3 + 12.0
+
+        # Fila gráfica: Categorías + Estados
+        items_cat = self._agrupar_categorias_actividades(actividades, pal)
+        items_est = [
+            ItemBarraHorizontal(
+                etiqueta=est,
+                valor=float(cnt),
+                texto_valor=f"{cnt} act.",
+                color=pal.verde if "Complet" in est else (pal.ambar if "Arras" in est else pal.azul),
+            )
+            for est, cnt in sorted(por_estado.items(), key=lambda x: x[1], reverse=True)
+        ]
+        if items_cat or items_est:
+            n_max = max(len(items_cat[:5]), len(items_est[:5]), 1)
+            h_est = 46.0 + n_max * 26.0
+            lienzo.asegurar_espacio(h_est + 10.0)
+            y_g = lienzo.y
+            w2 = (ANCHO_CONTENIDO - 12.0) / 2.0
+            h_u1 = dibujar_barras_horizontales(
+                lienzo,
+                QRectF(MARGEN_X, y_g, w2, h_est),
+                titulo="Tiempo por categoría",
+                items=items_cat,
+                max_items=5,
+            )
+            h_u2 = dibujar_barras_horizontales(
+                lienzo,
+                QRectF(MARGEN_X + w2 + 12.0, y_g, w2, h_est),
+                titulo="Distribución por estado",
+                items=items_est,
+                max_items=5,
+            )
+            lienzo.y = y_g + max(h_u1, h_u2) + 14.0
+
+        self._dibujar_tabla_actividades_dia(
+            lienzo,
+            actividades,
+            "Actividades incluidas en el reporte",
+            con_fecha=True,
+        )
+        lienzo.dibujar_firmas(cab.usuario)
+        return lienzo.finalizar()
 
     # ------------------------------------------------------------------
-    # 3. PDF semanal y mensual con tendencia
+    # 4. Reporte Periódico (Semanal / Mensual)
     # ------------------------------------------------------------------
 
     def generar_pdf_periodo(
         self,
-        fecha_desde: date,
-        fecha_hasta: date,
-        *,
-        etiqueta_periodo: str = "Semanal / Mensual",
+        desde: date,
+        hasta: date,
+        etiqueta_periodo: str = "Semanal",
         ruta_destino: Path | str | None = None,
     ) -> Path:
-        empresa, usuario, cargo_area, color_emp, logo = self._datos_cabecera()
-        est = self.srv_est.calcular(fecha_desde, fecha_hasta)
-
-        prom_prod = (
-            round(
-                sum(p.productividad_pct for p in est.tendencia_diaria)
-                / len(est.tendencia_diaria),
-                1,
+        """Genera un reporte consolidado Semanal o Mensual altamente gráfico."""
+        cab = _cargar_cabecera(self.s)
+        stats = self.srv_est.calcular(desde, hasta)
+        jornadas_rango = list(
+            self.s.scalars(
+                select(Jornada)
+                .where(Jornada.fecha >= desde, Jornada.fecha <= hasta)
+                .order_by(Jornada.fecha.asc())
             )
-            if est.tendencia_diaria
-            else None
         )
-        total_ef = sum(p.tiempo_efectivo_seg for p in est.tendencia_diaria)
+        resultados_dia = [(j, self.srv_prod.calcular_jornada(j)) for j in jornadas_rango]
 
-        filas_tend = []
-        for i, p in enumerate(est.tendencia_diaria):
-            bg = "#FFFFFF" if i % 2 == 0 else "#F8FAFC"
-            col_p = (
-                "#15803D"
-                if p.productividad_pct >= 85
-                else ("#B45309" if p.productividad_pct >= 60 else "#B91C1C")
-            )
-            filas_tend.append(
-                f'<tr style="background-color:{bg};">'
-                f"<td><b>{_esc(p.etiqueta)}</b></td>"
-                f'<td width="22%" align="center"><b style="color:{col_p};">{p.productividad_pct:.1f}%</b></td>'
-                f'<td width="38%">{_barra_progreso_html(p.productividad_pct, col_p)}</td>'
-                f'<td width="20%" align="right"><b>{formatear_duracion_corta(p.tiempo_efectivo_seg)}</b></td>'
-                f"</tr>"
-            )
-
-        filas_cat = [
-            f'<tr style="background-color:{"#FFFFFF" if i % 2 == 0 else "#F8FAFC"};">'
-            f"<td><b>{_esc(c.categoria_nombre)}</b></td>"
-            f'<td align="center">{c.cantidad_actividades}</td>'
-            f'<td align="right"><b>{formatear_duracion_corta(c.segundos)}</b></td></tr>'
-            for i, c in enumerate(est.por_categoria)
+        tiempo_ef_total = sum(r.tiempo_efectivo_seg for _, r in resultados_dia)
+        tiempo_pau_total = sum(r.tiempo_pausas_seg for _, r in resultados_dia)
+        tiempo_fh_total = sum(r.tiempo_fuera_horario_seg for _, r in resultados_dia)
+        bruto_total_periodo = tiempo_ef_total + tiempo_pau_total + tiempo_fh_total
+        prods_lab = [
+            r.productividad_pct
+            for _, r in resultados_dia
+            if r.es_laboral and r.productividad_pct is not None
         ]
-        filas_sol = [
-            f'<tr style="background-color:{"#FFFFFF" if i % 2 == 0 else "#F8FAFC"};">'
-            f"<td><b>{_esc(s.solicitante_nombre)}</b></td>"
-            f'<td align="center">{s.cantidad_solicitudes}</td>'
-            f'<td align="right"><b>{formatear_duracion_corta(s.segundos)}</b></td></tr>'
-            for i, s in enumerate(est.por_solicitante)
-        ]
+        prod_prom = round(sum(prods_lab) / len(prods_lab), 1) if prods_lab else None
+        dias_lab = sum(1 for _, r in resultados_dia if r.es_laboral)
+        sem_prom = self.srv_prod.clasificar_semaforo(prod_prom)
+        rango_txt = f"{desde:%d/%m/%Y} al {hasta:%d/%m/%Y}"
 
-        prom_txt = (
-            f"{prom_prod:.1f}%" if prom_prod is not None else "Sin jornadas cerradas"
-        )
-        cuerpo = f"""
-        <table width="100%" cellspacing="0" cellpadding="8"
-               style="background-color:#F8FAFC; border:1px solid #CBD5E1; margin-bottom:10px;">
-          <tr>
-            <td width="34%" style="border-right:1px solid #E2E8F0;">
-              <span style="font-size:7.5pt; color:#64748B; font-weight:bold;">PRODUCTIVIDAD PROMEDIO</span><br/>
-              <b style="font-size:14pt; color:{color_emp};">{prom_txt}</b>
-            </td>
-            <td width="33%" style="border-right:1px solid #E2E8F0;">
-              <span style="font-size:7.5pt; color:#64748B; font-weight:bold;">TIEMPO EFECTIVO ACUMULADO</span><br/>
-              <b style="font-size:14pt; color:#0F172A;">{formatear_duracion_corta(total_ef)}</b>
-            </td>
-            <td width="33%">
-              <span style="font-size:7.5pt; color:#64748B; font-weight:bold;">REVISIONES EN EL PERIODO</span><br/>
-              <b style="font-size:14pt; color:#0F172A;">{est.revisiones.total_revisiones}</b>
-            </td>
-          </tr>
-        </table>
-
-        {_titulo_seccion_html("1", "Evolución diaria de productividad (Tendencia)", color_emp)}
-        <table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr><th>Jornada</th><th>Productividad</th><th>Nivel alcanzado</th><th>Tiempo efectivo</th></tr></thead>
-        <tbody>{''.join(filas_tend) or '<tr><td colspan="4">Sin registros en el periodo</td></tr>'}</tbody></table>
-
-        {_titulo_seccion_html("2", "Distribución de tiempo por categoría", color_emp)}
-        <table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr><th>Categoría de trabajo</th><th>Actividades</th><th>Tiempo invertido</th></tr></thead>
-        <tbody>{''.join(filas_cat) or '<tr><td colspan="3">Sin registros en el periodo</td></tr>'}</tbody></table>
-
-        {_titulo_seccion_html("3", "Tiempo invertido por solicitante", color_emp)}
-        <table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr><th>Solicitante / Área</th><th>Solicitudes atendidas</th><th>Tiempo invertido</th></tr></thead>
-        <tbody>{''.join(filas_sol) or '<tr><td colspan="3">Sin registros en el periodo</td></tr>'}</tbody></table>
-        """
-
-        html_doc = _envolver_html(
-            titulo=f"Reporte Consolidado {etiqueta_periodo}",
-            subtitulo=f"Periodo evaluado: {fecha_desde:%d/%m/%Y} al {fecha_hasta:%d/%m/%Y}",
-            empresa=empresa,
-            usuario=usuario,
-            cargo_area=cargo_area,
-            cuerpo_html=cuerpo,
-            color_primario=color_emp,
-            logo_ruta=logo,
-        )
         destino = (
             Path(ruta_destino)
             if ruta_destino
-            else self.carpeta
-            / f"reporte_periodo_{fecha_desde:%Y%m%d}_{fecha_hasta:%Y%m%d}.pdf"
+            else rutas.carpeta_reportes()
+            / f"Reporte_{etiqueta_periodo}_{desde:%Y-%m-%d}_al_{hasta:%Y-%m-%d}.pdf"
         )
-        return renderizar_html_a_pdf(html_doc, destino)
-
-    # ------------------------------------------------------------------
-    # Auxiliares HTML
-    # ------------------------------------------------------------------
-
-    def _tabla_actividades_html(
-        self, actividades: list[Actividad], *, incluir_fecha: bool = False
-    ) -> str:
-        if not actividades:
-            return '<p style="color:#475569; font-style:italic;">No hay actividades registradas en este bloque.</p>'
-
-        col_fecha = "<th>Fecha</th>" if incluir_fecha else ""
-        filas: list[str] = []
-        total_estimado_min = 0
-        total_real_seg = 0
-
-        for i, a in enumerate(actividades):
-            bg = "#FFFFFF" if i % 2 == 0 else "#F8FAFC"
-            des = self.srv_act.desglose_tiempos(a)
-            total_real_seg += des.segundos_total
-            if a.tiempo_estimado_min:
-                total_estimado_min += int(a.tiempo_estimado_min)
-
-            cat = a.categoria.nombre if a.categoria else "General"
-            tipo_legible = _ETIQUETAS_TIPO_ACT.get(a.tipo, a.tipo.capitalize())
-            sol = f"<br/><span style='color:#475569; font-size:7.5pt;'>Solicita: {_esc(a.solicitante.nombre)}</span>" if a.solicitante else ""
-            est_txt, est_col, _est_bg = _ETIQUETAS_ESTADO_ACT.get(
-                a.estado, (a.estado.capitalize(), "#334155", "#F1F5F9")
-            )
-            est_min = f"{a.tiempo_estimado_min} min" if a.tiempo_estimado_min else "—"
-            cambios = (
-                f'<b style="color:#B45309;">Sí ({des.cantidad_revisiones})</b>'
-                if des.solicitaron_cambios
-                else '<span style="color:#64748B;">No</span>'
-            )
-            edit_marca = (
-                ' <span style="color:#64748B; font-size:7.5pt;">[Editado]</span>'
-                if a.editado
-                else ""
-            )
-            desc_html = (
-                f"<br/><span style='color:#475569; font-size:8pt;'>{_esc(a.descripcion)}</span>"
-                if a.descripcion and a.descripcion.strip()
-                else ""
-            )
-            td_fecha = (
-                f"<td>{a.jornada.fecha:%d/%m/%Y}</td>"
-                if incluir_fecha and a.jornada
-                else ("<td>—</td>" if incluir_fecha else "")
-            )
-            filas.append(
-                f'<tr style="background-color:{bg};">'
-                f"{td_fecha}"
-                f"<td><b>{_esc(a.nombre)}</b>{edit_marca}{desc_html}</td>"
-                f"<td>{_esc(cat)}</td>"
-                f"<td><b>{_esc(tipo_legible)}</b>{sol}</td>"
-                f'<td><b style="color:{est_col};">{_esc(est_txt)}</b></td>'
-                f'<td align="right">{est_min}</td>'
-                f'<td align="right"><b>{formatear_duracion_corta(des.segundos_total)}</b></td>'
-                f'<td align="center">{cambios}</td>'
-                f"</tr>"
-            )
-
-        colspan_tot = 5 if incluir_fecha else 4
-        est_tot_str = (
-            formatear_duracion_corta(total_estimado_min * 60)
-            if total_estimado_min > 0
-            else "—"
+        lienzo = LienzoPDF(
+            destino,
+            titulo_doc=f"Reporte {etiqueta_periodo} de Productividad",
+            empresa=cab.empresa,
+            subtitulo_continuacion=rango_txt,
+            color_primario=cab.color_primario,
+            emitido_texto=cab.emitido,
         )
-        fila_total = (
-            f'<tr style="background-color:#E2E8F0; font-weight:bold;">'
-            f'<td colspan="{colspan_tot}" align="right">TOTALES ({len(actividades)} actividades):</td>'
-            f'<td align="right"><b>{est_tot_str}</b></td>'
-            f'<td align="right"><b style="color:#003D95;">{formatear_duracion_corta(total_real_seg)}</b></td>'
-            f"<td>&nbsp;</td>"
-            f"</tr>"
+        pal = lienzo.paleta
+
+        # 1. Banner + Ficha
+        lienzo.dibujar_cabecera_hero(
+            eyebrow=f"{cab.empresa} · Consolidado {etiqueta_periodo}",
+            titulo=f"Reporte {etiqueta_periodo} de Productividad",
+            subtitulo=f"Período del {rango_txt}",
+            estado_badge=etiqueta_periodo.upper(),
+            horario_texto=f"{len(resultados_dia)} días registrados",
+            ruta_logo=cab.ruta_logo,
+        )
+        lienzo.dibujar_tira_metadatos(
+            [
+                ("Colaborador", cab.usuario),
+                ("Cargo", cab.cargo),
+                ("Área", cab.area),
+                ("Jornadas evaluadas", f"{dias_lab} laborales / {len(resultados_dia)} totales"),
+            ]
         )
 
-        return (
-            f'<table class="datos" width="100%" cellspacing="0" cellpadding="6"><thead><tr>{col_fecha}'
-            "<th>Actividad y descripción</th><th>Categoría</th><th>Origen / Solicitante</th>"
-            "<th>Estado</th><th>Estimado</th><th>Tiempo real</th><th>Revisiones</th>"
-            "</tr></thead><tbody>" + "".join(filas) + fila_total + "</tbody></table>"
+        # 2. Fila de 4 tarjetas KPI ejecutivas
+        y_kpi = lienzo.y
+        gap = 10.0
+        w_card = (ANCHO_CONTENIDO - 3.0 * gap) / 4.0
+        h_card = 114.0
+
+        f_sem, t_sem, arc_sem = _colores_semaforo(sem_prom, pal)
+        dibujar_card_kpi_donut(
+            lienzo,
+            QRectF(MARGEN_X, y_kpi, w_card, h_card),
+            eyebrow="Productividad prom.",
+            pct=prod_prom,
+            etiqueta_badge=sem_prom.etiqueta(),
+            fondo_badge=f_sem,
+            texto_badge=t_sem,
+            subtitulo=f"Promedio en {dias_lab} días laborales del período.",
+            color_arco=arc_sem,
         )
+
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + (w_card + gap), y_kpi, w_card, h_card),
+            eyebrow="Bruto del período",
+            valor=formatear_duracion_corta(bruto_total_periodo),
+            color_acento=pal.primario,
+            sublinea_1=f"Bruto jornada: {formatear_duracion_corta(tiempo_ef_total + tiempo_pau_total)}",
+            sublinea_2=f"Fuera horario: {formatear_duracion_corta(tiempo_fh_total)}",
+            barra_segmentos=[
+                (float(tiempo_ef_total), pal.verde),
+                (float(tiempo_pau_total), pal.ambar),
+                (float(tiempo_fh_total), pal.morado),
+            ],
+            barra_total=float(max(bruto_total_periodo, 1)),
+        )
+
+        acts_tot = sum(s.cantidad_solicitudes for s in stats.por_solicitante)
+        revs_tot = stats.revisiones.total_revisiones
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + 2.0 * (w_card + gap), y_kpi, w_card, h_card),
+            eyebrow="Carga atendida",
+            valor=f"{acts_tot} act.",
+            color_acento=pal.azul,
+            sublinea_1=f"{len(stats.por_categoria)} categorías activas",
+            sublinea_2=f"{len(stats.por_solicitante)} solicitantes distintos",
+        )
+
+        dibujar_card_kpi_metrica(
+            lienzo,
+            QRectF(MARGEN_X + 3.0 * (w_card + gap), y_kpi, w_card, h_card),
+            eyebrow="Revisiones / Ajustes",
+            valor=f"{revs_tot}",
+            color_acento=pal.rojo if revs_tot > 0 else pal.verde,
+            sublinea_1=f"Tiempo en rev.: {formatear_duracion_corta(stats.revisiones.segundos_totales)}",
+            sublinea_2=(
+                "Sin devoluciones registradas"
+                if revs_tot == 0
+                else "Ver desglose por motivo abajo"
+            ),
+        )
+        lienzo.y = y_kpi + h_card + 12.0
+
+        # 3. Gráfico vertical de tendencia diaria con umbrales 85% y 60%
+        puntos_g: list[PuntoTendenciaGrafico] = []
+        for j, res_d in resultados_dia:
+            col_pt = color_por_nivel_pct(res_d.productividad_pct, lienzo)
+            puntos_g.append(
+                PuntoTendenciaGrafico(
+                    fecha_corta=f"{_DIAS_CORTOS_ES[j.fecha.weekday()]} {j.fecha:%d}",
+                    dia_corto=_DIAS_CORTOS_ES[j.fecha.weekday()],
+                    productividad_pct=res_d.productividad_pct,
+                    tiempo_texto=formatear_duracion_corta(
+                        res_d.tiempo_efectivo_seg + res_d.tiempo_fuera_horario_seg
+                    ),
+                    color=col_pt,
+                )
+            )
+        dibujar_tendencia_vertical(
+            lienzo,
+            puntos=puntos_g,
+            titulo=f"Tendencia diaria de productividad ({etiqueta_periodo.lower()})",
+        )
+
+        # 4. Fila de gráficos comparativos: Categorías + Solicitantes
+        tot_cat_seg = sum(c.segundos for c in stats.por_categoria) or 1
+        items_cat = [
+            ItemBarraHorizontal(
+                etiqueta=c.categoria_nombre,
+                valor=float(c.segundos),
+                texto_valor=f"{formatear_duracion_corta(c.segundos)} ({c.segundos / tot_cat_seg * 100.0:.0f}%)",
+                color=QColor(c.color) if QColor(c.color).isValid() else pal.primario,
+                subetiqueta=f"{c.cantidad_actividades} act.",
+            )
+            for c in stats.por_categoria
+        ]
+        items_sol = [
+            ItemBarraHorizontal(
+                etiqueta=sol.solicitante_nombre,
+                valor=float(sol.segundos),
+                texto_valor=formatear_duracion_corta(sol.segundos),
+                color=pal.azul if sol.tipo_solicitante == "jefe" else (pal.verde if sol.tipo_solicitante == "propia" else pal.morado),
+                subetiqueta=f"{sol.cantidad_solicitudes} sol.",
+            )
+            for sol in stats.por_solicitante
+        ]
+        n_bars = max(len(items_cat[:6]), len(items_sol[:6]), 1)
+        h_bars = 48.0 + n_bars * 26.0
+        lienzo.asegurar_espacio(h_bars + 10.0)
+        y_b = lienzo.y
+        w2 = (ANCHO_CONTENIDO - 12.0) / 2.0
+        hu1 = dibujar_barras_horizontales(
+            lienzo,
+            QRectF(MARGEN_X, y_b, w2, h_bars),
+            titulo="Tiempo por categoría",
+            items=items_cat,
+            max_items=6,
+        )
+        hu2 = dibujar_barras_horizontales(
+            lienzo,
+            QRectF(MARGEN_X + w2 + 12.0, y_b, w2, h_bars),
+            titulo="Tiempo por solicitante",
+            items=items_sol,
+            max_items=6,
+        )
+        lienzo.y = y_b + max(hu1, hu2) + 12.0
+
+        # 5. Fila de insights: Estimado vs Real (izq) + Desglose de Revisiones (der)
+        items_est_real = [
+            ItemEstimadoRealGrafico(
+                grupo=er.grupo,
+                cantidad=er.cantidad,
+                estimado_min=er.estimado_promedio_min,
+                real_min=er.real_promedio_min,
+            )
+            for er in stats.estimado_vs_real
+        ]
+        h_comp = max(136.0, 58.0 + min(6, max(1, len(items_est_real))) * 31.0)
+        lienzo.asegurar_espacio(h_comp + 12.0)
+        y_ins = lienzo.y
+        h_er = dibujar_estimado_vs_real(
+            lienzo,
+            QRectF(MARGEN_X, y_ins, w2, h_comp),
+            items=items_est_real,
+        )
+        motivos_lst = [
+            (_ETIQUETAS_MOTIVO_REV.get(k, k.replace("_", " ").capitalize()), v)
+            for k, v in sorted(stats.revisiones.por_motivo.items(), key=lambda x: x[1], reverse=True)
+        ]
+        tipos_lst = [
+            (_ETIQUETAS_TIPO_REV.get(k, k.replace("_", " ").capitalize()), v)
+            for k, v in sorted(stats.revisiones.por_tipo.items(), key=lambda x: x[1], reverse=True)
+        ]
+        h_rev = dibujar_desglose_revisiones(
+            lienzo,
+            QRectF(MARGEN_X + w2 + 12.0, y_ins, w2, h_comp),
+            total_revisiones=stats.revisiones.total_revisiones,
+            tiempo_txt=formatear_duracion_corta(stats.revisiones.segundos_totales),
+            por_motivo=motivos_lst,
+            por_tipo=tipos_lst,
+        )
+        lienzo.y = y_ins + max(h_er, h_rev) + 14.0
+
+        # 6. Tabla detallada por jornada
+        if resultados_dia:
+            filas_tend: list[list[str]] = []
+            for j, res_d in resultados_dia:
+                f_txt = f"{_DIAS_CORTOS_ES[j.fecha.weekday()]} {j.fecha:%d/%m/%Y}"
+                tipo_j = "Laboral" if res_d.es_laboral else "No laboral"
+                c_txt = f"{res_d.cumplimiento_pct:.1f}%" if res_d.cumplimiento_pct is not None else "—"
+                e_txt = f"{res_d.eficiencia_pct:.1f}%" if res_d.eficiencia_pct is not None else "—"
+                k_txt = f"{res_d.foco_pct:.1f}%" if res_d.foco_pct is not None else "—"
+                g_txt = f"{res_d.productividad_pct:.1f}%" if res_d.productividad_pct is not None else "No apl."
+                ef_y_br = formatear_duracion_corta(res_d.tiempo_bruto_jornada_seg)
+                fh_txt = formatear_duracion_corta(res_d.tiempo_fuera_horario_seg)
+                filas_tend.append(
+                    [f_txt, tipo_j, c_txt, e_txt, k_txt, g_txt, ef_y_br, fh_txt]
+                )
+            # 124 + 86 + 68 + 68 + 68 + 78 + 126 + 126 = 744 px
+            cols_tend = [
+                ("Fecha", 124.0, Qt.AlignmentFlag.AlignLeft),
+                ("Jornada", 86.0, Qt.AlignmentFlag.AlignLeft),
+                ("Cumpl.", 68.0, Qt.AlignmentFlag.AlignRight),
+                ("Efic.", 68.0, Qt.AlignmentFlag.AlignRight),
+                ("Foco", 68.0, Qt.AlignmentFlag.AlignRight),
+                ("Global", 78.0, Qt.AlignmentFlag.AlignRight),
+                ("Bruto en jornada", 126.0, Qt.AlignmentFlag.AlignRight),
+                ("Fuera de horario", 126.0, Qt.AlignmentFlag.AlignRight),
+            ]
+            prom_txt = f"{prod_prom:.1f}%" if prod_prom is not None else "—"
+            tot_tend = [
+                f"Resumen ({len(resultados_dia)} días)",
+                f"{dias_lab} lab.",
+                "—",
+                "—",
+                "—",
+                prom_txt,
+                formatear_duracion_corta(tiempo_ef_total + tiempo_pau_total),
+                formatear_duracion_corta(tiempo_fh_total),
+            ]
+            lienzo.dibujar_seccion(
+                "Desglose detallado por día",
+                subtitulo=rango_txt,
+                alto_min_siguiente=78.0,
+            )
+            lienzo.dibujar_tabla_paginada(cols_tend, filas_tend, fila_totales=tot_tend, tam_pt=7.8)
+
+        lienzo.dibujar_firmas(cab.usuario)
+        return lienzo.finalizar()

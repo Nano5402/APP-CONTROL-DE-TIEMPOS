@@ -544,7 +544,7 @@ class PantallaConfiguracion(QWidget):
         card_prod.setProperty("card", True)
         form_prod = QFormLayout(card_prod)
         form_prod.setSpacing(12)
-        form_prod.addRow(QLabel("<b>Meta de Tiempo Efectivo y Pesos de Productividad</b>"))
+        form_prod.addRow(QLabel("<b>Pesos de Productividad y Referencia de Jornada</b>"))
 
         self.spin_meta_pct = QSpinBox(card_prod)
         self.spin_meta_pct.setRange(10, 100)
@@ -568,7 +568,7 @@ class PantallaConfiguracion(QWidget):
         fila_pesos.addWidget(QLabel("Foco:"))
         fila_pesos.addWidget(self.spin_peso_f)
 
-        form_prod.addRow("Meta diaria de tiempo efectivo:", self.spin_meta_pct)
+        form_prod.addRow("Jornada de referencia (% efectivo):", self.spin_meta_pct)
         form_prod.addRow("Pesos de la fórmula (suman 100 %):", fila_pesos)
         col.addWidget(card_prod)
 
@@ -866,7 +866,7 @@ class PantallaConfiguracion(QWidget):
             }
             self._recargar_combos_tonos(seleccion_tonos)
 
-            self.spin_meta_pct.setValue(int(cfg.obtener_float("meta.tiempo_efectivo_pct", 80)))
+            self.spin_meta_pct.setValue(int(cfg.obtener_float("meta.tiempo_efectivo_pct", 100)))
 
             self.spin_peso_c.setValue(
                 int(round(cfg.obtener_float("productividad.peso_cumplimiento", 0.40) * 100))

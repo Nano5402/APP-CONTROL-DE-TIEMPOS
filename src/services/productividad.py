@@ -116,6 +116,17 @@ class ResultadoProductividad:
     pendientes: int
     revisiones_realizadas: int
     datos_referencia: list[DatoReferenciaCategoria]
+    tiempo_almuerzo_seg: int = 0
+
+    @property
+    def tiempo_bruto_jornada_seg(self) -> int:
+        """Tiempo bruto invertido en la jornada laboral (efectivo + pausas breves)."""
+        return self.tiempo_efectivo_seg + self.tiempo_pausas_seg
+
+    @property
+    def tiempo_bruto_total_seg(self) -> int:
+        """Tiempo total registrado en el día (bruto en jornada + fuera de horario)."""
+        return self.tiempo_efectivo_seg + self.tiempo_pausas_seg + self.tiempo_fuera_horario_seg
 
 
 class ServicioProductividad:
@@ -153,10 +164,19 @@ class ServicioProductividad:
                 )
             )
         )
+        pausas_excluidas = {
+            TipoPausa.FIN_JORNADA.value,
+            TipoPausa.ALMUERZO.value,
+        }
         tiempo_pausas_seg = sum(
             max(0, int((p.fin - p.inicio).total_seconds()))
             for p in pausas_jornada
-            if p.fin and p.tipo != TipoPausa.FIN_JORNADA.value
+            if p.fin and p.tipo not in pausas_excluidas
+        )
+        tiempo_almuerzo_seg = sum(
+            max(0, int((p.fin - p.inicio).total_seconds()))
+            for p in pausas_jornada
+            if p.fin and p.tipo == TipoPausa.ALMUERZO.value
         )
         tiempo_pausas_ext_seg = sum(
             max(0, int((p.fin - p.inicio).total_seconds()))
@@ -214,8 +234,8 @@ class ServicioProductividad:
             if a.es_revision and a.estado == EstadoActividad.COMPLETADA.value
         ]
 
-        # Meta de tiempo efectivo (RF-10)
-        meta_pct = self.config.obtener_float("meta.tiempo_efectivo_pct", 80.0)
+        # Referencia de jornada completa (100 % del horario salvo ajuste manual)
+        meta_pct = self.config.obtener_float("meta.tiempo_efectivo_pct", 100.0)
         meta_seg = int(round(jornada.duracion_jornada_seg * (meta_pct / 100.0)))
         if meta_seg > 0:
             progreso_meta = min(100.0, round((tiempo_efectivo_seg / meta_seg) * 100.0, 1))
@@ -250,6 +270,7 @@ class ServicioProductividad:
                 pendientes=len(pendientes),
                 revisiones_realizadas=len(revisiones_realizadas),
                 datos_referencia=datos_ref,
+                tiempo_almuerzo_seg=tiempo_almuerzo_seg,
             )
 
         cumplimiento = self._calcular_cumplimiento(actividades_jornada, sesiones_dia, jornada)
@@ -300,6 +321,7 @@ class ServicioProductividad:
             pendientes=len(pendientes),
             revisiones_realizadas=len(revisiones_realizadas),
             datos_referencia=datos_ref,
+            tiempo_almuerzo_seg=tiempo_almuerzo_seg,
         )
 
     def clasificar_semaforo(self, productividad_pct: float | None) -> NivelSemaforo:
