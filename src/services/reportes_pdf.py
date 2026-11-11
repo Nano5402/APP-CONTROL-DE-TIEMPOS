@@ -136,15 +136,13 @@ def _etiqueta_prioridad(prio: str) -> str:
 
 def _colores_semaforo(semaforo: NivelSemaforo, pal: PaletaPDF) -> tuple[QColor, QColor, QColor]:
     """Devuelve ``(fondo_pill, texto_pill, arco)`` acorde con el semáforo."""
-    if semaforo == NivelSemaforo.EXCELENTE:
-        return pal.verde_suave, pal.verde, pal.verde
-    if semaforo == NivelSemaforo.ACEPTABLE:
-        return pal.azul_suave, pal.azul, pal.azul
-    if semaforo == NivelSemaforo.MEJORABLE:
-        return pal.ambar_suave, pal.ambar, pal.ambar
-    if semaforo == NivelSemaforo.CRITICO:
-        return pal.rojo_suave, pal.rojo, pal.rojo
-    return pal.neutro_suave, pal.neutro, pal.neutro
+    mapa = {
+        NivelSemaforo.EXCELENTE: (pal.verde_suave, pal.verde, pal.verde),
+        NivelSemaforo.ACEPTABLE: (pal.ambar_suave, pal.ambar, pal.ambar),
+        NivelSemaforo.POR_MEJORAR: (pal.rojo_suave, pal.rojo, pal.rojo),
+        NivelSemaforo.NO_APLICA: (pal.neutro_suave, pal.neutro, pal.neutro),
+    }
+    return mapa.get(semaforo, (pal.neutro_suave, pal.neutro, pal.neutro))
 
 
 def _color_sesion(act: Actividad, pal: PaletaPDF) -> QColor:

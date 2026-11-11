@@ -12,12 +12,13 @@ from data.enums import MotivoRevision, TipoPausa, TipoRevision
 from data.models import Pausa, SesionTiempo, Solicitante
 from data.repositorios.catalogos import RepoCategorias
 from data.repositorios.jornadas import RepoJornadas
-from reports.generador_pdf import LienzoPDF
+from reports.generador_pdf import LienzoPDF, PaletaPDF
+from reports.graficos_pdf import color_por_nivel_pct
 from services.actividades import ServicioActividades
 from services.cronometro import ServicioCronometro
 from services.historial import FiltrosHistorial
-from services.productividad import ServicioProductividad
-from services.reportes_pdf import ServicioReportesPDF
+from services.productividad import NivelSemaforo, ServicioProductividad
+from services.reportes_pdf import ServicioReportesPDF, _colores_semaforo
 from ui.pantallas.pantalla_hoy import PantallaHoy
 
 
@@ -254,3 +255,80 @@ def test_pantalla_hoy_muestra_bruto_sin_meta(bd, monkeypatch):
     assert "Bruto en jornada:" in vista.lbl_meta.text()
     assert "Meta de tiempo" not in vista.lbl_meta.text()
     vista.close()
+
+
+def test_colores_semaforo_cubre_todos_los_niveles(tmp_path):
+    pal = PaletaPDF.desde_hex("#003D95")
+    vistos: set[NivelSemaforo] = set()
+    for nivel in NivelSemaforo:
+        fondo, texto_c, arco = _colores_semaforo(nivel, pal)
+        assert fondo.isValid() and texto_c.isValid() and arco.isValid()
+        vistos.add(nivel)
+    assert len(vistos) == len(list(NivelSemaforo))
+    assert _colores_semaforo(NivelSemaforo.EXCELENTE, pal) == (pal.verde_suave, pal.verde, pal.verde)
+    assert _colores_semaforo(NivelSemaforo.ACEPTABLE, pal) == (pal.ambar_suave, pal.ambar, pal.ambar)
+    assert _colores_semaforo(NivelSemaforo.POR_MEJORAR, pal) == (pal.rojo_suave, pal.rojo, pal.rojo)
+    assert _colores_semaforo(NivelSemaforo.NO_APLICA, pal) == (pal.neutro_suave, pal.neutro, pal.neutro)
+
+    lienzo = LienzoPDF(tmp_path / "paleta.pdf", "Paleta", "Test")
+    try:
+        assert color_por_nivel_pct(90.0, lienzo) == pal.verde
+        assert color_por_nivel_pct(72.0, lienzo) == pal.ambar
+        assert color_por_nivel_pct(40.0, lienzo) == pal.rojo
+        assert color_por_nivel_pct(None, lienzo) == pal.neutro
+    finally:
+        lienzo.finalizar()
+
+
+def test_pdf_jornada_y_periodo_con_semaforo_por_mejorar_y_aceptable(s, monkeypatch):
+    textos = _espiar_textos_lienzo(monkeypatch)
+    srv_act = ServicioActividades(s)
+    srv_cron = ServicioCronometro(s)
+    srv_prod = ServicioProductividad(s)
+    srv_pdf = ServicioReportesPDF(s)
+
+    # Día con productividad baja (< 60 % -> NivelSemaforo.POR_MEJORAR)
+    dia_bajo = date(2026, 11, 16)
+    act_b1 = srv_act.crear_planeada(
+        "Tarea baja 1", tiempo_estimado_min=180, momento=datetime(2026, 11, 16, 7, 30)
+    )
+    srv_act.crear_planeada(
+        "Tarea baja 2", tiempo_estimado_min=180, momento=datetime(2026, 11, 16, 7, 30)
+    )
+    srv_act.crear_planeada(
+        "Tarea baja 3", tiempo_estimado_min=180, momento=datetime(2026, 11, 16, 7, 30)
+    )
+    srv_cron.iniciar(act_b1, momento=datetime(2026, 11, 16, 8, 0))
+    srv_cron.finalizar(act_b1, momento=datetime(2026, 11, 16, 8, 20))
+    res_bajo = srv_prod.calcular_jornada(act_b1.jornada)
+    assert res_bajo.semaforo == NivelSemaforo.POR_MEJORAR
+
+    ruta_bajo = srv_pdf.generar_pdf_jornada(act_b1.jornada)
+    _verificar_pdf_generado(ruta_bajo)
+    assert "Por mejorar" in "\n".join(textos)
+
+    # Día con productividad media (60 - 84 % -> NivelSemaforo.ACEPTABLE)
+    textos.clear()
+    dia_medio = date(2026, 11, 17)
+    act_m1 = srv_act.crear_planeada(
+        "Tarea media 1", tiempo_estimado_min=120, momento=datetime(2026, 11, 17, 7, 30)
+    )
+    act_m2 = srv_act.crear_planeada(
+        "Tarea media 2", tiempo_estimado_min=120, momento=datetime(2026, 11, 17, 7, 30)
+    )
+    srv_cron.iniciar(act_m1, momento=datetime(2026, 11, 17, 7, 30))
+    srv_cron.finalizar(act_m1, momento=datetime(2026, 11, 17, 9, 30))
+    srv_cron.iniciar(act_m2, momento=datetime(2026, 11, 17, 9, 30))
+    srv_cron.finalizar(act_m2, momento=datetime(2026, 11, 17, 12, 0))
+    res_med = srv_prod.calcular_jornada(act_m1.jornada)
+    assert res_med.semaforo == NivelSemaforo.ACEPTABLE
+
+    ruta_med = srv_pdf.generar_pdf_jornada(act_m1.jornada)
+    _verificar_pdf_generado(ruta_med)
+    assert "Aceptable" in "\n".join(textos)
+
+    # Período con promedio bajo/medio también debe generarse sin errores
+    textos.clear()
+    ruta_per = srv_pdf.generar_pdf_periodo(dia_bajo, dia_medio, etiqueta_periodo="Comparativo")
+    _verificar_pdf_generado(ruta_per)
+

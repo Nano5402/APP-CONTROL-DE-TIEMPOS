@@ -82,7 +82,7 @@ def color_por_nivel_pct(pct: float | None, lienzo: LienzoPDF) -> QColor:
     if pct >= 85.0:
         return lienzo.paleta.verde
     if pct >= 60.0:
-        return lienzo.paleta.azul
+        return lienzo.paleta.ambar
     return lienzo.paleta.rojo
 
 
