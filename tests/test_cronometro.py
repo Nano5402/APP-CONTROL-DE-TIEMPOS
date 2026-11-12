@@ -70,7 +70,7 @@ def test_solo_una_activa_a_la_vez_y_urgencia_pausa_automaticamente(s):
         cron.iniciar(a2, momento=datetime(2026, 11, 9, 9, 10))
     assert exc.value.actividad_activa == a1
 
-    # Si llega una extra de prioridad máxima (Dra. Sonia), pausa a1 con tipo PRIORIDAD
+    # Si llega una extra de prioridad máxima (Dra. Sonia), detiene a1 limpiamente como pendiente
     dra = s.scalar(select(Solicitante).where(Solicitante.nombre == "Dra. Sonia"))
     urgente = srv_act.crear_extra(
         "Comunicado urgente",
@@ -81,8 +81,8 @@ def test_solo_una_activa_a_la_vez_y_urgencia_pausa_automaticamente(s):
         momento=datetime(2026, 11, 9, 9, 15),
     )
     cron.iniciar(urgente, momento=datetime(2026, 11, 9, 9, 15))
-    assert a1.estado == EstadoActividad.PAUSADA.value
-    assert a1.pausas[-1].tipo == TipoPausa.PRIORIDAD.value
+    assert a1.estado == EstadoActividad.PENDIENTE.value
+    assert len(a1.pausas) == 0
     assert cron.actividad_en_curso() == urgente
 
 

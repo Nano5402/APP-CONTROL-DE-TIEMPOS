@@ -2,8 +2,8 @@
 
 Diseño guiado y contextual:
 - Si **no hay actividad en curso**, muestra únicamente el botón grande
-  **▶ Iniciar / Reanudar** (ocultando Pausar, Finalizar y Siguiente para no confundir).
-- Si **hay una actividad en curso**, muestra los botones **⏸ Pausar**, **⏹ Finalizar**
+  **▶ Iniciar** (ocultando Finalizar y Siguiente para no confundir).
+- Si **hay una actividad en curso**, muestra los botones **⏹ Finalizar**
   y **⏭ Terminar esta y empezar siguiente**.
 - En la barra inferior de la tabla, los botones especiales (**✔/✖ Decisión ingeniero**
   y **🔄 Reabrir como Revisión**) solo aparecen cuando la actividad seleccionada
@@ -50,9 +50,9 @@ from services.whatsapp import formatear_duracion_corta
 from ui.dialogos import (
     DialogoAprobacionIngeniero,
     DialogoCorregirActividad,
-    DialogoPausa,
     DialogoReasignar,
     DialogoRevision,
+    aplicar_correccion_desde_dialogo,
 )
 from ui.iconos import configurar_boton, obtener_icono
 from ui.mini_widget import formatear_reloj_hms
@@ -165,9 +165,6 @@ class PantallaHoy(QWidget):
         self.btn_iniciar_flyer = QPushButton("  Iniciar siguiente Flyer", self)
         self.btn_iniciar_flyer.setProperty("rol", "exito")
         configurar_boton(self.btn_iniciar_flyer, "zap")
-        self.btn_pausar = QPushButton("  Pausar", self)
-        self.btn_pausar.setProperty("rol", "advertencia")
-        configurar_boton(self.btn_pausar, "pause")
         self.btn_finalizar = QPushButton("  Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
         configurar_boton(self.btn_finalizar, "stop")
@@ -177,7 +174,6 @@ class PantallaHoy(QWidget):
         for b in (
             self.btn_iniciar,
             self.btn_iniciar_flyer,
-            self.btn_pausar,
             self.btn_finalizar,
             self.btn_siguiente,
         ):
@@ -186,13 +182,11 @@ class PantallaHoy(QWidget):
 
         self.btn_iniciar.clicked.connect(self.accion_iniciar_seleccionada)
         self.btn_iniciar_flyer.clicked.connect(self.accion_iniciar_flyer_rapido)
-        self.btn_pausar.clicked.connect(self.accion_pausar_activa)
         self.btn_finalizar.clicked.connect(self.accion_finalizar_activa)
         self.btn_siguiente.clicked.connect(self.accion_finalizar_y_siguiente)
 
         col_botones.addWidget(self.btn_iniciar)
         col_botones.addWidget(self.btn_iniciar_flyer)
-        col_botones.addWidget(self.btn_pausar)
         col_botones.addWidget(self.btn_finalizar)
         col_botones.addWidget(self.btn_siguiente)
         col_botones.addStretch()
@@ -443,10 +437,8 @@ class PantallaHoy(QWidget):
                 self.lbl_activa_detalle.setText(
                     f"Selecciona una actividad de la tabla y pulsa «Iniciar», o empieza directamente con «Iniciar {sig_flyer}»."
                 )
-                self.btn_pausar.setVisible(False)
                 self.btn_finalizar.setVisible(False)
                 self.btn_siguiente.setVisible(False)
-                self.btn_pausar.setEnabled(False)
                 self.btn_finalizar.setEnabled(False)
                 self.btn_siguiente.setEnabled(False)
                 self.btn_iniciar.setVisible(self.tabla.rowCount() > 0)
@@ -467,7 +459,7 @@ class PantallaHoy(QWidget):
 
             self.btn_iniciar_flyer_barra.setText(f"  + {sig_flyer}")
             self.btn_iniciar_flyer_barra.setToolTip(
-                f"Inicia de inmediato {sig_flyer} bajo la categoría Flyers (pausará la actividad actual)"
+                f"Inicia de inmediato {sig_flyer} bajo la categoría Flyers (detiene la actividad actual)"
             )
 
             self.lbl_reloj.setText(formatear_reloj_hms(seg))
@@ -480,11 +472,8 @@ class PantallaHoy(QWidget):
             self.btn_iniciar.setVisible(False)
             self.btn_iniciar_flyer.setVisible(False)
             self.btn_iniciar_flyer.setEnabled(False)
-            self.btn_pausar.setVisible(True)
             self.btn_finalizar.setVisible(True)
-            self.btn_pausar.setEnabled(True)
             self.btn_finalizar.setEnabled(True)
-            configurar_boton(self.btn_pausar, "pause")
 
             # Regla solicitada: SOLO la categoría Flyers muestra la opción de iniciar otro Flyer al terminar
             if es_flyer and nombre_sig:
@@ -641,7 +630,7 @@ class PantallaHoy(QWidget):
                     "Ya hay una actividad en curso",
                     f"«{exc.actividad_activa.nombre}» está en curso.\n\n"
                     "¿Deseas FINALIZARLA antes de iniciar la nueva?\n"
-                    "(Elige «No» para dejarla PAUSADA o «Cancelar» para no cambiar).",
+                    "(Elige «No» para DETENERLA como pendiente o «Cancelar» para no cambiar).",
                     QMessageBox.StandardButton.Yes
                     | QMessageBox.StandardButton.No
                     | QMessageBox.StandardButton.Cancel,
@@ -651,7 +640,7 @@ class PantallaHoy(QWidget):
                 accion = (
                     AccionSobreActiva.FINALIZAR
                     if resp == QMessageBox.StandardButton.Yes
-                    else AccionSobreActiva.PAUSAR
+                    else AccionSobreActiva.DETENER
                 )
                 cron.iniciar(act, accion_sobre_activa=accion)
             except ValueError as exc:
@@ -669,7 +658,7 @@ class PantallaHoy(QWidget):
             srv_act = ServicioActividades(s)
             nombre = cron.siguiente_nombre_flyer_del_dia(jornada.id)
             act = srv_act.crear_planeada(nombre, categoria_id=cat_flyers.id)
-            cron.iniciar(act, accion_sobre_activa=AccionSobreActiva.PAUSAR)
+            cron.iniciar(act, accion_sobre_activa=AccionSobreActiva.DETENER)
         self.refrescar()
 
     def accion_iniciar_no_planeada_rapida(self) -> None:
@@ -681,32 +670,17 @@ class PantallaHoy(QWidget):
             srv_act = ServicioActividades(s)
             cron = ServicioCronometro(s)
             act = srv_act.crear_no_planeada(nombre, categoria_id=cat_id)
-            cron.iniciar(act, accion_sobre_activa=AccionSobreActiva.PAUSAR)
+            cron.iniciar(act, accion_sobre_activa=AccionSobreActiva.DETENER)
         self.txt_no_planeada.clear()
         self.refrescar()
 
     def accion_pausar_activa(self) -> None:
-        with self.bd.sesion() as s:
-            cron = ServicioCronometro(s)
-            activa = cron.actividad_en_curso()
-            if activa is None:
-                return
-            nombre = activa.nombre
-
-        dlg = DialogoPausa(nombre, self)
-        if dlg.exec() != DialogoPausa.DialogCode.Accepted:
-            return
-
+        """Detiene la actividad activa dejándola pendiente (sin registrar pausa)."""
         with self.bd.sesion() as s:
             cron = ServicioCronometro(s)
             activa = cron.actividad_en_curso()
             if activa is not None:
-                cron.pausar(
-                    activa,
-                    tipo=dlg.tipo_pausa,
-                    motivo=dlg.motivo or None,
-                    avance_pct=dlg.avance_pct,
-                )
+                cron.detener(activa, motivo="Detenida por el usuario")
         self.refrescar()
 
     def accion_finalizar_activa(self) -> None:
@@ -788,7 +762,7 @@ class PantallaHoy(QWidget):
                     motivo=dlg.motivo_revision,
                 )
                 ServicioCronometro(s).iniciar(
-                    rev, accion_sobre_activa=AccionSobreActiva.PAUSAR
+                    rev, accion_sobre_activa=AccionSobreActiva.DETENER
                 )
         self.refrescar()
 
@@ -823,21 +797,7 @@ class PantallaHoy(QWidget):
             dlg = DialogoCorregirActividad(act, self)
             if dlg.exec() != DialogoCorregirActividad.DialogCode.Accepted:
                 return
-            srv_act = ServicioActividades(s)
-            srv_act.corregir_actividad(
-                act,
-                motivo=dlg.motivo,
-                nombre=dlg.nuevo_nombre,
-                tiempo_estimado_min=dlg.nuevo_estimado,
-                descripcion=dlg.nueva_descripcion,
-            )
-            if act.sesiones and dlg.nuevo_inicio and dlg.nuevo_fin:
-                srv_act.corregir_sesion_tiempo(
-                    act.sesiones[-1],
-                    motivo=dlg.motivo,
-                    nuevo_inicio=dlg.nuevo_inicio,
-                    nuevo_fin=dlg.nuevo_fin,
-                )
+            aplicar_correccion_desde_dialogo(s, act, dlg)
         self.refrescar()
 
     def accion_eliminar(self) -> None:

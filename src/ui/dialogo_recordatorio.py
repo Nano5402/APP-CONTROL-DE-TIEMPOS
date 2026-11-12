@@ -2,16 +2,15 @@
 
 Diseño limpio y progresivo:
 - Por defecto muestra únicamente la pregunta ``¿Sigues con [actividad]?`` y los
-  tres botones grandes (**Sí, sigo**, **No, ya terminé**, **Pausar**).
-- Los controles de ajuste de minutos o de motivo de pausa permanecen **ocultos**
-  salvo que el usuario despliegue la opción correspondiente.
+  dos botones grandes (**Sí, sigo**, **No, ya terminé**).
+- El ajuste de minutos ya transcurridos permanece **oculto** salvo que el
+  usuario despliegue la opción correspondiente.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -38,7 +37,7 @@ class DialogoRecordatorio(QDialog):
 
         self.setWindowTitle(aviso.titulo)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
-        self.setMinimumWidth(540)
+        self.setMinimumWidth(500)
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(22, 20, 22, 20)
@@ -53,54 +52,37 @@ class DialogoRecordatorio(QDialog):
         layout.addWidget(self.lbl_titulo)
         layout.addWidget(self.lbl_mensaje)
 
-        # Controles adicionales ocultos hasta que el usuario los necesite
-        self.combo_tipo_pausa = QComboBox(self)
-        for tp in (
-            TipoPausa.PERSONAL,
-            TipoPausa.EXTERNA,
-            TipoPausa.ALMUERZO,
-            TipoPausa.OTRO,
-        ):
-            self.combo_tipo_pausa.addItem(tp.etiqueta(), tp.value)
-
-        self.txt_motivo = QLineEdit(self)
-        self.txt_motivo.setPlaceholderText("Motivo opcional (ej. baño, llamada...)")
-
         self.spin_ajuste_min = QSpinBox(self)
         self.spin_ajuste_min.setRange(0, 240)
         self.spin_ajuste_min.setSuffix(" min antes")
         self.spin_ajuste_min.setSpecialValueText("Terminé justo ahora (0 min)")
 
+        self.txt_motivo = QLineEdit(self)
+        self.txt_motivo.setPlaceholderText("Motivo del ajuste si terminaste antes (opcional)")
+
         if aviso.tipo == TipoAviso.CONTINUIDAD:
             self.btn_si = QPushButton("  Sí, sigo en esto", self)
             self.btn_si.setProperty("rol", "exito")
             self.btn_no = QPushButton("  No, ya terminé", self)
-            self.btn_pausar = QPushButton("  Pausar", self)
-            self.btn_pausar.setProperty("rol", "advertencia")
 
             configurar_boton(self.btn_si, "check", color="#FFFFFF")
             configurar_boton(self.btn_no, "stop", color="#FFFFFF")
-            configurar_boton(self.btn_pausar, "pause", color="#FFFFFF")
 
-            for b in (self.btn_si, self.btn_no, self.btn_pausar):
+            for b in (self.btn_si, self.btn_no):
                 b.setCursor(Qt.CursorShape.PointingHandCursor)
 
             self.btn_si.setDefault(True)
             self.btn_si.clicked.connect(self._elegir_si)
             self.btn_no.clicked.connect(self._elegir_no)
-            self.btn_pausar.clicked.connect(self._elegir_pausar)
 
             fila_botones = QHBoxLayout()
             fila_botones.setSpacing(10)
             fila_botones.addWidget(self.btn_si, 1)
             fila_botones.addWidget(self.btn_no, 1)
-            fila_botones.addWidget(self.btn_pausar, 1)
             layout.addLayout(fila_botones)
 
-            # Botón discreto para mostrar opciones avanzadas solo si hace falta
-            self.btn_opciones = QPushButton(
-                "  Ajustar hora de fin o indicar motivo de pausa", self
-            )
+            # Botón discreto para ajustar la hora de fin si terminó antes
+            self.btn_opciones = QPushButton("  Ajustar hora de fin", self)
             self.btn_opciones.setProperty("rol", "secundario")
             self.btn_opciones.setProperty("compact", True)
             self.btn_opciones.setCheckable(True)
@@ -114,19 +96,13 @@ class DialogoRecordatorio(QDialog):
             fila_aj.addWidget(QLabel("Si ya habías terminado, descontar:"))
             fila_aj.addWidget(self.spin_ajuste_min, 1)
             col_extra.addLayout(fila_aj)
-
-            fila_tp = QHBoxLayout()
-            fila_tp.addWidget(QLabel("Si vas a pausar, tipo:"))
-            fila_tp.addWidget(self.combo_tipo_pausa, 1)
-            col_extra.addLayout(fila_tp)
             col_extra.addWidget(self.txt_motivo)
             self.panel_extra.setVisible(False)
             self.btn_opciones.toggled.connect(self._mostrar_ocultar_extra)
             layout.addWidget(self.panel_extra)
         else:
-            self.combo_tipo_pausa.setVisible(False)
-            self.txt_motivo.setVisible(False)
             self.spin_ajuste_min.setVisible(False)
+            self.txt_motivo.setVisible(False)
             btn_entendido = QPushButton("  Entendido", self)
             btn_entendido.setDefault(True)
             configurar_boton(btn_entendido, "check", color="#FFFFFF")
@@ -152,17 +128,13 @@ class DialogoRecordatorio(QDialog):
         self.respuesta_elegida = RespuestaRecordatorio.NO
         self.accept()
 
-    def _elegir_pausar(self) -> None:
-        self.respuesta_elegida = RespuestaRecordatorio.PAUSAR
-        self.accept()
-
     @property
     def motivo_ingresado(self) -> str:
         return self.txt_motivo.text().strip()
 
     @property
     def tipo_pausa_seleccionado(self) -> str:
-        return str(self.combo_tipo_pausa.currentData() or TipoPausa.PERSONAL.value)
+        return TipoPausa.PERSONAL.value
 
     @property
     def ajuste_minutos(self) -> int:

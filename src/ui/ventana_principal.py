@@ -37,6 +37,7 @@ from ui.pantallas.pantalla_extra import PantallaExtra
 from ui.pantallas.pantalla_historial import PantallaHistorial
 from ui.pantallas.pantalla_hoy import PantallaHoy
 from ui.pantallas.pantalla_planear import PantallaPlanear
+from ui.pantallas.pantalla_planeacion import PantallaPlaneacion
 from ui.pantallas.pantalla_reportes import PantallaReportes
 from ui.temas import TEMAS, generar_qss
 
@@ -169,7 +170,6 @@ class VentanaPrincipal(QMainWindow):
 
         # Mini-widget flotante siempre visible
         self.mini_widget = MiniWidgetCronometro(
-            al_pausar=self._atajo_pausar,
             al_finalizar=self._atajo_finalizar,
             al_siguiente_pieza=self._atajo_siguiente_pieza,
         )
@@ -237,11 +237,13 @@ class VentanaPrincipal(QMainWindow):
         self.btn_nav_planear = self._crear_boton_nav("Planear el día", 1, "clipboard", cont_nav_btns)
         self.btn_nav_extra = self._crear_boton_nav("Actividad extra", 2, "zap", cont_nav_btns)
         self.btn_nav_cierre = self._crear_boton_nav("Cierre de jornada", 3, "flag", cont_nav_btns)
+        self.btn_nav_planeacion = self._crear_boton_nav("Planeación", 8, "calendar", cont_nav_btns)
         for b in (
             self.btn_nav_hoy,
             self.btn_nav_planear,
             self.btn_nav_extra,
             self.btn_nav_cierre,
+            self.btn_nav_planeacion,
         ):
             col_btns.addWidget(b)
 
@@ -310,6 +312,11 @@ class VentanaPrincipal(QMainWindow):
             al_cambiar_graficos=self.aplicar_graficos,
             parent=self.paginas,
         )
+        self.pantalla_planeacion = PantallaPlaneacion(
+            bd,
+            al_pasar_a_plan=self._al_actualizar_datos,
+            parent=self.paginas,
+        )
 
         self.paginas.addWidget(self.pantalla_hoy)
         self.paginas.addWidget(self.pantalla_planear)
@@ -319,6 +326,7 @@ class VentanaPrincipal(QMainWindow):
         self.paginas.addWidget(self.pantalla_reportes)
         self.paginas.addWidget(self.pantalla_estadisticas)
         self.paginas.addWidget(self.pantalla_config)
+        self.paginas.addWidget(self.pantalla_planeacion)
 
         # Evita que etiquetas largas fuercen un ancho mínimo mayor a la pantalla del portátil
         self.paginas.setSizePolicy(
@@ -544,7 +552,7 @@ class VentanaPrincipal(QMainWindow):
             self._atajos_activos.append(sc)
             resumen_lineas.append(f"{seq.toString()}: {etiqueta}")
 
-        _registrar(k_ini, "Iniciar/Pausar", self._atajo_iniciar_o_pausar)
+        _registrar(k_ini, "Iniciar/Detener", self._atajo_iniciar_o_pausar)
         _registrar(k_fin, "Finalizar", self._atajo_finalizar)
         _registrar(k_sig, "Fin + Siguiente", self._atajo_siguiente_pieza)
         _registrar(
@@ -620,10 +628,10 @@ class VentanaPrincipal(QMainWindow):
             msg.setIcon(QMessageBox.Icon.Question)
             msg.setText(f"Tienes la actividad «{activa.nombre}» en curso.")
             msg.setInformativeText(
-                "¿Deseas pausar la actividad y salir por completo, o minimizar la app en la bandeja del reloj?"
+                "¿Deseas detener la actividad y salir por completo, o minimizar la app en la bandeja del reloj?"
             )
             btn_salir = msg.addButton(
-                "Pausar y Salir por completo", QMessageBox.ButtonRole.AcceptRole
+                "Detener y Salir por completo", QMessageBox.ButtonRole.AcceptRole
             )
             btn_min = msg.addButton(
                 "Minimizar a la bandeja", QMessageBox.ButtonRole.ActionRole
@@ -650,12 +658,12 @@ class VentanaPrincipal(QMainWindow):
                     )
                 return
 
-            # Si eligió salir por completo con actividad en curso, la pausamos de forma limpia
+            # Si eligió salir por completo con actividad en curso, la detenemos de forma limpia
             with self.bd.sesion() as s:
                 cron = ServicioCronometro(s)
                 activa_ahora = cron.actividad_en_curso()
                 if activa_ahora is not None:
-                    cron.pausar(activa_ahora, motivo="Cierre de la aplicación")
+                    cron.detener(activa_ahora, motivo="Cierre de la aplicación")
 
         # Cierre definitivo: detener timers, audio, ocultar bandeja y cerrar proceso
         from ui.sonido import detener_sonidos

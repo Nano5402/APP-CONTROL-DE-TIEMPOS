@@ -213,6 +213,7 @@ def test_pantallas_sin_recortes_en_resoluciones_y_fuentes(bd, monkeypatch):
             # Pantallas que deben tener QScrollArea interno para evitar desbordes
             for pantalla in (
                 ventana.pantalla_planear,
+                ventana.pantalla_planeacion,
                 ventana.pantalla_extra,
                 ventana.pantalla_cierre,
                 ventana.pantalla_reportes,
@@ -221,7 +222,7 @@ def test_pantallas_sin_recortes_en_resoluciones_y_fuentes(bd, monkeypatch):
                 scrolls = pantalla.findChildren(QScrollArea)
                 assert any(sc.widgetResizable() for sc in scrolls), f"Falta QScrollArea en {type(pantalla).__name__}"
 
-            for idx in range(8):
+            for idx in range(9):
                 ventana.cambiar_pagina(idx)
                 app.processEvents()
                 pagina = ventana.paginas.currentWidget()
@@ -298,14 +299,14 @@ def test_pantallas_sin_recortes_en_resoluciones_y_fuentes(bd, monkeypatch):
 
 
 def test_mini_widget_y_dialogos_sin_recortes(bd, monkeypatch):
-    """Verifica tamaños y no-recorte en MiniWidgetCronometro, DialogoRecordatorio, DialogoPIN y DialogoPausa."""
+    """Verifica tamaños y no-recorte en MiniWidgetCronometro, DialogoRecordatorio y DialogoPIN."""
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     from PySide6.QtWidgets import QApplication
 
     from data.repositorios.configuracion import RepoConfiguracion
     from services.recordatorios import AvisoRecordatorio, TipoAviso
     from ui.dialogo_recordatorio import DialogoRecordatorio
-    from ui.dialogos import DialogoPIN, DialogoPausa
+    from ui.dialogos import DialogoPIN
     from ui.ventana_principal import VentanaPrincipal
 
     _sembrar_actividades_prueba(bd)
@@ -348,7 +349,7 @@ def test_mini_widget_y_dialogos_sin_recortes(bd, monkeypatch):
     try:
         dlg_rec.show()
         app.processEvents()
-        assert dlg_rec.minimumWidth() >= 540
+        assert dlg_rec.minimumWidth() >= 500
         assert dlg_rec.lbl_titulo.wordWrap() is True
         hallazgos.extend(_recortes_en_widgets(app, dlg_rec, "DialogoRecordatorio"))
     finally:
@@ -366,16 +367,6 @@ def test_mini_widget_y_dialogos_sin_recortes(bd, monkeypatch):
         hallazgos.extend(_recortes_en_widgets(app, dlg_pin, "DialogoPIN/Ocultar"))
     finally:
         dlg_pin.close()
-
-    # DialogoPausa
-    dlg_pausa = DialogoPausa("Flyer promocional")
-    try:
-        dlg_pausa.show()
-        app.processEvents()
-        assert dlg_pausa.minimumWidth() >= 480
-        hallazgos.extend(_recortes_en_widgets(app, dlg_pausa, "DialogoPausa"))
-    finally:
-        dlg_pausa.close()
 
     assert not hallazgos, "Se detectaron recortes en diálogos/mini-widget:\n" + "\n".join(hallazgos)
 

@@ -133,8 +133,8 @@ def test_reglas_especiales_extras_arrastradas_causa_externa_y_fuera_horario(s):
     assert res.tiempo_efectivo_seg == 9000
     # Tiempo fuera de horario: 30 min (1800 s), reportado aparte
     assert res.tiempo_fuera_horario_seg == 1800
-    # Pausas externas descontadas del denominador de Foco: 3600 s
-    assert res.tiempo_pausas_externas_seg == 3600
+    # Las pausas fueron eliminadas de las métricas (tiempo_pausas_externas_seg = 0)
+    assert res.tiempo_pausas_externas_seg == 0
 
 
 def test_dia_no_laboral_no_tiene_porcentaje_y_datos_referencia(s):

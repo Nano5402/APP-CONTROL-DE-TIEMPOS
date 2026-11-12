@@ -39,6 +39,7 @@ class AccionSobreActiva(StrEnum):
 
     PREGUNTAR = "preguntar"
     PAUSAR = "pausar"
+    DETENER = "detener"
     FINALIZAR = "finalizar"
 
 
@@ -180,23 +181,19 @@ class ServicioCronometro:
 
         if activa and activa.id != actividad.id:
             accion = AccionSobreActiva(accion_sobre_activa)
-            # Si la nueva es de prioridad máxima y no se especificó finalizar,
-            # la regla RF-03 indica pausar por actividad prioritaria.
             if accion == AccionSobreActiva.PREGUNTAR:
                 if actividad.prioridad == Prioridad.MAXIMA.value:
-                    accion = AccionSobreActiva.PAUSAR
+                    accion = AccionSobreActiva.DETENER
                 else:
                     raise ActividadYaEnCursoError(activa)
 
-            if accion == AccionSobreActiva.PAUSAR:
-                es_urgencia = actividad.prioridad == Prioridad.MAXIMA.value
-                tipo_pausa = TipoPausa.PRIORIDAD if es_urgencia else TipoPausa.OTRO
+            if accion in (AccionSobreActiva.PAUSAR, AccionSobreActiva.DETENER):
                 motivo = motivo_pausa_activa or (
                     f"Interrupción por prioridad máxima: {actividad.nombre}"
-                    if es_urgencia
+                    if actividad.prioridad == Prioridad.MAXIMA.value
                     else f"Cambio a actividad: {actividad.nombre}"
                 )
-                self.pausar(activa, tipo=tipo_pausa, motivo=motivo, momento=instante)
+                self.detener(activa, motivo=motivo, momento=instante)
             elif accion == AccionSobreActiva.FINALIZAR:
                 self.finalizar(activa, momento=instante)
 
@@ -219,6 +216,28 @@ class ServicioCronometro:
         actividad.estado = EstadoActividad.EN_CURSO.value
         self.s.flush()
         return actividad
+
+    def detener(
+        self,
+        actividad: Actividad | None = None,
+        *,
+        motivo: str | None = None,
+        momento: datetime | None = None,
+    ) -> Actividad | None:
+        """Detiene el cronómetro de la actividad dejándola pendiente sin registrar pausas."""
+        instante = momento or ahora()
+        objetivo = actividad or self.actividad_en_curso()
+        if objetivo is None:
+            return None
+
+        self._cerrar_sesion_activa(objetivo, instante)
+        self._cerrar_pausas_abiertas(objetivo.id, instante)
+        objetivo.estado = EstadoActividad.PENDIENTE.value
+        if motivo and motivo.strip():
+            nota = motivo.strip()
+            objetivo.notas = f"{objetivo.notas}\n{nota}".strip() if objetivo.notas else nota
+        self.s.flush()
+        return objetivo
 
     def pausar(
         self,
@@ -276,8 +295,9 @@ class ServicioCronometro:
         if actividad.estado not in (
             EstadoActividad.PAUSADA.value,
             EstadoActividad.ARRASTRADA.value,
+            EstadoActividad.PENDIENTE.value,
         ):
-            raise ValueError("Solo se pueden reanudar actividades pausadas o arrastradas")
+            raise ValueError("Solo se pueden reanudar actividades pausadas, arrastradas o pendientes")
         return self.iniciar(
             actividad,
             accion_sobre_activa=accion_sobre_activa,

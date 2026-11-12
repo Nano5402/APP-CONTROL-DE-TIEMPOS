@@ -59,6 +59,10 @@ class NivelSemaforo(StrEnum):
     POR_MEJORAR = "por_mejorar"  # < 60 %
     NO_APLICA = "no_aplica"  # Día no laboral
 
+    # Alias de compatibilidad defensiva
+    MEJORABLE = "por_mejorar"
+    CRITICO = "por_mejorar"
+
     def emoji(self) -> str:
         return {
             NivelSemaforo.EXCELENTE: "🟢",
@@ -160,23 +164,11 @@ class ServicioProductividad:
         tiempo_efectivo_seg = sum(s.duracion_seg for s in sesiones_dia if not s.fuera_horario)
         tiempo_fuera_seg = sum(s.duracion_seg for s in sesiones_dia if s.fuera_horario)
 
-        # Pausas cerradas de la jornada: sus tiempos no se cuentan ni suman como tiempo trabajado.
-        # Solo se excluyen causas externas del denominador de Foco (RF-05b).
-        pausas_jornada = list(
-            self.s.scalars(
-                select(Pausa).where(
-                    Pausa.jornada_id == jornada.id,
-                    Pausa.fin.is_not(None),
-                )
-            )
-        )
+        # Las pausas fueron eliminadas de la operación: no suman ni restan en métricas.
+        pausas_jornada: list[Pausa] = []
         tiempo_pausas_seg = 0
         tiempo_almuerzo_seg = 0
-        tiempo_pausas_ext_seg = sum(
-            max(0, int((p.fin - p.inicio).total_seconds()))
-            for p in pausas_jornada
-            if p.fin and p.es_externa
-        )
+        tiempo_pausas_ext_seg = 0
 
         actividades_jornada = list(
             self.s.scalars(
@@ -469,10 +461,9 @@ class ServicioProductividad:
         self,
         tiempo_efectivo_seg: int,
         duracion_jornada_seg: int,
-        tiempo_pausas_externas_seg: int,
+        tiempo_pausas_externas_seg: int = 0,
     ) -> float:
-        # Los tiempos en pausa con tipo "causa externa" no penalizan el Foco (sección 7.3)
-        base_disponible = max(1, duracion_jornada_seg - tiempo_pausas_externas_seg)
+        base_disponible = max(1, duracion_jornada_seg)
         return min(100.0, (tiempo_efectivo_seg / base_disponible) * 100.0)
 
     def _calcular_datos_referencia(

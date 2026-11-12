@@ -244,7 +244,7 @@ class PantallaExtra(QWidget):
             else:
                 self.lbl_regla_prioridad.setText(
                     "Prioridad MÁXIMA: sin aprobación; puedes iniciarla ya "
-                    "(pausa la actual) y suma a tu Cumplimiento."
+                    "(detiene la actual) y suma a tu Cumplimiento."
                 )
                 self.chk_aprobada_ing.setChecked(False)
                 self.chk_aprobada_ing.setVisible(False)
@@ -317,7 +317,7 @@ class PantallaExtra(QWidget):
                     )
                 else:
                     ServicioCronometro(s).iniciar(
-                        extra, accion_sobre_activa=AccionSobreActiva.PAUSAR
+                        extra, accion_sobre_activa=AccionSobreActiva.DETENER
                     )
 
         self.txt_nombre.clear()

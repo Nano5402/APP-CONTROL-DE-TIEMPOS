@@ -610,7 +610,7 @@ class PantallaConfiguracion(QWidget):
         self.key_mini = QKeySequenceEdit(card_atajos)
 
         form_atajos.addRow(
-            "Iniciar / Pausar actividad:",
+            "Iniciar / Detener actividad:",
             self._fila_key_edit(self.key_iniciar_pausar),
         )
         form_atajos.addRow(

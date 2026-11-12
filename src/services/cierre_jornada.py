@@ -116,16 +116,20 @@ class ServicioCierreJornada:
                     raise ValueError(
                         f"Debe indicar el motivo para arrastrar '{act.nombre}' al día siguiente"
                     )
-                self.cron.pausar(
-                    act,
-                    tipo=TipoPausa.FIN_JORNADA,
-                    motivo=dec.motivo,
-                    avance_pct=dec.avance_pct,
-                    momento=instante,
-                )
+                if act.estado == EstadoActividad.EN_CURSO.value:
+                    self.cron._cerrar_sesion_activa(act, instante)
+                self.cron._cerrar_pausas_abiertas(act.id, instante)
+                act.avance_pct = dec.avance_pct
+                act.estado = EstadoActividad.ARRASTRADA.value
+                if dec.motivo:
+                    act.notas = (
+                        f"{act.notas}\n[Cierre] {dec.motivo}".strip()
+                        if act.notas
+                        else f"[Cierre] {dec.motivo}"
+                    )
             elif accion == AccionCierreActividad.APLAZAR:
                 if act.estado == EstadoActividad.EN_CURSO.value:
-                    self.cron.pausar(act, tipo=TipoPausa.OTRO, motivo=dec.motivo, momento=instante)
+                    self.cron.detener(act, momento=instante)
                 self.srv_act.cambiar_estado_manual(
                     act, EstadoActividad.APLAZADA, motivo=dec.motivo
                 )

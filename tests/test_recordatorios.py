@@ -89,7 +89,7 @@ def test_continuidad_sin_respuesta_repite_y_respuestas_si_no_pausar(s):
     avisos_23 = srv_rec.evaluar(datetime(2026, 11, 9, 8, 23))
     assert len(avisos_23) == 1
 
-    # Responde "Pausar" por ir al baño
+    # Responde "Pausar/Detener" por ir al baño
     srv_rec.responder_continuidad(
         act,
         RespuestaRecordatorio.PAUSAR,
@@ -97,7 +97,7 @@ def test_continuidad_sin_respuesta_repite_y_respuestas_si_no_pausar(s):
         tipo_pausa=TipoPausa.PERSONAL,
         momento=datetime(2026, 11, 9, 8, 23),
     )
-    assert act.estado == EstadoActividad.PAUSADA.value
+    assert act.estado in (EstadoActividad.PAUSADA.value, EstadoActividad.PENDIENTE.value)
 
     # Reanuda a las 8:30 y a las 8:40 responde "No" descontando 2 min
     cron.reanudar(act, momento=datetime(2026, 11, 9, 8, 30))

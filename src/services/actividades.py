@@ -5,7 +5,7 @@ reasignaciones, estados manuales y correcciones con trazabilidad (Fase 2).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -14,6 +14,7 @@ from data.enums import (
     CanalSolicitud,
     EstadoActividad,
     EstadoAprobacion,
+    EstadoJornada,
     Lugar,
     MotivoRevision,
     Prioridad,
@@ -21,8 +22,10 @@ from data.enums import (
     TipoRevision,
 )
 from data.models import Actividad, EdicionLog, Jornada, Plantilla, SesionTiempo, Solicitante
+from data.repositorios.horarios import RepoHorarios
 from data.repositorios.jornadas import RepoJornadas
 from data.tiempo import ahora
+from services.cronometro import dividir_tramo_por_horario
 from services.numeracion import nombres_lote_piezas
 
 
@@ -475,7 +478,7 @@ class ServicioActividades:
         if estado_enum not in permitidos:
             raise ValueError(f"Transición manual no permitida hacia {estado_enum.value}")
         if actividad.estado == EstadoActividad.EN_CURSO.value:
-            raise ValueError("Detenga o pause el cronómetro antes de cambiar el estado")
+            raise ValueError("Detenga o finalice el cronómetro antes de cambiar el estado")
         actividad.estado = estado_enum.value
         if motivo and motivo.strip():
             actividad.notas = (
@@ -483,12 +486,37 @@ class ServicioActividades:
                 if actividad.notas
                 else motivo.strip()
             )
+        fechas_afectadas: set[date] = set()
+        if actividad.jornada is not None:
+            fechas_afectadas.add(actividad.jornada.fecha)
+        for ses in actividad.sesiones:
+            fechas_afectadas.add(ses.inicio.date())
+            if ses.fin is not None:
+                fechas_afectadas.add(ses.fin.date())
         self.s.flush()
+        self._recalcular_jornadas_afectadas(fechas_afectadas)
         return actividad
 
     # ------------------------------------------------------------------
     # Correcciones manuales con trazabilidad (RF-07)
     # ------------------------------------------------------------------
+
+    def _recalcular_jornadas_afectadas(self, fechas: set[date]) -> None:
+        """Actualiza métricas cacheadas en jornadas cerradas tras una corrección."""
+        if not fechas:
+            return
+        from services.productividad import ServicioProductividad
+
+        repo_j = RepoJornadas(self.s)
+        srv_prod = ServicioProductividad(self.s)
+        for f in fechas:
+            jornada = repo_j.obtener_por_fecha(f)
+            if jornada is None or jornada.estado != EstadoJornada.CERRADA.value:
+                continue
+            res = srv_prod.resumen_jornada(jornada, momento_referencia=jornada.hora_fin)
+            jornada.tiempo_efectivo_seg = res.tiempo_efectivo_seg
+            jornada.productividad = res.foco_pct
+        self.s.flush()
 
     def corregir_actividad(
         self,
@@ -498,6 +526,7 @@ class ServicioActividades:
         nombre: str | None = None,
         categoria_id: int | None = None,
         tiempo_estimado_min: int | None = None,
+        limpiar_estimado: bool = False,
         descripcion: str | None = None,
         momento: datetime | None = None,
     ) -> Actividad:
@@ -515,7 +544,11 @@ class ServicioActividades:
         if categoria_id is not None and categoria_id != actividad.categoria_id:
             cambios.append(("categoria_id", actividad.categoria_id, categoria_id))
             actividad.categoria_id = categoria_id
-        if tiempo_estimado_min is not None and tiempo_estimado_min != actividad.tiempo_estimado_min:
+        if limpiar_estimado:
+            if actividad.tiempo_estimado_min is not None:
+                cambios.append(("tiempo_estimado_min", actividad.tiempo_estimado_min, None))
+                actividad.tiempo_estimado_min = None
+        elif tiempo_estimado_min is not None and tiempo_estimado_min != actividad.tiempo_estimado_min:
             cambios.append(("tiempo_estimado_min", actividad.tiempo_estimado_min, tiempo_estimado_min))
             actividad.tiempo_estimado_min = tiempo_estimado_min
         if descripcion is not None and descripcion != actividad.descripcion:
@@ -540,6 +573,101 @@ class ServicioActividades:
         self.s.flush()
         return actividad
 
+    def corregir_duracion_total(
+        self,
+        actividad: Actividad,
+        *,
+        duracion_min: int,
+        motivo: str,
+        momento: datetime | None = None,
+    ) -> Actividad:
+        """Reemplaza las sesiones de una actividad por un total exacto en minutos.
+
+        Pensado para corregir rápidamente sesiones largas olvidadas (por ej. 19 h -> 10 min)
+        conservando trazabilidad y recalculando las jornadas cerradas afectadas.
+        """
+        motivo_limpio = motivo.strip() if motivo else ""
+        if not motivo_limpio:
+            raise ValueError("El motivo es obligatorio para corregir la duración")
+        if duracion_min < 0:
+            raise ValueError("La duración no puede ser negativa")
+
+        instante = momento or ahora()
+        fechas_afectadas: set[date] = set()
+        if actividad.jornada is not None:
+            fechas_afectadas.add(actividad.jornada.fecha)
+
+        sesiones_ord = sorted(actividad.sesiones, key=lambda x: x.inicio)
+        seg_anteriores = 0
+        for ses in sesiones_ord:
+            fechas_afectadas.add(ses.inicio.date())
+            if ses.fin is not None:
+                fechas_afectadas.add(ses.fin.date())
+                seg_anteriores += max(0, int(ses.duracion_seg))
+            else:
+                seg_anteriores += max(0, int((instante - ses.inicio).total_seconds()))
+
+        nuevo_total_seg = duracion_min * 60
+        if sesiones_ord:
+            inicio_ref = sesiones_ord[0].inicio
+            lugar_base = sesiones_ord[0].lugar
+        else:
+            fecha_base = actividad.jornada.fecha if actividad.jornada else instante.date()
+            inicio_ref = datetime.combine(fecha_base, time(9, 0))
+            lugar_base = Lugar.OFICINA.value
+
+        for ses in list(actividad.sesiones):
+            self.s.delete(ses)
+        self.s.flush()
+
+        fin_ref = inicio_ref + timedelta(seconds=nuevo_total_seg)
+        if nuevo_total_seg > 0:
+            repo_hor = RepoHorarios(self.s)
+            for sub_ini, sub_fin, sub_fuera in dividir_tramo_por_horario(
+                repo_hor, inicio_ref, fin_ref
+            ):
+                dur = int((sub_fin - sub_ini).total_seconds())
+                if dur <= 0:
+                    continue
+                self.s.add(
+                    SesionTiempo(
+                        actividad=actividad,
+                        inicio=sub_ini,
+                        fin=sub_fin,
+                        duracion_seg=dur,
+                        fuera_horario=sub_fuera,
+                        lugar=lugar_base,
+                    )
+                )
+                fechas_afectadas.add(sub_ini.date())
+                fechas_afectadas.add(sub_fin.date())
+
+        if actividad.estado in (
+            EstadoActividad.EN_CURSO.value,
+            EstadoActividad.PAUSADA.value,
+            EstadoActividad.ARRASTRADA.value,
+        ) or (actividad.estado == EstadoActividad.PENDIENTE.value and duracion_min > 0):
+            actividad.estado = EstadoActividad.COMPLETADA.value
+            actividad.avance_pct = 100
+            actividad.finalizada_en = fin_ref
+
+        self.s.add(
+            EdicionLog(
+                momento=instante,
+                tabla="actividades",
+                registro_id=actividad.id,
+                campo="duracion_total_seg",
+                valor_anterior=str(seg_anteriores),
+                valor_nuevo=str(nuevo_total_seg),
+                motivo=motivo_limpio,
+            )
+        )
+        actividad.editado = True
+        actividad.editado_motivo = motivo_limpio
+        self.s.flush()
+        self._recalcular_jornadas_afectadas(fechas_afectadas)
+        return actividad
+
     def corregir_sesion_tiempo(
         self,
         sesion: SesionTiempo,
@@ -556,6 +684,10 @@ class ServicioActividades:
             raise ValueError("El motivo es obligatorio para corregir un tramo de tiempo")
 
         instante = momento or ahora()
+        fechas_afectadas: set[date] = {sesion.inicio.date()}
+        if sesion.fin is not None:
+            fechas_afectadas.add(sesion.fin.date())
+
         inicio_final = nuevo_inicio or sesion.inicio
         fin_final = nuevo_fin if nuevo_fin is not None else sesion.fin
 
@@ -575,6 +707,7 @@ class ServicioActividades:
                 )
             )
             sesion.inicio = nuevo_inicio
+            fechas_afectadas.add(nuevo_inicio.date())
 
         if nuevo_fin is not None and nuevo_fin != sesion.fin:
             self.s.add(
@@ -589,6 +722,7 @@ class ServicioActividades:
                 )
             )
             sesion.fin = nuevo_fin
+            fechas_afectadas.add(nuevo_fin.date())
 
         if lugar is not None:
             lugar_val = Lugar(lugar).value
@@ -610,7 +744,10 @@ class ServicioActividades:
             sesion.duracion_seg = int((sesion.fin - sesion.inicio).total_seconds())
 
         actividad = sesion.actividad
+        if actividad.jornada is not None:
+            fechas_afectadas.add(actividad.jornada.fecha)
         actividad.editado = True
         actividad.editado_motivo = motivo_limpio
         self.s.flush()
+        self._recalcular_jornadas_afectadas(fechas_afectadas)
         return sesion

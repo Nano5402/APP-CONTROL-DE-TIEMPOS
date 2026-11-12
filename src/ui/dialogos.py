@@ -25,14 +25,18 @@ from PySide6.QtWidgets import (
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
+from sqlalchemy.orm import Session
 
 from data.db import BaseDatos
 from data.enums import CanalSolicitud, MotivoRevision, TipoPausa, TipoRevision
 from data.models import Actividad, Solicitante
+from data.tiempo import ahora
+from services.actividades import ServicioActividades
 from ui.iconos import configurar_boton
 
 
@@ -420,12 +424,12 @@ class DialogoReasignar(QDialog):
 
 
 class DialogoCorregirActividad(QDialog):
-    """Formulario para corregir una actividad y/o su último tramo de tiempo (RF-07)."""
+    """Formulario para corregir una actividad, su duración total o último tramo (RF-07)."""
 
     def __init__(self, actividad: Actividad, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle(f"Corregir registro: {actividad.nombre}")
-        self.setMinimumWidth(460)
+        self.setMinimumWidth(500)
         self._tiene_sesion = bool(actividad.sesiones)
 
         layout = QVBoxLayout(self)
@@ -450,13 +454,50 @@ class DialogoCorregirActividad(QDialog):
 
         self.txt_descripcion = QLineEdit(actividad.descripcion or "", self)
 
+        instante_ref = ahora()
+        total_seg = 0
+        for ses in actividad.sesiones:
+            if ses.fin is not None:
+                total_seg += max(0, int(ses.duracion_seg))
+            else:
+                total_seg += max(0, int((instante_ref - ses.inicio).total_seconds()))
+        horas_tot, resto = divmod(total_seg, 3600)
+        min_tot = round(resto / 60)
+        if min_tot == 60:
+            horas_tot += 1
+            min_tot = 0
+
+        self.rb_duracion_directa = QRadioButton(
+            "Duración real directa (ej. 10 min en lugar de 19 h)", self
+        )
+        self.rb_duracion_directa.setChecked(True)
+        self.rb_tramo = QRadioButton("Editar inicio / fin del último tramo", self)
+        self.rb_tramo.setEnabled(self._tiene_sesion)
+
+        self.spin_horas = QSpinBox(self)
+        self.spin_horas.setRange(0, 99)
+        self.spin_horas.setValue(min(99, int(horas_tot)))
+        self.spin_horas.setSuffix(" h")
+
+        self.spin_minutos = QSpinBox(self)
+        self.spin_minutos.setRange(0, 59)
+        self.spin_minutos.setValue(int(min_tot))
+        self.spin_minutos.setSuffix(" min")
+
+        fila_dur = QHBoxLayout()
+        fila_dur.addWidget(self.spin_horas)
+        fila_dur.addWidget(self.spin_minutos)
+        fila_dur.addStretch()
+        self.cont_duracion = QWidget(self)
+        self.cont_duracion.setLayout(fila_dur)
+
         self.dt_inicio = QDateTimeEdit(self)
         self.dt_inicio.setDisplayFormat("dd/MM/yyyy HH:mm:ss")
         self.dt_fin = QDateTimeEdit(self)
         self.dt_fin.setDisplayFormat("dd/MM/yyyy HH:mm:ss")
 
         if self._tiene_sesion:
-            ult = actividad.sesiones[-1]
+            ult = sorted(actividad.sesiones, key=lambda x: x.inicio)[-1]
             self.dt_inicio.setDateTime(
                 QDateTime(
                     ult.inicio.year,
@@ -482,13 +523,21 @@ class DialogoCorregirActividad(QDialog):
             self.dt_inicio.setVisible(False)
             self.dt_fin.setVisible(False)
 
+        self.rb_duracion_directa.toggled.connect(self._actualizar_modo_tiempo)
+        self._actualizar_modo_tiempo()
+
         self.txt_motivo = QLineEdit(self)
-        self.txt_motivo.setPlaceholderText("Obligatorio: ej. Olvidé detener el cronómetro al salir")
+        self.txt_motivo.setPlaceholderText(
+            "Obligatorio: ej. Olvidé detener el cronómetro / ajuste real"
+        )
 
         form.addRow("Nombre:", self.txt_nombre)
         form.addRow("Tiempo estimado:", self.spin_estimado)
         form.addRow("Descripción:", self.txt_descripcion)
+        form.addRow("Modo de ajuste:", self.rb_duracion_directa)
+        form.addRow("Duración real:", self.cont_duracion)
         if self._tiene_sesion:
+            form.addRow("", self.rb_tramo)
             form.addRow("Inicio último tramo:", self.dt_inicio)
             form.addRow("Fin último tramo:", self.dt_fin)
         form.addRow("Motivo del ajuste*:", self.txt_motivo)
@@ -504,12 +553,33 @@ class DialogoCorregirActividad(QDialog):
         botones.rejected.connect(self.reject)
         layout.addWidget(botones)
 
+    def _actualizar_modo_tiempo(self) -> None:
+        usar_dur = self.rb_duracion_directa.isChecked()
+        self.spin_horas.setEnabled(usar_dur)
+        self.spin_minutos.setEnabled(usar_dur)
+        if self._tiene_sesion:
+            self.dt_inicio.setEnabled(not usar_dur)
+            self.dt_fin.setEnabled(not usar_dur)
+
     def _validar(self) -> None:
         if not self.txt_motivo.text().strip():
             QMessageBox.warning(
                 self,
                 "Motivo obligatorio",
                 "Debes escribir el motivo de la corrección para conservar el registro.",
+            )
+            return
+        if (
+            not self.rb_duracion_directa.isChecked()
+            and self._tiene_sesion
+            and self.nuevo_fin is not None
+            and self.nuevo_inicio is not None
+            and self.nuevo_fin < self.nuevo_inicio
+        ):
+            QMessageBox.warning(
+                self,
+                "Horario inválido",
+                "La hora de fin no puede ser anterior a la hora de inicio.",
             )
             return
         self.accept()
@@ -532,6 +602,14 @@ class DialogoCorregirActividad(QDialog):
         return self.txt_descripcion.text().strip()
 
     @property
+    def usar_duracion_directa(self) -> bool:
+        return bool(self.rb_duracion_directa.isChecked())
+
+    @property
+    def nueva_duracion_min(self) -> int:
+        return int(self.spin_horas.value()) * 60 + int(self.spin_minutos.value())
+
+    @property
     def nuevo_inicio(self) -> datetime | None:
         if not self._tiene_sesion:
             return None
@@ -542,6 +620,34 @@ class DialogoCorregirActividad(QDialog):
         if not self._tiene_sesion:
             return None
         return self.dt_fin.dateTime().toPython().replace(microsecond=0)
+
+
+def aplicar_correccion_desde_dialogo(
+    s: Session, actividad: Actividad, dlg: DialogoCorregirActividad
+) -> None:
+    """Aplica la corrección de metadatos y duración/tramos validada en el diálogo."""
+    srv_act = ServicioActividades(s)
+    srv_act.corregir_actividad(
+        actividad,
+        motivo=dlg.motivo,
+        nombre=dlg.nuevo_nombre,
+        tiempo_estimado_min=dlg.nuevo_estimado,
+        limpiar_estimado=dlg.nuevo_estimado is None,
+        descripcion=dlg.nueva_descripcion,
+    )
+    if dlg.usar_duracion_directa:
+        srv_act.corregir_duracion_total(
+            actividad,
+            duracion_min=dlg.nueva_duracion_min,
+            motivo=dlg.motivo,
+        )
+    elif actividad.sesiones and dlg.nuevo_inicio and dlg.nuevo_fin:
+        srv_act.corregir_sesion_tiempo(
+            sorted(actividad.sesiones, key=lambda x: x.inicio)[-1],
+            motivo=dlg.motivo,
+            nuevo_inicio=dlg.nuevo_inicio,
+            nuevo_fin=dlg.nuevo_fin,
+        )
 
 
 class DialogoAprobacionIngeniero(QDialog):

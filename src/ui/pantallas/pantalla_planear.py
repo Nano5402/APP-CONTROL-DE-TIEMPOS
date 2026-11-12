@@ -860,11 +860,11 @@ class PantallaPlanear(QWidget):
                     self,
                     "Ya hay una actividad en curso",
                     f"«{exc.actividad_activa.nombre}» está en curso actualmente.\n\n"
-                    f"¿Deseas pausarla e iniciar «{act.nombre}»?",
+                    f"¿Deseas detenerla e iniciar «{act.nombre}»?",
                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                 )
                 if resp == QMessageBox.StandardButton.Yes:
-                    cron.pausar(exc.actividad_activa)
+                    cron.detener(exc.actividad_activa)
                     cron.iniciar(act)
                 else:
                     return

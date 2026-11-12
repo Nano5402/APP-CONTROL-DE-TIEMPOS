@@ -22,6 +22,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QMessageBox,
     QPlainTextEdit,
     QPushButton,
     QScrollArea,
@@ -37,6 +38,7 @@ from data.enums import EstadoActividad, TipoActividad
 from data.models import Actividad
 from data.repositorios.catalogos import RepoCategorias, RepoSolicitantes
 from services.actividades import ServicioActividades
+from services.cronometro import ServicioCronometro
 from services.historial import (
     FiltrosHistorial,
     ServicioHistorial,
@@ -44,7 +46,7 @@ from services.historial import (
     rango_semana,
 )
 from services.whatsapp import formatear_duracion_corta
-from ui.dialogos import DialogoCorregirActividad
+from ui.dialogos import DialogoCorregirActividad, aplicar_correccion_desde_dialogo
 from ui.iconos import configurar_boton
 from ui.mini_widget import formatear_reloj_hms
 
@@ -86,6 +88,11 @@ class PantallaHistorial(QWidget):
         btn_hoy.setProperty("compact", True)
         btn_hoy.clicked.connect(self._rango_hoy)
 
+        self.btn_ayer = QPushButton("Ayer", self)
+        self.btn_ayer.setProperty("rol", "secundario")
+        self.btn_ayer.setProperty("compact", True)
+        self.btn_ayer.clicked.connect(self._rango_ayer)
+
         btn_sem = QPushButton("Esta semana", self)
         btn_sem.setProperty("rol", "secundario")
         btn_sem.setProperty("compact", True)
@@ -107,6 +114,7 @@ class PantallaHistorial(QWidget):
         fila_fechas.addWidget(QLabel("Hasta:"))
         fila_fechas.addWidget(self.dt_hasta)
         fila_fechas.addWidget(btn_hoy)
+        fila_fechas.addWidget(self.btn_ayer)
         fila_fechas.addWidget(btn_sem)
         fila_fechas.addWidget(btn_mes)
         fila_fechas.addStretch()
@@ -196,6 +204,14 @@ class PantallaHistorial(QWidget):
         configurar_boton(self.btn_corregir, "edit", color="#0F172A")
         self.btn_corregir.clicked.connect(self.accion_corregir_seleccionada)
         fila_det_head.addWidget(self.btn_corregir)
+
+        self.btn_eliminar = QPushButton("  Eliminar registro", self)
+        self.btn_eliminar.setProperty("rol", "peligro")
+        self.btn_eliminar.setProperty("compact", True)
+        self.btn_eliminar.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_eliminar, "trash", color="#FFFFFF")
+        self.btn_eliminar.clicked.connect(self.accion_eliminar_seleccionada)
+        fila_det_head.addWidget(self.btn_eliminar)
         col_det.addLayout(fila_det_head)
 
         self.txt_detalle = QPlainTextEdit(self)
@@ -215,6 +231,12 @@ class PantallaHistorial(QWidget):
         h = QDate.currentDate()
         self.dt_desde.setDate(h)
         self.dt_hasta.setDate(h)
+        self.aplicar_filtros()
+
+    def _rango_ayer(self) -> None:
+        ayer = QDate.currentDate().addDays(-1)
+        self.dt_desde.setDate(ayer)
+        self.dt_hasta.setDate(ayer)
         self.aplicar_filtros()
 
     def _rango_semana_actual(self) -> None:
@@ -350,13 +372,6 @@ class PantallaHistorial(QWidget):
                         f"({formatear_duracion_corta(ses.duracion_seg)}){fh}"
                     )
 
-            if det.pausas:
-                lineas.append("\n--- Pausas registradas ---")
-                for p in det.pausas:
-                    fin_p = p.fin.strftime("%H:%M") if p.fin else "abierta"
-                    mot = f" — {p.motivo}" if p.motivo else ""
-                    lineas.append(f"  • [{p.tipo}] {p.inicio:%H:%M}–{fin_p}{mot}")
-
             if det.ediciones:
                 lineas.append("\n--- Trazabilidad de correcciones ---")
                 for ed in det.ediciones:
@@ -378,19 +393,29 @@ class PantallaHistorial(QWidget):
             dlg = DialogoCorregirActividad(act, self)
             if dlg.exec() != DialogoCorregirActividad.DialogCode.Accepted:
                 return
-            srv_act = ServicioActividades(s)
-            srv_act.corregir_actividad(
-                act,
-                motivo=dlg.motivo,
-                nombre=dlg.nuevo_nombre,
-                tiempo_estimado_min=dlg.nuevo_estimado,
-                descripcion=dlg.nueva_descripcion,
+            aplicar_correccion_desde_dialogo(s, act, dlg)
+        self.aplicar_filtros()
+
+    def accion_eliminar_seleccionada(self) -> None:
+        act_id = self._actividad_seleccionada_id()
+        if act_id is None:
+            return
+        resp = QMessageBox.question(
+            self,
+            "Eliminar registro",
+            "¿Confirmas que deseas eliminar esta actividad del historial? "
+            "Se recalculará la jornada correspondiente.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        if resp != QMessageBox.StandardButton.Yes:
+            return
+        with self.bd.sesion() as s:
+            act = s.get(Actividad, act_id)
+            if act is None:
+                return
+            if act.estado == EstadoActividad.EN_CURSO.value:
+                ServicioCronometro(s).detener(act, motivo="Eliminada desde Historial")
+            ServicioActividades(s).cambiar_estado_manual(
+                act, EstadoActividad.ELIMINADA, motivo="Eliminado desde Historial"
             )
-            if act.sesiones and dlg.nuevo_inicio and dlg.nuevo_fin:
-                srv_act.corregir_sesion_tiempo(
-                    act.sesiones[-1],
-                    motivo=dlg.motivo,
-                    nuevo_inicio=dlg.nuevo_inicio,
-                    nuevo_fin=dlg.nuevo_fin,
-                )
         self.aplicar_filtros()

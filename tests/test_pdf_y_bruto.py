@@ -8,7 +8,7 @@ from pathlib import Path
 from PySide6.QtPdf import QPdfDocument
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from data.enums import MotivoRevision, TipoPausa, TipoRevision
+from data.enums import EstadoActividad, MotivoRevision, TipoPausa, TipoRevision
 from data.models import Pausa, SesionTiempo, Solicitante
 from data.repositorios.catalogos import RepoCategorias
 from data.repositorios.jornadas import RepoJornadas
@@ -292,10 +292,11 @@ def test_iniciar_otra_actividad_cierra_pausa_abierta_previa(s):
     assert pausa_a.fin == datetime(2026, 11, 9, 9, 10)
     assert cron.pausa_abierta() is None
 
-    # Al cambiar directamente pausando B e iniciando C, no quedan pausas abiertas huérfanas
+    # Al cambiar directamente deteniendo B e iniciando C, no quedan pausas abiertas huérfanas
     cron.iniciar(act_c, accion_sobre_activa=AccionSobreActiva.PAUSAR, momento=datetime(2026, 11, 9, 10, 0))
     assert cron.pausa_abierta() is None
-    assert act_b.pausas[-1].fin == datetime(2026, 11, 9, 10, 0)
+    assert cron.actividad_en_curso() == act_c
+    assert act_b.estado == EstadoActividad.PENDIENTE.value
 
 
 def test_colores_semaforo_cubre_todos_los_niveles(tmp_path):

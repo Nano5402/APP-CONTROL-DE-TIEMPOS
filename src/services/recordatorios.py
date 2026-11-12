@@ -355,7 +355,7 @@ class ServicioRecordatorios:
                 titulo="Hora de almuerzo",
                 mensaje=(
                     f"Es hora de almuerzo ({inicio_almuerzo:%H:%M} – {fin_almuerzo:%H:%M}). "
-                    "Recuerda pausar tu actividad."
+                    "Recuerda finalizar o detener tu actividad."
                 ),
             )
         return None
@@ -429,9 +429,8 @@ class ServicioRecordatorios:
                 momento=instante,
             )
         elif resp_enum == RespuestaRecordatorio.PAUSAR:
-            self.cron.pausar(
+            self.cron.detener(
                 actividad,
-                tipo=tipo_pausa,
                 motivo=motivo_pausa,
                 momento=instante,
             )

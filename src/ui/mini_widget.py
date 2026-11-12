@@ -2,7 +2,6 @@
 
 Permite ver el tiempo en vivo de la actividad actual encima de cualquier otra
 aplicación (Illustrator, Photoshop, navegador, etc.) y ejecutar en 1 clic:
-- Pausar
 - Finalizar
 - Finalizar y empezar siguiente pieza
 """
@@ -72,10 +71,6 @@ class MiniWidgetCronometro(QWidget):
 
         fila_btn = QHBoxLayout()
         fila_btn.setSpacing(6)
-        self.btn_pausar = QPushButton(" Pausar", self)
-        self.btn_pausar.setProperty("rol", "advertencia")
-        self.btn_pausar.setProperty("compact", True)
-        configurar_boton(self.btn_pausar, "pause", tamano=14)
         self.btn_finalizar = QPushButton(" Finalizar", self)
         self.btn_finalizar.setProperty("rol", "exito")
         self.btn_finalizar.setProperty("compact", True)
@@ -85,17 +80,14 @@ class MiniWidgetCronometro(QWidget):
         self.btn_siguiente.setToolTip("Terminar esta actividad y empezar la siguiente")
         configurar_boton(self.btn_siguiente, "skip-forward", tamano=14)
 
-        for b in (self.btn_pausar, self.btn_finalizar, self.btn_siguiente):
+        for b in (self.btn_finalizar, self.btn_siguiente):
             b.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        if al_pausar:
-            self.btn_pausar.clicked.connect(al_pausar)
         if al_finalizar:
             self.btn_finalizar.clicked.connect(al_finalizar)
         if al_siguiente_pieza:
             self.btn_siguiente.clicked.connect(al_siguiente_pieza)
 
-        fila_btn.addWidget(self.btn_pausar)
         fila_btn.addWidget(self.btn_finalizar)
         fila_btn.addWidget(self.btn_siguiente)
         capa_marco.addLayout(fila_btn)
@@ -117,7 +109,6 @@ class MiniWidgetCronometro(QWidget):
         else:
             self.lbl_actividad.setText("Sin actividad en curso")
         self.lbl_reloj.setText(formatear_reloj_hms(segundos))
-        self.btn_pausar.setEnabled(activa)
         self.btn_finalizar.setEnabled(activa)
 
         if nombre_siguiente is None:

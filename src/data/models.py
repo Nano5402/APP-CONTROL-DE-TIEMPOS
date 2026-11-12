@@ -398,3 +398,30 @@ class EdicionLog(Base):
     valor_anterior: Mapped[str | None] = mapped_column(Text)
     valor_nuevo: Mapped[str | None] = mapped_column(Text)
     motivo: Mapped[str] = mapped_column(Text)
+
+
+class ItemPlaneacion(Base):
+    """Tarea del tablero colaborativo de Planeación Semanal."""
+
+    __tablename__ = "items_planeacion"
+    __table_args__ = (
+        _check_enum("prioridad", Prioridad),
+        Index("ix_items_planeacion_semana", "fecha_semana"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    titulo: Mapped[str] = mapped_column(String(200))
+    responsable: Mapped[str] = mapped_column(String(120), default="")
+    descripcion: Mapped[str | None] = mapped_column(Text)
+    categoria_id: Mapped[int | None] = mapped_column(ForeignKey("categorias.id", ondelete="SET NULL"))
+    dia_semana: Mapped[int | None] = mapped_column(Integer)  # 0=Lunes... 5=Sábado, None=Semana general
+    fecha_semana: Mapped[date] = mapped_column(Date)  # Lunes de la semana
+    prioridad: Mapped[str] = mapped_column(String(20), default=Prioridad.NORMAL.value)
+    tiempo_estimado_min: Mapped[int | None] = mapped_column(Integer)
+    completado: Mapped[bool] = mapped_column(Boolean, default=False)
+    orden: Mapped[int] = mapped_column(Integer, default=0)
+    creado_en: Mapped[datetime] = mapped_column(DateTime, default=ahora)
+    completado_en: Mapped[datetime | None] = mapped_column(DateTime)
+
+    categoria: Mapped[Categoria | None] = relationship()
+
