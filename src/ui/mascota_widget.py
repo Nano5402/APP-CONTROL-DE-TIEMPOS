@@ -1,20 +1,19 @@
-"""Mascota de escritorio interactiva «UTILÍN» con animaciones fluidas (Codex Pets).
+"""Mascota de escritorio «UTILÍN» en 3D ultra-pulida con físicas fluidas.
 
-Incluye:
-- Flotación y respiración suave (bobbing y squash & stretch).
-- Animación de saludo rítmico con la mano en 3 poses (izquierda, centro, derecha).
-- Parpadeo de ojos natural y tierno (^ ^) cada pocos segundos.
-- Física de inercia e inclinación al arrastrar por la pantalla.
-- Rebote elástico (hop) al hacer clic.
-- Sombra de contacto 3D dinámica que reacciona a la altura del personaje.
-- Auténtico globo de texto tipo cómic con colita apuntando a su cabeza.
-- Arrastre libre a cualquier monitor y restauración con doble clic.
+Muestra la imagen 3D original de Utilín con su máxima nitidez y textura de felpa,
+combinada con:
+- Flotación y levitación continua (bobbing suave).
+- Respiración elástica orgánica (squash & stretch sutil).
+- Física de inercia e inclinación en vuelo al arrastrar por la pantalla.
+- Rebote elástico (hop) de respuesta táctil al hacer clic.
+- Sombra elíptica 3D dinámica en el suelo que reacciona a la altura.
+- Globo de texto cómic vectorial con colita apuntando a su cabeza.
+- Arrastre libre universal y restauración instantánea con doble clic.
 """
 
 from __future__ import annotations
 
 import math
-import random
 from collections.abc import Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, QSize, Qt, QTimer
@@ -45,7 +44,7 @@ from ui.mini_widget import formatear_reloj_hms
 
 
 class GloboTextoWidget(QWidget):
-    """Globo de diálogo tipo cómic con cuerpo redondeado y colita apuntando a Utilín."""
+    """Globo de diálogo tipo cómic vectorial con cuerpo redondeado y colita."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -108,7 +107,7 @@ class GloboTextoWidget(QWidget):
         self.layout_globo.addLayout(self.fila_acciones)
 
     def paintEvent(self, event) -> None:
-        """Dibuja el globo de diálogo vectorial con su colita apuntando a Utilín."""
+        """Dibuja el globo de diálogo vectorial con su colita apuntando hacia abajo."""
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -134,7 +133,7 @@ class GloboTextoWidget(QWidget):
         globo_completo = path.united(cola)
 
         # Sombra sutil exterior
-        p.setPen(QPen(QColor(15, 23, 42, 24), 3.0))
+        p.setPen(QPen(QColor(15, 23, 42, 22), 3.0))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(globo_completo)
 
@@ -145,8 +144,8 @@ class GloboTextoWidget(QWidget):
         p.end()
 
 
-class UtilinAnimadoWidget(QWidget):
-    """Lienzo interactivo animado de Utilín con física de inercia y saludo dinámico."""
+class UtilinRender3DWidget(QWidget):
+    """Lienzo 3D con físicas de levitación, respiración orgánica e inercia al arrastrar."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -155,129 +154,46 @@ class UtilinAnimadoWidget(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self._t: float = 0.0
-        self._parpadeando: bool = False
-        self._duracion_parpadeo: int = 0
-        self._tiempo_proximo_parpadeo: float = random.uniform(3.0, 5.0)
-
-        self._fase_saludo: int = 0  # 0=neutral, 1=wave_l, 2=neutral, 3=wave_r
-        self._timer_saludo: float = 0.0
-        self._velocidad_saludo: float = 1.0  # se acelera en hover o drag
-
         self._tilt_deg: float = 0.0
         self._tilt_objetivo: float = 0.0
         self._jump_y: float = 0.0
-        self._is_hovered: bool = False
 
-        self._cargar_frames()
+        ruta_img = rutas.carpeta_assets() / "mascota_codex.png"
+        self._pix_utilin = QPixmap(str(ruta_img)) if ruta_img.is_file() else QPixmap()
 
-        # Timer principal de animación (33 FPS / ~30ms para suavidad sin carga CPU)
+        # Timer de física y animación fluido (30ms / ~33 FPS con mínimo consumo)
         self._timer_anim = QTimer(self)
         self._timer_anim.setInterval(30)
-        self._timer_anim.timeout.connect(self._actualizar_animacion)
+        self._timer_anim.timeout.connect(self._actualizar_fisicas)
         self._timer_anim.start()
 
-    def _cargar_frames(self) -> None:
-        """Carga las 6 variaciones de animación de Utilín."""
-        d = rutas.carpeta_assets()
-        self.pix_neutral = QPixmap(str(d / "mascota_codex.png"))
-        self.pix_blink = QPixmap(str(d / "mascota_blink.png"))
-        self.pix_wave_l = QPixmap(str(d / "mascota_wave_l.png"))
-        self.pix_wave_l_blink = QPixmap(str(d / "mascota_wave_l_blink.png"))
-        self.pix_wave_r = QPixmap(str(d / "mascota_wave_r.png"))
-        self.pix_wave_r_blink = QPixmap(str(d / "mascota_wave_r_blink.png"))
-
-        # Fallback de seguridad si faltase alguna imagen
-        if self.pix_blink.isNull():
-            self.pix_blink = self.pix_neutral
-        if self.pix_wave_l.isNull():
-            self.pix_wave_l = self.pix_neutral
-        if self.pix_wave_l_blink.isNull():
-            self.pix_wave_l_blink = self.pix_wave_l
-        if self.pix_wave_r.isNull():
-            self.pix_wave_r = self.pix_neutral
-        if self.pix_wave_r_blink.isNull():
-            self.pix_wave_r_blink = self.pix_wave_r
-
     def pixmap(self) -> QPixmap:
-        """Devuelve el pixmap actual de Utilín (compatibilidad con tests e inspección)."""
-        return self._obtener_frame_actual()
-
-    def _obtener_frame_actual(self) -> QPixmap:
-        """Determina qué frame mostrar según parpadeo y fase del saludo."""
-        if self._parpadeando:
-            if self._fase_saludo == 1:
-                return self.pix_wave_l_blink
-            elif self._fase_saludo == 3:
-                return self.pix_wave_r_blink
-            return self.pix_blink
-        else:
-            if self._fase_saludo == 1:
-                return self.pix_wave_l
-            elif self._fase_saludo == 3:
-                return self.pix_wave_r
-            return self.pix_neutral
+        """Devuelve el pixmap 3D original de Utilín para compatibilidad."""
+        return self._pix_utilin
 
     def set_inclinacion_arrastre(self, inclinacion_grados: float) -> None:
-        """Aplica inclinación dinámica por inercia mientras el usuario arrastra."""
-        self._tilt_objetivo = max(-14.0, min(14.0, inclinacion_grados))
-        self._velocidad_saludo = 2.4
+        """Aplica inclinación en el aire cuando se arrastra por la pantalla."""
+        self._tilt_objetivo = max(-13.0, min(13.0, inclinacion_grados))
 
     def soltar_arrastre(self) -> None:
-        """Restablece la inclinación suavemente con rebote."""
+        """Restablece la inclinación suavemente con rebote elástico."""
         self._tilt_objetivo = 0.0
-        self._velocidad_saludo = 1.0
 
     def activar_saltito(self) -> None:
-        """Activa un salto alegre al hacer clic en Utilín."""
-        self._jump_y = -10.0
-        self._velocidad_saludo = 2.8
+        """Efecto rebote táctil (hop) al hacer clic."""
+        self._jump_y = -9.0
 
-    def enterEvent(self, event) -> None:
-        self._is_hovered = True
-        self._velocidad_saludo = 2.0
-        super().enterEvent(event)
+    def _actualizar_fisicas(self) -> None:
+        self._t += 0.030
 
-    def leaveEvent(self, event) -> None:
-        self._is_hovered = False
-        self._velocidad_saludo = 1.0
-        super().leaveEvent(event)
+        # Amortiguación elástica de inclinación
+        self._tilt_deg += (self._tilt_objetivo - self._tilt_deg) * 0.24
 
-    def _actualizar_animacion(self) -> None:
-        dt = 0.030
-        self._t += dt
-
-        # 1. Parpadeo periódico
-        if not self._parpadeando:
-            if self._t >= self._tiempo_proximo_parpadeo:
-                self._parpadeando = True
-                self._duracion_parpadeo = 4  # 4 frames (~120ms)
-        else:
-            self._duracion_parpadeo -= 1
-            if self._duracion_parpadeo <= 0:
-                self._parpadeando = False
-                self._tiempo_proximo_parpadeo = self._t + random.uniform(3.0, 5.5)
-
-        # 2. Ciclo de saludo con la mano
-        self._timer_saludo += dt * self._velocidad_saludo
-        # Alterna entre: 0=neutral (0.5s), 1=wave_l (0.28s), 2=neutral (0.2s), 3=wave_r (0.28s)
-        ciclo = self._timer_saludo % 1.26
-        if ciclo < 0.40:
-            self._fase_saludo = 0
-        elif ciclo < 0.68:
-            self._fase_saludo = 1
-        elif ciclo < 0.88:
-            self._fase_saludo = 0
-        else:
-            self._fase_saludo = 3
-
-        # 3. Amortiguación del salto (jump physics)
+        # Amortiguación del salto al hacer clic
         if abs(self._jump_y) > 0.1:
-            self._jump_y *= 0.86
+            self._jump_y *= 0.85
         else:
             self._jump_y = 0.0
-
-        # 4. Amortiguación de inclinación (inercia)
-        self._tilt_deg += (self._tilt_objetivo - self._tilt_deg) * 0.22
 
         self.update()
 
@@ -287,10 +203,10 @@ class UtilinAnimadoWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         cx = self.width() / 2.0
-        # Flotación sinusoidal suave (bobbing)
-        bob_y = math.sin(self._t * 2.8) * 4.2 + self._jump_y
+        # 1. Flotación / levitación sinusoidal suave
+        bob_y = math.sin(self._t * 2.4) * 4.4 + self._jump_y
 
-        # 1. Dibujar sombra de suelo dinámica debajo de Utilín
+        # 2. Sombra de contacto 3D en el suelo
         cy_sombra = self.height() - 9.0
         factor_sombra = max(0.60, min(1.15, 1.0 - (bob_y / 24.0)))
         w_sombra = 98.0 * factor_sombra
@@ -305,25 +221,25 @@ class UtilinAnimadoWidget(QWidget):
         p.setBrush(grad_sombra)
         p.drawEllipse(QRectF(cx - w_sombra / 2.0, cy_sombra - h_sombra / 2.0, w_sombra, h_sombra))
 
-        # 2. Dibujar personaje con transformaciones de flotación, respiración e inercia
-        frame = self._obtener_frame_actual()
-        if not frame.isNull():
-            # Escala de respiración sutil (squash & stretch)
-            escala_x = 1.0 + math.cos(self._t * 2.8) * 0.014
-            escala_y = 1.0 - math.cos(self._t * 2.8) * 0.014
+        # 3. Dibujo de Utilín con textura 3D original impecable y físicas
+        if not self._pix_utilin.isNull():
+            # Respiración elástica muy sutil (squash & stretch)
+            escala_x = 1.0 + math.cos(self._t * 2.4) * 0.012
+            escala_y = 1.0 - math.cos(self._t * 2.4) * 0.012
 
             ancho_pj = 146.0 * escala_x
             alto_pj = 154.0 * escala_y
             cy_pj = cy_sombra - (alto_pj / 2.0) - 2.0 + bob_y
 
+            # Transformación de inercia e inclinación
             t = QTransform()
-            t.translate(cx, cy_pj + alto_pj * 0.4)
+            t.translate(cx, cy_pj + alto_pj * 0.45)
             t.rotate(self._tilt_deg)
-            t.translate(-cx, -(cy_pj + alto_pj * 0.4))
+            t.translate(-cx, -(cy_pj + alto_pj * 0.45))
 
             p.setTransform(t)
             rect_pj = QRectF(cx - ancho_pj / 2.0, cy_pj - alto_pj / 2.0, ancho_pj, alto_pj)
-            p.drawPixmap(rect_pj.toRect(), frame)
+            p.drawPixmap(rect_pj.toRect(), self._pix_utilin)
         else:
             p.setPen(QColor("#003D95"))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🤖 Utilín")
@@ -332,7 +248,7 @@ class UtilinAnimadoWidget(QWidget):
 
 
 class MascotaWidget(QWidget):
-    """Mascota de escritorio animada «UTILÍN» con arrastre libre y globo cómic."""
+    """Mascota de escritorio «UTILÍN» con arrastre libre a cualquier monitor."""
 
     def __init__(
         self,
@@ -386,8 +302,8 @@ class MascotaWidget(QWidget):
 
         layout_raiz.addWidget(self.globo, 0, Qt.AlignmentFlag.AlignCenter)
 
-        # 2. Utilín animado (saludo, parpadeo, flotación y física)
-        self.lbl_mascota = UtilinAnimadoWidget(self)
+        # 2. Utilín con render 3D original y físicas fluidas
+        self.lbl_mascota = UtilinRender3DWidget(self)
         self.lbl_mascota.setToolTip(
             "Utilín — Mascota de Control de Tiempos\n"
             "• Arrastra para moverme a cualquier sitio\n"
@@ -421,7 +337,7 @@ class MascotaWidget(QWidget):
         self._posicionar_defecto()
 
     def mostrar_mascota(self) -> None:
-        """Muestra a Utilín en el escritorio con animación activa."""
+        """Muestra a Utilín en el escritorio con sus físicas activas."""
         if self._posicion_personalizada is not None:
             self.move(self._posicion_personalizada)
         self.show()
@@ -509,7 +425,7 @@ class MascotaWidget(QWidget):
                 # Calcular inclinación por velocidad de arrastre horizontal
                 vx = float(pos_actual.x() - self._ultimo_pos_raton.x())
                 self._ultimo_pos_raton = pos_actual
-                inclinacion = vx * 0.75
+                inclinacion = vx * 0.70
                 self.lbl_mascota.set_inclinacion_arrastre(inclinacion)
                 return True
 

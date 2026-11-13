@@ -227,7 +227,7 @@ def test_pantallas_sin_recortes_en_resoluciones_y_fuentes(bd, monkeypatch):
                 app.processEvents()
                 pagina = ventana.paginas.currentWidget()
 
-                if idx == 7:
+                if idx == 8:
                     cfg_tab = ventana.pantalla_config
                     assert cfg_tab.tabs_config.count() == 5
                     for t_idx in range(cfg_tab.tabs_config.count()):
@@ -257,7 +257,7 @@ def test_pantallas_sin_recortes_en_resoluciones_y_fuentes(bd, monkeypatch):
                             todos_hallazgos.append(
                                 f"{nombre_esc}/Planear: tabla.hbar={t_plan.horizontalScrollBar().maximum()} cols={cols_w} vp={t_plan.viewport().width()}"
                             )
-                    elif idx == 3:
+                    elif idx == 4:
                         cierre = ventana.pantalla_cierre
                         if cierre.tabla_abiertas.verticalHeader().defaultSectionSize() < 48:
                             todos_hallazgos.append(
@@ -276,14 +276,14 @@ def test_pantallas_sin_recortes_en_resoluciones_y_fuentes(bd, monkeypatch):
                             todos_hallazgos.append(
                                 f"{nombre_esc}/Cierre: tabla.hbar={cierre.tabla_abiertas.horizontalScrollBar().maximum()} cols={cols_w} vp={cierre.tabla_abiertas.viewport().width()}"
                             )
-                    elif idx == 4:
+                    elif idx == 5:
                         t_hist = ventana.pantalla_historial.tabla
                         if t_hist.horizontalScrollBar().maximum() != 0:
                             cols_w = [t_hist.columnWidth(c) for c in range(t_hist.columnCount())]
                             todos_hallazgos.append(
                                 f"{nombre_esc}/Historial: tabla.hbar={t_hist.horizontalScrollBar().maximum()} cols={cols_w} vp={t_hist.viewport().width()}"
                             )
-                    elif idx == 6:
+                    elif idx == 7:
                         for t_i, tbl in enumerate(pagina.findChildren(QTableWidget)):
                             if tbl.horizontalScrollBar().maximum() != 0:
                                 cols_w = [tbl.columnWidth(c) for c in range(tbl.columnCount())]
