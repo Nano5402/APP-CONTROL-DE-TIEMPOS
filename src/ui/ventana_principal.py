@@ -29,6 +29,7 @@ from data.models import Usuario
 from data.repositorios.configuracion import RepoConfiguracion
 from ui.bandeja import crear_icono_app
 from ui.iconos import configurar_boton, obtener_icono
+from ui.mascota_widget import MascotaWidget
 from ui.mini_widget import MiniWidgetCronometro, formatear_reloj_hms
 from ui.pantallas.pantalla_cierre import PantallaCierre
 from ui.pantallas.pantalla_configuracion import PantallaConfiguracion
@@ -175,6 +176,15 @@ class VentanaPrincipal(QMainWindow):
         )
         self.mini_widget.setWindowIcon(icono_corporativo)
 
+        # Mascota de escritorio interactiva (Codex Pets)
+        self._saliendo_definitivo: bool = False
+        self.mascota_widget = MascotaWidget(
+            al_restaurar=self.restaurar_desde_mascota,
+            al_finalizar=self._atajo_finalizar,
+            al_cerrar_definitivo=self.cerrar_definitivo,
+        )
+        self.mascota_widget.setWindowIcon(icono_corporativo)
+
         contenedor = QWidget(self)
         layout_raiz = QVBoxLayout(contenedor)
         layout_raiz.setContentsMargins(0, 0, 0, 0)
@@ -271,6 +281,14 @@ class VentanaPrincipal(QMainWindow):
 
         scroll_nav.setWidget(cont_nav_btns)
         col_nav.addWidget(scroll_nav, 1)
+
+        self.btn_toggle_mascota = QPushButton("  Mascota de escritorio", sidebar)
+        self.btn_toggle_mascota.setCheckable(True)
+        self.btn_toggle_mascota.setProperty("compact", True)
+        self.btn_toggle_mascota.setCursor(Qt.CursorShape.PointingHandCursor)
+        configurar_boton(self.btn_toggle_mascota, "user", color="#CBD5E1", tamano=15)
+        self.btn_toggle_mascota.toggled.connect(self.mostrar_ocultar_mascota)
+        col_nav.addWidget(self.btn_toggle_mascota)
 
         self.btn_toggle_mini = QPushButton("  Mini-ventana flotante", sidebar)
         self.btn_toggle_mini.setCheckable(True)
@@ -481,6 +499,42 @@ class VentanaPrincipal(QMainWindow):
         if self.isFullScreen():
             self.alternar_pantalla_completa()
 
+    def mostrar_ocultar_mascota(self, visible: bool) -> None:
+        if not hasattr(self, "mascota_widget") or not self.mascota_widget:
+            return
+        if hasattr(self, "btn_toggle_mascota"):
+            self.btn_toggle_mascota.blockSignals(True)
+            self.btn_toggle_mascota.setChecked(visible)
+            self.btn_toggle_mascota.setText(
+                "  Ocultar Mascota" if visible else "  Mascota de escritorio"
+            )
+            self.btn_toggle_mascota.blockSignals(False)
+        if visible:
+            self._tick_reloj()
+            self.mascota_widget.mostrar_mascota()
+        else:
+            self.mascota_widget.ocultar_mascota()
+
+    def restaurar_desde_mascota(self) -> None:
+        """Restaura la ventana principal y oculta la mascota flotante."""
+        if hasattr(self, "mascota_widget") and self.mascota_widget:
+            self.mascota_widget.ocultar_mascota()
+        if hasattr(self, "btn_toggle_mascota"):
+            self.btn_toggle_mascota.blockSignals(True)
+            self.btn_toggle_mascota.setChecked(False)
+            self.btn_toggle_mascota.setText("  Mascota de escritorio")
+            self.btn_toggle_mascota.blockSignals(False)
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def cerrar_definitivo(self) -> None:
+        """Finaliza y cierra por completo la aplicación sin dejar mascota ni procesos."""
+        self._saliendo_definitivo = True
+        if hasattr(self, "mascota_widget") and self.mascota_widget:
+            self.mascota_widget.close()
+        self.close()
+
     def mostrar_ocultar_mini_widget(self, visible: bool) -> None:
         self.btn_toggle_mini.blockSignals(True)
         self.btn_toggle_mini.setChecked(visible)
@@ -502,6 +556,8 @@ class VentanaPrincipal(QMainWindow):
         self.mini_widget.actualizar_estado(
             nombre, seg, self.pantalla_hoy.nombre_siguiente_sugerido
         )
+        if hasattr(self, "mascota_widget") and self.mascota_widget:
+            self.mascota_widget.actualizar_estado(nombre, seg)
         if hasattr(self, "barra_titulo"):
             self.barra_titulo.actualizar_estado(nombre, seg)
         if nombre:
@@ -591,79 +647,95 @@ class VentanaPrincipal(QMainWindow):
     def closeEvent(self, event) -> None:
         """Maneja el evento de cierre al hacer clic en la «X».
 
-        Si la opción 'minimizar_al_cerrar' no está activa (por defecto),
-        cierra y finaliza la aplicación por completo, deteniendo timers,
-        avisos sonoros y ocultando el icono de la bandeja.
+        Si la opción 'mascota_al_cerrar' está activa (por defecto),
+        la ventana principal se oculta y la mascota de Gente Util permanece
+        flotando en el escritorio con el cronómetro y estado de la app.
         """
-        from data.repositorios.configuracion import RepoConfiguracion
-        from services.cronometro import ServicioCronometro
+        if getattr(self, "_saliendo_definitivo", False):
+            pass
+        else:
+            from data.repositorios.configuracion import RepoConfiguracion
+            from services.cronometro import ServicioCronometro
 
-        with self.bd.sesion() as s:
-            cfg = RepoConfiguracion(s)
-            minimizar_al_cerrar = cfg.obtener_bool("sistema.minimizar_al_cerrar", False)
-            cron = ServicioCronometro(s)
-            activa = cron.actividad_en_curso()
+            with self.bd.sesion() as s:
+                cfg = RepoConfiguracion(s)
+                mascota_al_cerrar = cfg.obtener_bool("sistema.mascota_al_cerrar", True)
+                minimizar_al_cerrar = cfg.obtener_bool("sistema.minimizar_al_cerrar", False)
+                cron = ServicioCronometro(s)
+                activa = cron.actividad_en_curso()
 
-        # Si el usuario configuró explícitamente mantener en segundo plano
-        if (
-            minimizar_al_cerrar
-            and hasattr(self, "icono_bandeja")
-            and self.icono_bandeja
-            and self.icono_bandeja.isSystemTrayAvailable()
-        ):
-            event.ignore()
-            self.hide()
-            self.icono_bandeja.showMessage(
-                rutas.NOMBRE_VISIBLE,
-                "La aplicación sigue activa en la bandeja del reloj. Para salir por completo, clic derecho y «Salir por completo».",
-            )
-            return
-
-        # Si hay una actividad en curso con el cronómetro corriendo
-        if activa is not None:
-            from PySide6.QtWidgets import QMessageBox
-
-            msg = QMessageBox(self)
-            msg.setWindowTitle("Actividad en curso")
-            msg.setIcon(QMessageBox.Icon.Question)
-            msg.setText(f"Tienes la actividad «{activa.nombre}» en curso.")
-            msg.setInformativeText(
-                "¿Deseas detener la actividad y salir por completo, o minimizar la app en la bandeja del reloj?"
-            )
-            btn_salir = msg.addButton(
-                "Detener y Salir por completo", QMessageBox.ButtonRole.AcceptRole
-            )
-            btn_min = msg.addButton(
-                "Minimizar a la bandeja", QMessageBox.ButtonRole.ActionRole
-            )
-            btn_cancel = msg.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
-            msg.setDefaultButton(btn_salir)
-            msg.exec()
-
-            clic = msg.clickedButton()
-            if clic == btn_cancel:
-                event.ignore()
-                return
-            if clic == btn_min:
+            # Comportamiento Codex Pets: la mascota de escritorio permanece en pantalla
+            if (
+                mascota_al_cerrar
+                and hasattr(self, "mascota_widget")
+                and self.mascota_widget
+                and QApplication.platformName().lower() != "offscreen"
+            ):
                 event.ignore()
                 self.hide()
-                if (
-                    hasattr(self, "icono_bandeja")
-                    and self.icono_bandeja
-                    and self.icono_bandeja.isSystemTrayAvailable()
-                ):
-                    self.icono_bandeja.showMessage(
-                        rutas.NOMBRE_VISIBLE,
-                        "El cronómetro sigue activo en segundo plano en la bandeja del reloj.",
-                    )
+                self._tick_reloj()
+                self.mascota_widget.mostrar_mascota()
+                if hasattr(self, "btn_toggle_mascota"):
+                    self.btn_toggle_mascota.blockSignals(True)
+                    self.btn_toggle_mascota.setChecked(True)
+                    self.btn_toggle_mascota.setText("  Ocultar Mascota")
+                    self.btn_toggle_mascota.blockSignals(False)
                 return
 
-            # Si eligió salir por completo con actividad en curso, la detenemos de forma limpia
-            with self.bd.sesion() as s:
-                cron = ServicioCronometro(s)
-                activa_ahora = cron.actividad_en_curso()
-                if activa_ahora is not None:
-                    cron.detener(activa_ahora, motivo="Cierre de la aplicación")
+            # Si el usuario configuró explícitamente mantener en segundo plano en la bandeja
+            if (
+                minimizar_al_cerrar
+                and hasattr(self, "icono_bandeja")
+                and self.icono_bandeja
+                and self.icono_bandeja.isSystemTrayAvailable()
+            ):
+                event.ignore()
+                self.hide()
+                self.icono_bandeja.showMessage(
+                    rutas.NOMBRE_VISIBLE,
+                    "La aplicación sigue activa en la bandeja del reloj. Para salir por completo, clic derecho y «Salir por completo».",
+                )
+                return
+
+            # Si hay una actividad en curso con el cronómetro corriendo
+            if activa is not None and QApplication.platformName().lower() != "offscreen":
+                from PySide6.QtWidgets import QMessageBox
+
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Actividad en curso")
+                msg.setIcon(QMessageBox.Icon.Question)
+                msg.setText(f"Tienes la actividad «{activa.nombre}» en curso.")
+                msg.setInformativeText(
+                    "¿Deseas detener la actividad y salir por completo, o dejar la mascota en el escritorio?"
+                )
+                btn_salir = msg.addButton(
+                    "Detener y Salir por completo", QMessageBox.ButtonRole.AcceptRole
+                )
+                btn_mascota = msg.addButton(
+                    "Dejar mascota en escritorio", QMessageBox.ButtonRole.ActionRole
+                )
+                btn_cancel = msg.addButton("Cancelar", QMessageBox.ButtonRole.RejectRole)
+                msg.setDefaultButton(btn_mascota)
+                msg.exec()
+
+                clic = msg.clickedButton()
+                if clic == btn_cancel:
+                    event.ignore()
+                    return
+                if clic == btn_mascota:
+                    event.ignore()
+                    self.hide()
+                    if hasattr(self, "mascota_widget") and self.mascota_widget:
+                        self._tick_reloj()
+                        self.mascota_widget.mostrar_mascota()
+                    return
+
+                # Si eligió salir por completo con actividad en curso, la detenemos de forma limpia
+                with self.bd.sesion() as s:
+                    cron = ServicioCronometro(s)
+                    activa_ahora = cron.actividad_en_curso()
+                    if activa_ahora is not None:
+                        cron.detener(activa_ahora, motivo="Cierre de la aplicación")
 
         # Cierre definitivo: detener timers, audio, ocultar bandeja y cerrar proceso
         from ui.sonido import detener_sonidos
@@ -675,6 +747,8 @@ class VentanaPrincipal(QMainWindow):
         detener_sonidos()
         if hasattr(self, "mini_widget") and self.mini_widget:
             self.mini_widget.close()
+        if hasattr(self, "mascota_widget") and self.mascota_widget:
+            self.mascota_widget.close()
         if hasattr(self, "icono_bandeja") and self.icono_bandeja:
             self.icono_bandeja.hide()
 

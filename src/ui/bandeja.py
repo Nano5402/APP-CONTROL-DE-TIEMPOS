@@ -122,6 +122,10 @@ class IconoBandeja(QSystemTrayIcon):
         self.accion_mostrar.triggered.connect(self.mostrar_ventana)
         menu.addAction(self.accion_mostrar)
 
+        self.accion_mascota = QAction("Mascota de escritorio", menu)
+        self.accion_mascota.triggered.connect(self._alternar_mascota)
+        menu.addAction(self.accion_mascota)
+
         menu.addSeparator()
         self.accion_salir = QAction("Salir por completo", menu)
         self.accion_salir.triggered.connect(self._salir)
@@ -131,9 +135,20 @@ class IconoBandeja(QSystemTrayIcon):
         self.activated.connect(self._al_activar)
 
     def mostrar_ventana(self) -> None:
-        self.ventana.showNormal()
-        self.ventana.raise_()
-        self.ventana.activateWindow()
+        if hasattr(self.ventana, "restaurar_desde_mascota"):
+            self.ventana.restaurar_desde_mascota()
+        else:
+            self.ventana.showNormal()
+            self.ventana.raise_()
+            self.ventana.activateWindow()
+
+    def _alternar_mascota(self) -> None:
+        if hasattr(self.ventana, "mascota_widget") and self.ventana.mascota_widget:
+            if self.ventana.mascota_widget.isVisible():
+                self.ventana.mascota_widget.ocultar_mascota()
+            else:
+                self.ventana._tick_reloj()
+                self.ventana.mascota_widget.mostrar_mascota()
 
     def _al_activar(self, razon: QSystemTrayIcon.ActivationReason) -> None:
         if razon in (
@@ -143,11 +158,16 @@ class IconoBandeja(QSystemTrayIcon):
             self.mostrar_ventana()
 
     def _salir(self) -> None:
+        if hasattr(self.ventana, "cerrar_definitivo"):
+            self.ventana.cerrar_definitivo()
+            return
         if hasattr(self.ventana, "coordinador_recordatorios") and self.ventana.coordinador_recordatorios:
             self.ventana.coordinador_recordatorios.detener()
         if hasattr(self.ventana, "timer_reloj") and self.ventana.timer_reloj:
             self.ventana.timer_reloj.stop()
         detener_sonidos()
+        if hasattr(self.ventana, "mascota_widget") and self.ventana.mascota_widget:
+            self.ventana.mascota_widget.close()
         self.hide()
         QApplication.quit()
 

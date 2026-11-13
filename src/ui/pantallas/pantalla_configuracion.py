@@ -356,6 +356,10 @@ class PantallaConfiguracion(QWidget):
             "Mantener en segundo plano al pulsar la «X»",
             "Si está desmarcado, cerrar la ventana cierra la aplicación por completo.",
         )
+        self.chk_mascota_al_cerrar = _agregar_check_con_ayuda(
+            "Dejar mascota en el escritorio al pulsar la «X»",
+            "Muestra la mascota flotante de Gente Util con el cronómetro y estado de la app al cerrar la ventana.",
+        )
 
         fila_acceso = QHBoxLayout()
         self.btn_crear_acceso_directo = QPushButton(
@@ -838,6 +842,9 @@ class PantallaConfiguracion(QWidget):
             self.chk_minimizar_al_cerrar.setChecked(
                 cfg.obtener_bool("sistema.minimizar_al_cerrar", False)
             )
+            self.chk_mascota_al_cerrar.setChecked(
+                cfg.obtener_bool("sistema.mascota_al_cerrar", True)
+            )
 
             self.key_iniciar_pausar.setKeySequence(
                 QKeySequence(cfg.obtener("atajo.iniciar_pausar", "") or "")
@@ -941,6 +948,9 @@ class PantallaConfiguracion(QWidget):
             cfg.guardar("sistema.iniciar_minimizada_bandeja", iniciar_oculta)
             cfg.guardar(
                 "sistema.minimizar_al_cerrar", self.chk_minimizar_al_cerrar.isChecked()
+            )
+            cfg.guardar(
+                "sistema.mascota_al_cerrar", self.chk_mascota_al_cerrar.isChecked()
             )
 
             cfg.guardar(
