@@ -1,16 +1,23 @@
-"""Mascota de escritorio interactiva «UTILÍN» con globo de texto estilo cómic.
+"""Mascota de escritorio interactiva «UTILÍN» con animaciones fluidas (Codex Pets).
 
-Permanece en el escritorio cuando se cierra la aplicación, mostrando a Utilín
-(personaje 3D de Gente Util saludando), un auténtico globo de texto con colita
-apuntando hacia su cabeza con el cronómetro en vivo o saludos amigables,
-arrastre libre y suave a cualquier parte de la pantalla, y restauración con doble clic.
+Incluye:
+- Flotación y respiración suave (bobbing y squash & stretch).
+- Animación de saludo rítmico con la mano en 3 poses (izquierda, centro, derecha).
+- Parpadeo de ojos natural y tierno (^ ^) cada pocos segundos.
+- Física de inercia e inclinación al arrastrar por la pantalla.
+- Rebote elástico (hop) al hacer clic.
+- Sombra de contacto 3D dinámica que reacciona a la altura del personaje.
+- Auténtico globo de texto tipo cómic con colita apuntando a su cabeza.
+- Arrastre libre a cualquier monitor y restauración con doble clic.
 """
 
 from __future__ import annotations
 
+import math
+import random
 from collections.abc import Callable
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, QSize, Qt
+from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, QSize, Qt, QTimer
 from PySide6.QtGui import (
     QColor,
     QFont,
@@ -20,6 +27,7 @@ from PySide6.QtGui import (
     QPen,
     QPixmap,
     QRadialGradient,
+    QTransform,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -42,12 +50,11 @@ class GloboTextoWidget(QWidget):
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedWidth(210)
-        self.setMinimumHeight(84)
+        self.setFixedWidth(214)
+        self.setMinimumHeight(86)
 
-        # Layout interior con margen inferior ampliado para la colita del globo
         self.layout_globo = QVBoxLayout(self)
-        self.layout_globo.setContentsMargins(12, 8, 12, 18)
+        self.layout_globo.setContentsMargins(12, 8, 12, 19)
         self.layout_globo.setSpacing(3)
         self.layout_globo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -64,7 +71,7 @@ class GloboTextoWidget(QWidget):
         # Línea 2: Tarea en curso o texto secundario
         self.lbl_actividad = QLabel("Doble clic para abrir app", self)
         self.lbl_actividad.setWordWrap(True)
-        self.lbl_actividad.setMaximumWidth(185)
+        self.lbl_actividad.setMaximumWidth(188)
         self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_actividad.setStyleSheet(
             "color: #475569; font-size: 10px; font-weight: 500; background: transparent; border: none;"
@@ -101,7 +108,7 @@ class GloboTextoWidget(QWidget):
         self.layout_globo.addLayout(self.fila_acciones)
 
     def paintEvent(self, event) -> None:
-        """Dibuja el globo de diálogo vectorial con su colita apuntando hacia abajo."""
+        """Dibuja el globo de diálogo vectorial con su colita apuntando a Utilín."""
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -114,53 +121,218 @@ class GloboTextoWidget(QWidget):
         path = QPainterPath()
         path.addRoundedRect(rect_cuerpo, 13.0, 13.0)
 
-        # Colita triangular del globo apuntando hacia la cabeza de Utilín
+        # Colita triangular del globo
         cx = rect_cuerpo.center().x()
         by = rect_cuerpo.bottom()
 
         cola = QPainterPath()
         cola.moveTo(cx - 9.0, by - 0.5)
-        cola.lineTo(cx + 3.0, by + alto_cola)  # Vértice apuntando a Utilín
+        cola.lineTo(cx + 3.0, by + alto_cola)
         cola.lineTo(cx + 15.0, by - 0.5)
         cola.closeSubpath()
 
         globo_completo = path.united(cola)
 
         # Sombra sutil exterior
-        p.setPen(QPen(QColor(15, 23, 42, 22), 3.0))
+        p.setPen(QPen(QColor(15, 23, 42, 24), 3.0))
         p.setBrush(Qt.BrushStyle.NoBrush)
         p.drawPath(globo_completo)
 
-        # Fondo blanco nítido y borde elegante
+        # Fondo blanco nítido y borde
         p.setPen(QPen(QColor("#94A3B8"), 1.4))
         p.setBrush(QColor(255, 255, 255, 253))
         p.drawPath(globo_completo)
         p.end()
 
 
-class SombraSueloWidget(QWidget):
-    """Sombra de contacto elíptica en el suelo para realismo 3D de Utilín."""
+class UtilinAnimadoWidget(QWidget):
+    """Lienzo interactivo animado de Utilín con física de inercia y saludo dinámico."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedSize(120, 10)
+        self.setFixedSize(164, 184)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        self._t: float = 0.0
+        self._parpadeando: bool = False
+        self._duracion_parpadeo: int = 0
+        self._tiempo_proximo_parpadeo: float = random.uniform(3.0, 5.0)
+
+        self._fase_saludo: int = 0  # 0=neutral, 1=wave_l, 2=neutral, 3=wave_r
+        self._timer_saludo: float = 0.0
+        self._velocidad_saludo: float = 1.0  # se acelera en hover o drag
+
+        self._tilt_deg: float = 0.0
+        self._tilt_objetivo: float = 0.0
+        self._jump_y: float = 0.0
+        self._is_hovered: bool = False
+
+        self._cargar_frames()
+
+        # Timer principal de animación (33 FPS / ~30ms para suavidad sin carga CPU)
+        self._timer_anim = QTimer(self)
+        self._timer_anim.setInterval(30)
+        self._timer_anim.timeout.connect(self._actualizar_animacion)
+        self._timer_anim.start()
+
+    def _cargar_frames(self) -> None:
+        """Carga las 6 variaciones de animación de Utilín."""
+        d = rutas.carpeta_assets()
+        self.pix_neutral = QPixmap(str(d / "mascota_codex.png"))
+        self.pix_blink = QPixmap(str(d / "mascota_blink.png"))
+        self.pix_wave_l = QPixmap(str(d / "mascota_wave_l.png"))
+        self.pix_wave_l_blink = QPixmap(str(d / "mascota_wave_l_blink.png"))
+        self.pix_wave_r = QPixmap(str(d / "mascota_wave_r.png"))
+        self.pix_wave_r_blink = QPixmap(str(d / "mascota_wave_r_blink.png"))
+
+        # Fallback de seguridad si faltase alguna imagen
+        if self.pix_blink.isNull():
+            self.pix_blink = self.pix_neutral
+        if self.pix_wave_l.isNull():
+            self.pix_wave_l = self.pix_neutral
+        if self.pix_wave_l_blink.isNull():
+            self.pix_wave_l_blink = self.pix_wave_l
+        if self.pix_wave_r.isNull():
+            self.pix_wave_r = self.pix_neutral
+        if self.pix_wave_r_blink.isNull():
+            self.pix_wave_r_blink = self.pix_wave_r
+
+    def pixmap(self) -> QPixmap:
+        """Devuelve el pixmap actual de Utilín (compatibilidad con tests e inspección)."""
+        return self._obtener_frame_actual()
+
+    def _obtener_frame_actual(self) -> QPixmap:
+        """Determina qué frame mostrar según parpadeo y fase del saludo."""
+        if self._parpadeando:
+            if self._fase_saludo == 1:
+                return self.pix_wave_l_blink
+            elif self._fase_saludo == 3:
+                return self.pix_wave_r_blink
+            return self.pix_blink
+        else:
+            if self._fase_saludo == 1:
+                return self.pix_wave_l
+            elif self._fase_saludo == 3:
+                return self.pix_wave_r
+            return self.pix_neutral
+
+    def set_inclinacion_arrastre(self, inclinacion_grados: float) -> None:
+        """Aplica inclinación dinámica por inercia mientras el usuario arrastra."""
+        self._tilt_objetivo = max(-14.0, min(14.0, inclinacion_grados))
+        self._velocidad_saludo = 2.4
+
+    def soltar_arrastre(self) -> None:
+        """Restablece la inclinación suavemente con rebote."""
+        self._tilt_objetivo = 0.0
+        self._velocidad_saludo = 1.0
+
+    def activar_saltito(self) -> None:
+        """Activa un salto alegre al hacer clic en Utilín."""
+        self._jump_y = -10.0
+        self._velocidad_saludo = 2.8
+
+    def enterEvent(self, event) -> None:
+        self._is_hovered = True
+        self._velocidad_saludo = 2.0
+        super().enterEvent(event)
+
+    def leaveEvent(self, event) -> None:
+        self._is_hovered = False
+        self._velocidad_saludo = 1.0
+        super().leaveEvent(event)
+
+    def _actualizar_animacion(self) -> None:
+        dt = 0.030
+        self._t += dt
+
+        # 1. Parpadeo periódico
+        if not self._parpadeando:
+            if self._t >= self._tiempo_proximo_parpadeo:
+                self._parpadeando = True
+                self._duracion_parpadeo = 4  # 4 frames (~120ms)
+        else:
+            self._duracion_parpadeo -= 1
+            if self._duracion_parpadeo <= 0:
+                self._parpadeando = False
+                self._tiempo_proximo_parpadeo = self._t + random.uniform(3.0, 5.5)
+
+        # 2. Ciclo de saludo con la mano
+        self._timer_saludo += dt * self._velocidad_saludo
+        # Alterna entre: 0=neutral (0.5s), 1=wave_l (0.28s), 2=neutral (0.2s), 3=wave_r (0.28s)
+        ciclo = self._timer_saludo % 1.26
+        if ciclo < 0.40:
+            self._fase_saludo = 0
+        elif ciclo < 0.68:
+            self._fase_saludo = 1
+        elif ciclo < 0.88:
+            self._fase_saludo = 0
+        else:
+            self._fase_saludo = 3
+
+        # 3. Amortiguación del salto (jump physics)
+        if abs(self._jump_y) > 0.1:
+            self._jump_y *= 0.86
+        else:
+            self._jump_y = 0.0
+
+        # 4. Amortiguación de inclinación (inercia)
+        self._tilt_deg += (self._tilt_objetivo - self._tilt_deg) * 0.22
+
+        self.update()
 
     def paintEvent(self, event) -> None:
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
-        grad = QRadialGradient(self.rect().center(), self.width() / 2.0)
-        grad.setColorAt(0.0, QColor(0, 0, 0, 48))
-        grad.setColorAt(0.55, QColor(0, 0, 0, 18))
-        grad.setColorAt(1.0, QColor(0, 0, 0, 0))
+        p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+
+        cx = self.width() / 2.0
+        # Flotación sinusoidal suave (bobbing)
+        bob_y = math.sin(self._t * 2.8) * 4.2 + self._jump_y
+
+        # 1. Dibujar sombra de suelo dinámica debajo de Utilín
+        cy_sombra = self.height() - 9.0
+        factor_sombra = max(0.60, min(1.15, 1.0 - (bob_y / 24.0)))
+        w_sombra = 98.0 * factor_sombra
+        h_sombra = 12.0 * factor_sombra
+
+        grad_sombra = QRadialGradient(cx, cy_sombra, w_sombra / 2.0)
+        grad_sombra.setColorAt(0.0, QColor(0, 0, 0, int(52 * factor_sombra)))
+        grad_sombra.setColorAt(0.55, QColor(0, 0, 0, int(20 * factor_sombra)))
+        grad_sombra.setColorAt(1.0, QColor(0, 0, 0, 0))
+
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(grad)
-        p.drawEllipse(self.rect())
+        p.setBrush(grad_sombra)
+        p.drawEllipse(QRectF(cx - w_sombra / 2.0, cy_sombra - h_sombra / 2.0, w_sombra, h_sombra))
+
+        # 2. Dibujar personaje con transformaciones de flotación, respiración e inercia
+        frame = self._obtener_frame_actual()
+        if not frame.isNull():
+            # Escala de respiración sutil (squash & stretch)
+            escala_x = 1.0 + math.cos(self._t * 2.8) * 0.014
+            escala_y = 1.0 - math.cos(self._t * 2.8) * 0.014
+
+            ancho_pj = 146.0 * escala_x
+            alto_pj = 154.0 * escala_y
+            cy_pj = cy_sombra - (alto_pj / 2.0) - 2.0 + bob_y
+
+            t = QTransform()
+            t.translate(cx, cy_pj + alto_pj * 0.4)
+            t.rotate(self._tilt_deg)
+            t.translate(-cx, -(cy_pj + alto_pj * 0.4))
+
+            p.setTransform(t)
+            rect_pj = QRectF(cx - ancho_pj / 2.0, cy_pj - alto_pj / 2.0, ancho_pj, alto_pj)
+            p.drawPixmap(rect_pj.toRect(), frame)
+        else:
+            p.setPen(QColor("#003D95"))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🤖 Utilín")
+
         p.end()
 
 
 class MascotaWidget(QWidget):
-    """Mascota de escritorio interactiva «UTILÍN» con arrastre libre en pantalla."""
+    """Mascota de escritorio animada «UTILÍN» con arrastre libre y globo cómic."""
 
     def __init__(
         self,
@@ -187,6 +359,7 @@ class MascotaWidget(QWidget):
         self._arrastrando: bool = False
         self._drag_start_pos: QPoint = QPoint()
         self._widget_start_pos: QPoint = QPoint()
+        self._ultimo_pos_raton: QPoint = QPoint()
         self._posicion_personalizada: QPoint | None = None
 
         self._nombre_actividad: str | None = None
@@ -195,17 +368,17 @@ class MascotaWidget(QWidget):
 
         layout_raiz = QVBoxLayout(self)
         layout_raiz.setContentsMargins(4, 4, 4, 4)
-        layout_raiz.setSpacing(1)
+        layout_raiz.setSpacing(0)
         layout_raiz.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # 1. Globo de texto tipo cómic
+        # 1. Globo de texto tipo cómic con colita
         self.globo = GloboTextoWidget(self)
         if al_restaurar:
             self.globo.btn_abrir.clicked.connect(al_restaurar)
         if al_finalizar:
             self.globo.btn_finalizar.clicked.connect(al_finalizar)
 
-        # Alias de compatibilidad para pruebas y llamadas directas
+        # Alias de compatibilidad
         self.lbl_reloj = self.globo.lbl_reloj
         self.lbl_actividad = self.globo.lbl_actividad
         self.btn_abrir = self.globo.btn_abrir
@@ -213,45 +386,19 @@ class MascotaWidget(QWidget):
 
         layout_raiz.addWidget(self.globo, 0, Qt.AlignmentFlag.AlignCenter)
 
-        # 2. Utilín (personaje 3D saludando)
-        self.lbl_mascota = QLabel(self)
-        self.lbl_mascota.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        # 2. Utilín animado (saludo, parpadeo, flotación y física)
+        self.lbl_mascota = UtilinAnimadoWidget(self)
         self.lbl_mascota.setToolTip(
-            "Utilín — Mascota de Gente Util\n"
+            "Utilín — Mascota de Control de Tiempos\n"
             "• Arrastra para moverme a cualquier sitio\n"
-            "• Doble clic para abrir Control de Tiempos\n"
+            "• Doble clic para abrir la aplicación\n"
             "• Clic derecho para opciones"
         )
-        self._cargar_imagen_mascota()
         layout_raiz.addWidget(self.lbl_mascota, 0, Qt.AlignmentFlag.AlignCenter)
-
-        # 3. Sombra de suelo para perspectiva 3D
-        self.sombra = SombraSueloWidget(self)
-        layout_raiz.addWidget(self.sombra, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.adjustSize()
         self._posicionar_defecto()
-
-        # Instalar filtro de eventos para arrastre suave universal
         self._instalar_filtro_arrastre()
-
-    def _cargar_imagen_mascota(self) -> None:
-        """Carga y renderiza a Utilín con alta resolución y bordes limpios."""
-        ruta_img = rutas.carpeta_assets() / "mascota_codex.png"
-        if ruta_img.is_file():
-            pix = QPixmap(str(ruta_img))
-            if not pix.isNull():
-                pix_escalada = pix.scaled(
-                    150,
-                    158,
-                    Qt.AspectRatioMode.KeepAspectRatio,
-                    Qt.TransformationMode.SmoothTransformation,
-                )
-                self.lbl_mascota.setPixmap(pix_escalada)
-                return
-
-        self.lbl_mascota.setText("🤖\n[Utilín]")
-        self.lbl_mascota.setStyleSheet("font-size: 38px; color: #003D95;")
 
     def _posicionar_defecto(self) -> None:
         """Ubica a Utilín en la esquina inferior derecha o en su posición guardada."""
@@ -262,8 +409,8 @@ class MascotaWidget(QWidget):
         pantalla = QApplication.primaryScreen()
         if pantalla:
             geom = pantalla.availableGeometry()
-            ancho = self.sizeHint().width() or 210
-            alto = self.sizeHint().height() or 260
+            ancho = self.sizeHint().width() or 214
+            alto = self.sizeHint().height() or 270
             x = max(10, geom.right() - ancho - 30)
             y = max(10, geom.bottom() - alto - 35)
             self.move(x, y)
@@ -274,7 +421,7 @@ class MascotaWidget(QWidget):
         self._posicionar_defecto()
 
     def mostrar_mascota(self) -> None:
-        """Muestra a Utilín en el escritorio."""
+        """Muestra a Utilín en el escritorio con animación activa."""
         if self._posicion_personalizada is not None:
             self.move(self._posicion_personalizada)
         self.show()
@@ -290,7 +437,7 @@ class MascotaWidget(QWidget):
         nombre_actividad: str | None,
         segundos: int = 0,
     ) -> None:
-        """Actualiza el globo de texto con el cronómetro y tarea en curso de Utilín."""
+        """Actualiza el globo de texto con el cronómetro y tarea en curso."""
         self._nombre_actividad = nombre_actividad
         self._segundos_actividad = max(0, int(segundos))
 
@@ -321,17 +468,16 @@ class MascotaWidget(QWidget):
         self.adjustSize()
 
     def alternar_globo(self) -> None:
-        """Muestra u oculta el globo de diálogo de Utilín."""
+        """Muestra u oculta el globo de texto cómic."""
         self._globo_visible = not self._globo_visible
         self.globo.setVisible(self._globo_visible)
         self.adjustSize()
 
     # ------------------------------------------------------------------
-    # Arrastre libre suave y fluido a cualquier lugar de la pantalla
+    # Arrastre suave con física de inercia e inclinación
     # ------------------------------------------------------------------
 
     def _instalar_filtro_arrastre(self) -> None:
-        """Permite que hacer clic en cualquier parte de Utilín o el globo active el arrastre."""
         self.installEventFilter(self)
         for hijo in self.findChildren(QWidget):
             if not isinstance(hijo, QPushButton):
@@ -346,16 +492,25 @@ class MascotaWidget(QWidget):
                 self._arrastrando = True
                 self._drag_start_pos = ev.globalPosition().toPoint()
                 self._widget_start_pos = self.pos()
+                self._ultimo_pos_raton = ev.globalPosition().toPoint()
                 self.setCursor(Qt.CursorShape.ClosedHandCursor)
+                self.lbl_mascota.activar_saltito()
                 return False
 
         elif t == QEvent.Type.MouseMove:
             if self._arrastrando:
                 ev_m: QMouseEvent = evento
-                delta = ev_m.globalPosition().toPoint() - self._drag_start_pos
-                nueva_pos = self._widget_start_pos + delta
+                pos_actual = ev_m.globalPosition().toPoint()
+                delta_global = pos_actual - self._drag_start_pos
+                nueva_pos = self._widget_start_pos + delta_global
                 self.move(nueva_pos)
                 self._posicion_personalizada = nueva_pos
+
+                # Calcular inclinación por velocidad de arrastre horizontal
+                vx = float(pos_actual.x() - self._ultimo_pos_raton.x())
+                self._ultimo_pos_raton = pos_actual
+                inclinacion = vx * 0.75
+                self.lbl_mascota.set_inclinacion_arrastre(inclinacion)
                 return True
 
         elif t == QEvent.Type.MouseButtonRelease:
@@ -363,6 +518,7 @@ class MascotaWidget(QWidget):
                 self._arrastrando = False
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._posicion_personalizada = self.pos()
+                self.lbl_mascota.soltar_arrastre()
 
         elif t == QEvent.Type.MouseButtonDblClick:
             ev_d: QMouseEvent = evento
@@ -382,7 +538,7 @@ class MascotaWidget(QWidget):
             super().mouseDoubleClickEvent(event)
 
     def contextMenuEvent(self, event) -> None:
-        """Menú contextual con opciones al dar clic derecho en Utilín o en su globo."""
+        """Menú contextual de Utilín."""
         menu = QMenu(self)
         menu.setStyleSheet(
             "QMenu { background-color: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 8px; padding: 4px; } "
