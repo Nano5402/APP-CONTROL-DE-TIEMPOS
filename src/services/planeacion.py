@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 
 from sqlalchemy import delete, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from data.enums import EstadoActividad, Prioridad, TipoActividad
 from data.models import Actividad, Categoria, ItemPlaneacion, Jornada, Solicitante, Usuario
@@ -41,6 +41,7 @@ class ServicioPlaneacion:
         lunes = inicio_semana(fecha_semana)
         consulta = (
             select(ItemPlaneacion)
+            .options(selectinload(ItemPlaneacion.categoria))
             .where(ItemPlaneacion.fecha_semana == lunes)
             .order_by(
                 ItemPlaneacion.dia_semana.nulls_last(),
