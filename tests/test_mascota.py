@@ -36,9 +36,43 @@ def test_mascota_widget_creacion_y_estados():
     app.processEvents()
 
     # Estado inicial: Sin actividad
-    assert "¡Hola!" in widget.lbl_reloj.text()
+    assert "Utilín" in widget.lbl_reloj.text()
     assert widget.btn_finalizar.isVisible() is False
     assert widget.lbl_mascota.pixmap() is not None
+
+    # Prueba de arrastre a otro lugar de la pantalla
+    pos_inicial = widget.pos()
+    ev_press = QMouseEvent(
+        QMouseEvent.Type.MouseButtonPress,
+        QPoint(20, 20),
+        QPoint(200, 200),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    widget.eventFilter(widget.lbl_mascota, ev_press)
+
+    ev_move = QMouseEvent(
+        QMouseEvent.Type.MouseMove,
+        QPoint(50, 50),
+        QPoint(350, 450),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    widget.eventFilter(widget.lbl_mascota, ev_move)
+    assert widget.pos() != pos_inicial
+
+    ev_release = QMouseEvent(
+        QMouseEvent.Type.MouseButtonRelease,
+        QPoint(50, 50),
+        QPoint(350, 450),
+        Qt.MouseButton.LeftButton,
+        Qt.MouseButton.LeftButton,
+        Qt.KeyboardModifier.NoModifier,
+    )
+    widget.eventFilter(widget.lbl_mascota, ev_release)
+    assert widget._arrastrando is False
 
     # Estado con actividad en curso
     widget.actualizar_estado("Flyer promocional vacantes", 125)
