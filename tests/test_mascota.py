@@ -125,3 +125,54 @@ def test_ventana_principal_integracion_mascota(bd):
     assert ventana.isVisible() is True
 
     ventana.cerrar_definitivo()
+
+
+def test_mascota_animaciones_saludo_y_caminata():
+    app = QApplication.instance() or QApplication([])
+
+    widget = MascotaWidget()
+    lbl = widget.lbl_mascota
+
+    # 1. Verificación de sprites cargados correctamente
+    assert not lbl._pix_neutral.isNull()
+    assert not lbl._pix_wave.isNull()
+    assert not lbl._pix_walk1.isNull()
+    assert not lbl._pix_walk2.isNull()
+
+    # 2. Caminata hacia la izquierda (pose espejada y paso activo)
+    lbl.registrar_movimiento(-12.0)
+    assert lbl._esta_caminando is True
+    assert lbl._direccion_caminar == -1
+    lbl.repaint()
+    app.processEvents()
+
+    # 3. Caminata hacia la derecha
+    lbl.registrar_movimiento(15.0)
+    assert lbl._esta_caminando is True
+    assert lbl._direccion_caminar == 1
+    lbl.repaint()
+    app.processEvents()
+
+    # 4. Soltar arrastre: regresa a reposo
+    lbl.soltar_arrastre()
+    assert lbl._esta_caminando is False
+    lbl.repaint()
+    app.processEvents()
+
+    # 5. Saludo forzado y saludo periódico cada 10s
+    lbl.forzar_saludo()
+    assert lbl._saludando is True
+    lbl.repaint()
+    app.processEvents()
+
+    # Completar duración del saludo
+    lbl._tiempo_saludo = 2.5
+    lbl._actualizar_fisicas()
+    assert lbl._saludando is False
+
+    # Avanzar el temporizador a 10s para disparar saludo automático
+    lbl._temporizador_saludo = 10.1
+    lbl._actualizar_fisicas()
+    assert lbl._saludando is True
+
+    widget.close()

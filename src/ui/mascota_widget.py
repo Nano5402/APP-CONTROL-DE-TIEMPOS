@@ -145,7 +145,7 @@ class GloboTextoWidget(QWidget):
 
 
 class UtilinRender3DWidget(QWidget):
-    """Lienzo 3D con físicas de levitación, respiración orgánica e inercia al arrastrar."""
+    """Lienzo 3D con físicas de levitación, respiración, saludo periódico y caminata direccional."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -158,8 +158,30 @@ class UtilinRender3DWidget(QWidget):
         self._tilt_objetivo: float = 0.0
         self._jump_y: float = 0.0
 
-        ruta_img = rutas.carpeta_assets() / "mascota_codex.png"
-        self._pix_utilin = QPixmap(str(ruta_img)) if ruta_img.is_file() else QPixmap()
+        # Físicas de caminata al arrastrar
+        self._esta_caminando: bool = False
+        self._direccion_caminar: int = 1  # 1 = derecha, -1 = izquierda
+        self._distancia_caminar: float = 0.0
+        self._tiempo_quieto: float = 0.0
+
+        # Animación de saludo periódico (cada 10 segundos)
+        self._temporizador_saludo: float = 0.0
+        self._intervalo_saludo: float = 10.0
+        self._saludando: bool = False
+        self._tiempo_saludo: float = 0.0
+        self._duracion_saludo: float = 2.4
+
+        # Cargar poses 3D ultra-nítidas
+        d = rutas.carpeta_assets()
+        p_neutral = d / "mascota_codex.png"
+        p_wave = d / "mascota_wave.png"
+        p_walk1 = d / "mascota_walk1.png"
+        p_walk2 = d / "mascota_walk2.png"
+
+        self._pix_neutral = QPixmap(str(p_neutral)) if p_neutral.is_file() else QPixmap()
+        self._pix_wave = QPixmap(str(p_wave)) if p_wave.is_file() else self._pix_neutral
+        self._pix_walk1 = QPixmap(str(p_walk1)) if p_walk1.is_file() else self._pix_neutral
+        self._pix_walk2 = QPixmap(str(p_walk2)) if p_walk2.is_file() else self._pix_neutral
 
         # Timer de física y animación fluido (30ms / ~33 FPS con mínimo consumo)
         self._timer_anim = QTimer(self)
@@ -168,26 +190,76 @@ class UtilinRender3DWidget(QWidget):
         self._timer_anim.start()
 
     def pixmap(self) -> QPixmap:
-        """Devuelve el pixmap 3D original de Utilín para compatibilidad."""
-        return self._pix_utilin
+        """Devuelve el pixmap 3D neutral de Utilín para compatibilidad."""
+        return self._pix_neutral
 
     def set_inclinacion_arrastre(self, inclinacion_grados: float) -> None:
         """Aplica inclinación en el aire cuando se arrastra por la pantalla."""
-        self._tilt_objetivo = max(-13.0, min(13.0, inclinacion_grados))
+        self._tilt_objetivo = max(-14.0, min(14.0, inclinacion_grados))
+
+    def registrar_movimiento(self, vx: float) -> None:
+        """Registra el desplazamiento horizontal para cambiar a pose caminando (izq/der)."""
+        self.set_inclinacion_arrastre(vx * 0.70)
+        self._tiempo_quieto = 0.0
+
+        if vx < -1.2:
+            self._direccion_caminar = -1  # Caminando a la izquierda
+            self._esta_caminando = True
+            self._distancia_caminar += abs(vx)
+            # Cancelar saludo temporal mientras el usuario lo traslada
+            self._saludando = False
+            self._temporizador_saludo = 0.0
+        elif vx > 1.2:
+            self._direccion_caminar = 1   # Caminando a la derecha
+            self._esta_caminando = True
+            self._distancia_caminar += abs(vx)
+            # Cancelar saludo temporal mientras el usuario lo traslada
+            self._saludando = False
+            self._temporizador_saludo = 0.0
 
     def soltar_arrastre(self) -> None:
-        """Restablece la inclinación suavemente con rebote elástico."""
+        """Restablece la pose de pie y la inclinación suavemente con rebote elástico."""
+        self._esta_caminando = False
         self._tilt_objetivo = 0.0
+        self._tiempo_quieto = 0.0
 
     def activar_saltito(self) -> None:
         """Efecto rebote táctil (hop) al hacer clic."""
         self._jump_y = -9.0
+        self._temporizador_saludo = 0.0
+
+    def forzar_saludo(self) -> None:
+        """Dispara de inmediato la animación de saludo amigable."""
+        self._saludando = True
+        self._tiempo_saludo = 0.0
+        self._temporizador_saludo = 0.0
 
     def _actualizar_fisicas(self) -> None:
-        self._t += 0.030
+        dt = 0.030
+        self._t += dt
+
+        # Control del saludo periódico cada 10 segundos
+        if not self._esta_caminando:
+            if not self._saludando:
+                self._temporizador_saludo += dt
+                if self._temporizador_saludo >= self._intervalo_saludo:
+                    self._saludando = True
+                    self._tiempo_saludo = 0.0
+                    self._temporizador_saludo = 0.0
+            else:
+                self._tiempo_saludo += dt
+                if self._tiempo_saludo >= self._duracion_saludo:
+                    self._saludando = False
+                    self._tiempo_saludo = 0.0
+                    self._temporizador_saludo = 0.0
+        else:
+            # Si el usuario mantiene presionado pero deja de mover el cursor
+            self._tiempo_quieto += dt
+            if self._tiempo_quieto > 0.22:
+                self._esta_caminando = False
 
         # Amortiguación elástica de inclinación
-        self._tilt_deg += (self._tilt_objetivo - self._tilt_deg) * 0.24
+        self._tilt_deg += (self._tilt_objetivo - self._tilt_deg) * 0.25
 
         # Amortiguación del salto al hacer clic
         if abs(self._jump_y) > 0.1:
@@ -203,13 +275,29 @@ class UtilinRender3DWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         cx = self.width() / 2.0
-        # 1. Flotación / levitación sinusoidal suave
-        bob_y = math.sin(self._t * 2.4) * 4.4 + self._jump_y
-
-        # 2. Sombra de contacto 3D en el suelo
         cy_sombra = self.height() - 9.0
-        factor_sombra = max(0.60, min(1.15, 1.0 - (bob_y / 24.0)))
-        w_sombra = 98.0 * factor_sombra
+
+        step_y = 0.0
+        waddle_tilt = 0.0
+        wave_tilt = 0.0
+
+        if self._esta_caminando:
+            # Física de paso al caminar: rebote de zancada y vaivén lateral
+            step_y = -abs(math.sin(self._distancia_caminar * 0.11)) * 4.8
+            waddle_tilt = math.sin(self._distancia_caminar * 0.11) * 3.8
+            bob_y = step_y + self._jump_y
+        elif self._saludando:
+            # Pequeño rebote alegre durante el saludo
+            wave_hop = -abs(math.sin(self._tiempo_saludo * 6.0)) * 2.8
+            wave_tilt = math.sin(self._tiempo_saludo * 12.0) * 5.5
+            bob_y = math.sin(self._t * 2.4) * 3.5 + wave_hop + self._jump_y
+        else:
+            # Flotación / levitación idle suave
+            bob_y = math.sin(self._t * 2.4) * 4.4 + self._jump_y
+
+        # Sombra de contacto 3D en el suelo
+        factor_sombra = max(0.58, min(1.15, 1.0 - (bob_y / 24.0)))
+        w_sombra = (88.0 if self._esta_caminando else 98.0) * factor_sombra
         h_sombra = 12.0 * factor_sombra
 
         grad_sombra = QRadialGradient(cx, cy_sombra, w_sombra / 2.0)
@@ -221,25 +309,56 @@ class UtilinRender3DWidget(QWidget):
         p.setBrush(grad_sombra)
         p.drawEllipse(QRectF(cx - w_sombra / 2.0, cy_sombra - h_sombra / 2.0, w_sombra, h_sombra))
 
-        # 3. Dibujo de Utilín con textura 3D original impecable y físicas
-        if not self._pix_utilin.isNull():
-            # Respiración elástica muy sutil (squash & stretch)
-            escala_x = 1.0 + math.cos(self._t * 2.4) * 0.012
-            escala_y = 1.0 - math.cos(self._t * 2.4) * 0.012
+        # Selección de sprite y proporciones según estado
+        pix_a_dibujar = self._pix_neutral
+        es_caminata = False
+        escala_x_respiracion = 1.0
+        escala_y_respiracion = 1.0
 
-            ancho_pj = 146.0 * escala_x
-            alto_pj = 154.0 * escala_y
+        if self._esta_caminando:
+            es_caminata = True
+            # Alternar zancada entre walk1 y walk2
+            paso_idx = int(self._distancia_caminar / 24.0) % 2
+            pix_a_dibujar = self._pix_walk1 if paso_idx == 0 else self._pix_walk2
+            ancho_base = 122.0
+            alto_base = 154.0
+        elif self._saludando:
+            # Alternar rítmicamente el saludo de mano
+            fase_wave = math.sin(self._tiempo_saludo * 11.0)
+            if fase_wave > -0.15 and not self._pix_wave.isNull():
+                pix_a_dibujar = self._pix_wave
+                ancho_base = 145.0
+                alto_base = 154.0
+            else:
+                pix_a_dibujar = self._pix_neutral
+                ancho_base = 146.0
+                alto_base = 154.0
+        else:
+            # Respiración elástica en reposo
+            escala_x_respiracion = 1.0 + math.cos(self._t * 2.4) * 0.012
+            escala_y_respiracion = 1.0 - math.cos(self._t * 2.4) * 0.012
+            pix_a_dibujar = self._pix_neutral
+            ancho_base = 146.0
+            alto_base = 154.0
+
+        if not pix_a_dibujar.isNull():
+            ancho_pj = ancho_base * escala_x_respiracion
+            alto_pj = alto_base * escala_y_respiracion
             cy_pj = cy_sombra - (alto_pj / 2.0) - 2.0 + bob_y
 
-            # Transformación de inercia e inclinación
+            rotacion_total = self._tilt_deg + waddle_tilt + wave_tilt
+
             t = QTransform()
-            t.translate(cx, cy_pj + alto_pj * 0.45)
-            t.rotate(self._tilt_deg)
-            t.translate(-cx, -(cy_pj + alto_pj * 0.45))
+            t.translate(cx, cy_pj + alto_pj * 0.40)
+            if es_caminata and self._direccion_caminar == -1:
+                # Espejar horizontalmente para mirar y caminar hacia la izquierda
+                t.scale(-1.0, 1.0)
+            t.rotate(rotacion_total)
+            t.translate(-cx, -(cy_pj + alto_pj * 0.40))
 
             p.setTransform(t)
             rect_pj = QRectF(cx - ancho_pj / 2.0, cy_pj - alto_pj / 2.0, ancho_pj, alto_pj)
-            p.drawPixmap(rect_pj.toRect(), self._pix_utilin)
+            p.drawPixmap(rect_pj.toRect(), pix_a_dibujar)
         else:
             p.setPen(QColor("#003D95"))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🤖 Utilín")
@@ -422,11 +541,10 @@ class MascotaWidget(QWidget):
                 self.move(nueva_pos)
                 self._posicion_personalizada = nueva_pos
 
-                # Calcular inclinación por velocidad de arrastre horizontal
+                # Calcular desplazamiento horizontal y notificar a Utilín (caminata izq/der)
                 vx = float(pos_actual.x() - self._ultimo_pos_raton.x())
                 self._ultimo_pos_raton = pos_actual
-                inclinacion = vx * 0.70
-                self.lbl_mascota.set_inclinacion_arrastre(inclinacion)
+                self.lbl_mascota.registrar_movimiento(vx)
                 return True
 
         elif t == QEvent.Type.MouseButtonRelease:
@@ -466,6 +584,9 @@ class MascotaWidget(QWidget):
         act_abrir = menu.addAction("📱 Abrir Control de Tiempos")
         if self.al_restaurar:
             act_abrir.triggered.connect(self.al_restaurar)
+
+        act_saludar = menu.addAction("👋 Saludar")
+        act_saludar.triggered.connect(self.lbl_mascota.forzar_saludo)
 
         if self._nombre_actividad:
             menu.addSeparator()
