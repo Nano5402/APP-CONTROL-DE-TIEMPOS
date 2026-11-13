@@ -44,18 +44,33 @@ from ui.mini_widget import formatear_reloj_hms
 
 
 class GloboTextoWidget(QWidget):
-    """Globo de diálogo tipo cómic vectorial con cuerpo redondeado y colita."""
+    """Globo de diálogo tipo cómic vectorial moderno con cuerpo redondeado, sombra y colita orgánica."""
 
-    def __init__(self, parent: QWidget | None = None) -> None:
+    def __init__(
+        self,
+        parent: QWidget | None = None,
+        al_cerrar: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__(parent)
+        self.al_cerrar = al_cerrar
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedWidth(214)
-        self.setMinimumHeight(86)
+        self.setFixedWidth(242)
+        self.setMinimumHeight(96)
 
         self.layout_globo = QVBoxLayout(self)
-        self.layout_globo.setContentsMargins(12, 8, 12, 19)
+        self.layout_globo.setContentsMargins(14, 9, 14, 22)
         self.layout_globo.setSpacing(3)
         self.layout_globo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        # Fila superior: Título / Reloj y botón sutil para cerrar globo
+        self.fila_cabecera = QHBoxLayout()
+        self.fila_cabecera.setContentsMargins(0, 0, 0, 0)
+        self.fila_cabecera.setSpacing(4)
+
+        # Espaciador dummy para centrar el título con respecto al botón de cierre
+        self.espaciador_izq = QWidget(self)
+        self.espaciador_izq.setFixedSize(16, 16)
+        self.fila_cabecera.addWidget(self.espaciador_izq)
 
         # Línea 1: Reloj o Saludo destacado
         self.lbl_reloj = QLabel("👋 ¡Hola, soy Utilín!", self)
@@ -65,40 +80,56 @@ class GloboTextoWidget(QWidget):
         self.lbl_reloj.setFont(f_reloj)
         self.lbl_reloj.setStyleSheet("color: #003D95; background: transparent; border: none;")
         self.lbl_reloj.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.layout_globo.addWidget(self.lbl_reloj)
+        self.fila_cabecera.addWidget(self.lbl_reloj, 1)
 
-        # Línea 2: Tarea en curso o texto secundario
+        # Botón sutil de cerrar (ocultar globo de texto)
+        self.btn_cerrar = QPushButton("✕", self)
+        self.btn_cerrar.setFixedSize(16, 16)
+        self.btn_cerrar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_cerrar.setToolTip("Ocultar globo de texto")
+        self.btn_cerrar.setStyleSheet(
+            "QPushButton { background: transparent; color: #94A3B8; border: none; font-size: 11px; font-weight: bold; border-radius: 8px; } "
+            "QPushButton:hover { background-color: #F1F5F9; color: #475569; }"
+        )
+        if self.al_cerrar:
+            self.btn_cerrar.clicked.connect(self.al_cerrar)
+        self.fila_cabecera.addWidget(self.btn_cerrar)
+
+        self.layout_globo.addLayout(self.fila_cabecera)
+
+        # Línea 2: Tarea en curso o texto secundario (sin quiebres forzados)
         self.lbl_actividad = QLabel("Doble clic para abrir app", self)
-        self.lbl_actividad.setWordWrap(True)
-        self.lbl_actividad.setMaximumWidth(188)
+        self.lbl_actividad.setWordWrap(False)
         self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_actividad.setStyleSheet(
-            "color: #475569; font-size: 10px; font-weight: 500; background: transparent; border: none;"
+            "color: #64748B; font-size: 10.5px; font-weight: 500; background: transparent; border: none;"
         )
         self.layout_globo.addWidget(self.lbl_actividad)
 
-        # Línea 3: Botones de acción compactos dentro del globo
+        # Línea 3: Botones de acción estilo píldora moderna
         self.fila_acciones = QHBoxLayout()
-        self.fila_acciones.setSpacing(6)
-        self.fila_acciones.setContentsMargins(0, 2, 0, 0)
+        self.fila_acciones.setSpacing(8)
+        self.fila_acciones.setContentsMargins(0, 3, 0, 0)
         self.fila_acciones.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.btn_abrir = QPushButton("Abrir app", self)
         self.btn_abrir.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_abrir.setStyleSheet(
-            "QPushButton { background-color: #EFF6FF; color: #003D95; border: 1px solid #BFDBFE; "
-            "border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 700; } "
-            "QPushButton:hover { background-color: #003D95; color: #FFFFFF; border-color: #003D95; }"
+            "QPushButton { background-color: #003D95; color: #FFFFFF; border: 1px solid #002D6E; "
+            "border-radius: 12px; padding: 3px 14px; font-size: 10px; font-weight: 700; } "
+            "QPushButton:hover { background-color: #0284C7; border-color: #0284C7; color: #FFFFFF; } "
+            "QPushButton:pressed { background-color: #002255; }"
         )
-        configurar_boton(self.btn_abrir, "play", color="#003D95", tamano=10)
+        configurar_boton(self.btn_abrir, "play", color="#FFFFFF", tamano=10)
         self.fila_acciones.addWidget(self.btn_abrir)
 
         self.btn_finalizar = QPushButton("Finalizar", self)
         self.btn_finalizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_finalizar.setStyleSheet(
             "QPushButton { background-color: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; "
-            "border-radius: 4px; padding: 2px 7px; font-size: 10px; font-weight: 700; } "
-            "QPushButton:hover { background-color: #DC2626; color: #FFFFFF; border-color: #DC2626; }"
+            "border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; } "
+            "QPushButton:hover { background-color: #DC2626; color: #FFFFFF; border-color: #DC2626; } "
+            "QPushButton:pressed { background-color: #B91C1C; color: #FFFFFF; }"
         )
         configurar_boton(self.btn_finalizar, "stop", color="#DC2626", tamano=10)
         self.btn_finalizar.setVisible(False)
@@ -107,39 +138,43 @@ class GloboTextoWidget(QWidget):
         self.layout_globo.addLayout(self.fila_acciones)
 
     def paintEvent(self, event) -> None:
-        """Dibuja el globo de diálogo vectorial con su colita apuntando hacia abajo."""
+        """Dibuja el globo de diálogo vectorial con su colita orgánica y sombra suave."""
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w = float(self.width())
         h = float(self.height())
-        alto_cola = 11.0
+        alto_cola = 12.0
 
-        # Cuerpo del globo redondeado
-        rect_cuerpo = QRectF(3.0, 3.0, w - 6.0, h - alto_cola - 5.0)
+        # Cuerpo del globo redondeado con margen para sombra exterior
+        rect_cuerpo = QRectF(5.0, 4.0, w - 10.0, h - alto_cola - 6.0)
         path = QPainterPath()
-        path.addRoundedRect(rect_cuerpo, 13.0, 13.0)
+        path.addRoundedRect(rect_cuerpo, 16.0, 16.0)
 
-        # Colita triangular del globo
+        # Colita curvada y orgánica apuntando directamente a la cabeza de Utilín
         cx = rect_cuerpo.center().x()
         by = rect_cuerpo.bottom()
 
         cola = QPainterPath()
-        cola.moveTo(cx - 9.0, by - 0.5)
-        cola.lineTo(cx + 3.0, by + alto_cola)
-        cola.lineTo(cx + 15.0, by - 0.5)
+        cola.moveTo(cx - 11.0, by - 1.0)
+        cola.quadTo(cx - 2.0, by + alto_cola * 0.5, cx, by + alto_cola)
+        cola.quadTo(cx + 2.0, by + alto_cola * 0.5, cx + 11.0, by - 1.0)
         cola.closeSubpath()
 
         globo_completo = path.united(cola)
 
-        # Sombra sutil exterior
-        p.setPen(QPen(QColor(15, 23, 42, 22), 3.0))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawPath(globo_completo)
+        # Sombra suave multicapa moderna
+        for offset, alpha in [(4, 6), (3, 10), (2, 16), (1, 24)]:
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(15, 23, 42, alpha))
+            p.save()
+            p.translate(0, offset)
+            p.drawPath(globo_completo)
+            p.restore()
 
-        # Fondo blanco nítido y borde
-        p.setPen(QPen(QColor("#94A3B8"), 1.4))
-        p.setBrush(QColor(255, 255, 255, 253))
+        # Fondo blanco puro y borde refinado
+        p.setPen(QPen(QColor("#CBD5E1"), 1.2))
+        p.setBrush(QColor(255, 255, 255, 255))
         p.drawPath(globo_completo)
         p.end()
 
@@ -407,7 +442,7 @@ class MascotaWidget(QWidget):
         layout_raiz.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         # 1. Globo de texto tipo cómic con colita
-        self.globo = GloboTextoWidget(self)
+        self.globo = GloboTextoWidget(parent=self, al_cerrar=self.alternar_globo)
         if al_restaurar:
             self.globo.btn_abrir.clicked.connect(al_restaurar)
         if al_finalizar:
@@ -484,8 +519,8 @@ class MascotaWidget(QWidget):
             )
 
             texto_nom = nombre_actividad.strip()
-            if len(texto_nom) > 24:
-                self.lbl_actividad.setText(f"{texto_nom[:21]}…")
+            if len(texto_nom) > 28:
+                self.lbl_actividad.setText(f"{texto_nom[:25]}…")
             else:
                 self.lbl_actividad.setText(texto_nom)
             self.lbl_actividad.setToolTip(f"Actividad en curso: {nombre_actividad}")
