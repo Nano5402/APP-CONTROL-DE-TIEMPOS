@@ -27,6 +27,7 @@ from config import rutas
 from data.db import BaseDatos
 from data.models import Usuario
 from data.repositorios.configuracion import RepoConfiguracion
+from services.ia_utilin import ServicioUtilinIA
 from ui.bandeja import crear_icono_app
 from ui.iconos import configurar_boton, obtener_icono
 from ui.mascota_widget import MascotaWidget
@@ -176,12 +177,20 @@ class VentanaPrincipal(QMainWindow):
         )
         self.mini_widget.setWindowIcon(icono_corporativo)
 
-        # Mascota de escritorio interactiva (Codex Pets)
+        # Servicio de IA para Utilín (Ollama local Gemma / Gemini / intenciones)
+        self.srv_utilin_ia = ServicioUtilinIA(
+            bd,
+            callback_notificar_cambio=self._al_actualizar_datos,
+        )
+
+        # Mascota de escritorio interactiva (Codex Pets + Asistente IA)
         self._saliendo_definitivo: bool = False
         self.mascota_widget = MascotaWidget(
             al_restaurar=self.restaurar_desde_mascota,
             al_finalizar=self._atajo_finalizar,
+            al_pausar=self._atajo_pausar,
             al_cerrar_definitivo=self.cerrar_definitivo,
+            srv_ia=self.srv_utilin_ia,
         )
         self.mascota_widget.setWindowIcon(icono_corporativo)
 

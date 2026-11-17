@@ -16,10 +16,21 @@ from __future__ import annotations
 import math
 from collections.abc import Callable
 
-from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, QSize, Qt, QTimer
+from PySide6.QtCore import (
+    QEvent,
+    QObject,
+    QPoint,
+    QRectF,
+    QSize,
+    Qt,
+    QThread,
+    QTimer,
+    Signal,
+)
 from PySide6.QtGui import (
     QColor,
     QFont,
+    QLinearGradient,
     QMouseEvent,
     QPainter,
     QPainterPath,
@@ -32,6 +43,7 @@ from PySide6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMenu,
     QPushButton,
     QVBoxLayout,
@@ -43,18 +55,45 @@ from ui.iconos import configurar_boton
 from ui.mini_widget import formatear_reloj_hms
 
 
+class HiloConsultaIA(QThread):
+    """Hilo secundario para no bloquear la interfaz gráfica al consultar a la IA."""
+
+    respuesta_lista = Signal(object)
+
+    def __init__(self, srv_ia: Any, mensaje: str, parent: QObject | None = None) -> None:
+        super().__init__(parent)
+        self.srv_ia = srv_ia
+        self.mensaje = mensaje
+
+    def run(self) -> None:
+        try:
+            res = self.srv_ia.consultar(self.mensaje)
+            self.respuesta_lista.emit(res)
+        except Exception as e:
+            from services.ia_utilin import RespuestaUtilin
+
+            self.respuesta_lista.emit(RespuestaUtilin(mensaje=f"Lo siento, ocurrió un error: {e}"))
+
+
 class GloboTextoWidget(QWidget):
-    """Globo de diálogo tipo cómic vectorial moderno con cuerpo redondeado, sombra y colita orgánica."""
+    """Globo de diálogo tipo cómic vectorial moderno con cuerpo redondeado, sombra y chat IA."""
 
     def __init__(
         self,
         parent: QWidget | None = None,
         al_cerrar: Callable[[], None] | None = None,
+        al_pausar: Callable[[], None] | None = None,
+        al_enviar_chat: Callable[[str], None] | None = None,
     ) -> None:
         super().__init__(parent)
         self.al_cerrar = al_cerrar
+        self.al_pausar = al_pausar
+        self.al_enviar_chat = al_enviar_chat
+        self._modo_chat: bool = False
+        self._modo_respuesta_ia: bool = False
+
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedWidth(242)
+        self.setFixedWidth(252)
         self.setMinimumHeight(96)
 
         self.layout_globo = QVBoxLayout(self)
@@ -62,12 +101,25 @@ class GloboTextoWidget(QWidget):
         self.layout_globo.setSpacing(3)
         self.layout_globo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Fila superior: Título / Reloj y botón sutil para cerrar globo
+        # Fila superior: Título / Reloj y botones auxiliares
         self.fila_cabecera = QHBoxLayout()
         self.fila_cabecera.setContentsMargins(0, 0, 0, 0)
         self.fila_cabecera.setSpacing(4)
 
-        # Espaciador dummy para centrar el título con respecto al botón de cierre
+        # Botón volver al cronómetro (visible solo cuando se muestra respuesta IA)
+        self.btn_volver_reloj = QPushButton("⏱", self)
+        self.btn_volver_reloj.setFixedSize(16, 16)
+        self.btn_volver_reloj.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_volver_reloj.setToolTip("Volver al cronómetro")
+        self.btn_volver_reloj.setStyleSheet(
+            "QPushButton { background: transparent; color: #003D95; border: none; font-size: 11px; font-weight: bold; border-radius: 8px; } "
+            "QPushButton:hover { background-color: #EFF6FF; }"
+        )
+        self.btn_volver_reloj.setVisible(False)
+        self.btn_volver_reloj.clicked.connect(self.volver_a_cronometro)
+        self.fila_cabecera.addWidget(self.btn_volver_reloj)
+
+        # Espaciador dummy para centrar el título
         self.espaciador_izq = QWidget(self)
         self.espaciador_izq.setFixedSize(16, 16)
         self.fila_cabecera.addWidget(self.espaciador_izq)
@@ -100,6 +152,7 @@ class GloboTextoWidget(QWidget):
         # Línea 2: Tarea en curso o texto secundario (sin quiebres forzados)
         self.lbl_actividad = QLabel("Doble clic para abrir app", self)
         self.lbl_actividad.setWordWrap(False)
+        self.lbl_actividad.setMaximumWidth(224)
         self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_actividad.setStyleSheet(
             "color: #64748B; font-size: 10.5px; font-weight: 500; background: transparent; border: none;"
@@ -108,7 +161,7 @@ class GloboTextoWidget(QWidget):
 
         # Línea 3: Botones de acción estilo píldora moderna
         self.fila_acciones = QHBoxLayout()
-        self.fila_acciones.setSpacing(8)
+        self.fila_acciones.setSpacing(6)
         self.fila_acciones.setContentsMargins(0, 3, 0, 0)
         self.fila_acciones.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -116,18 +169,34 @@ class GloboTextoWidget(QWidget):
         self.btn_abrir.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_abrir.setStyleSheet(
             "QPushButton { background-color: #003D95; color: #FFFFFF; border: 1px solid #002D6E; "
-            "border-radius: 12px; padding: 3px 14px; font-size: 10px; font-weight: 700; } "
+            "border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; } "
             "QPushButton:hover { background-color: #0284C7; border-color: #0284C7; color: #FFFFFF; } "
             "QPushButton:pressed { background-color: #002255; }"
         )
         configurar_boton(self.btn_abrir, "play", color="#FFFFFF", tamano=10)
         self.fila_acciones.addWidget(self.btn_abrir)
 
+        # Botón Pausar rápido
+        self.btn_pausar = QPushButton("Pausar", self)
+        self.btn_pausar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pausar.setStyleSheet(
+            "QPushButton { background-color: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; "
+            "border-radius: 12px; padding: 3px 10px; font-size: 10px; font-weight: 700; } "
+            "QPushButton:hover { background-color: #FDE68A; color: #78350F; border-color: #FCD34D; } "
+            "QPushButton:pressed { background-color: #F59E0B; color: #FFFFFF; }"
+        )
+        configurar_boton(self.btn_pausar, "pause", color="#92400E", tamano=10)
+        self.btn_pausar.setVisible(False)
+        if self.al_pausar:
+            self.btn_pausar.clicked.connect(self.al_pausar)
+        self.fila_acciones.addWidget(self.btn_pausar)
+
+        # Botón Finalizar
         self.btn_finalizar = QPushButton("Finalizar", self)
         self.btn_finalizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_finalizar.setStyleSheet(
             "QPushButton { background-color: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; "
-            "border-radius: 12px; padding: 3px 12px; font-size: 10px; font-weight: 700; } "
+            "border-radius: 12px; padding: 3px 10px; font-size: 10px; font-weight: 700; } "
             "QPushButton:hover { background-color: #DC2626; color: #FFFFFF; border-color: #DC2626; } "
             "QPushButton:pressed { background-color: #B91C1C; color: #FFFFFF; }"
         )
@@ -135,33 +204,136 @@ class GloboTextoWidget(QWidget):
         self.btn_finalizar.setVisible(False)
         self.fila_acciones.addWidget(self.btn_finalizar)
 
+        # Botón alternar chat IA
+        self.btn_chat = QPushButton("💬", self)
+        self.btn_chat.setFixedSize(22, 22)
+        self.btn_chat.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_chat.setToolTip("Hablar con Utilín IA (Gemma)")
+        self.btn_chat.setStyleSheet(
+            "QPushButton { background-color: #EFF6FF; color: #003D95; border: 1px solid #BFDBFE; "
+            "border-radius: 11px; font-size: 10px; font-weight: bold; } "
+            "QPushButton:hover { background-color: #DBEAFE; color: #1E40AF; }"
+        )
+        self.btn_chat.clicked.connect(self.alternar_modo_chat)
+        self.fila_acciones.addWidget(self.btn_chat)
+
         self.layout_globo.addLayout(self.fila_acciones)
 
+        # Línea 4: Campo de entrada de chat IA (oculto por defecto)
+        self.widget_chat = QWidget(self)
+        self.widget_chat.setVisible(False)
+        layout_input_chat = QHBoxLayout(self.widget_chat)
+        layout_input_chat.setContentsMargins(0, 3, 0, 0)
+        layout_input_chat.setSpacing(4)
+
+        self.txt_pregunta = QLineEdit(self.widget_chat)
+        self.txt_pregunta.setPlaceholderText("Escribe a Utilín... (Enter)")
+        self.txt_pregunta.setStyleSheet(
+            "QLineEdit { background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 10px; "
+            "padding: 2px 8px; font-size: 10px; color: #0F172A; } "
+            "QLineEdit:focus { border-color: #003D95; background-color: #FFFFFF; }"
+        )
+        self.txt_pregunta.returnPressed.connect(self._al_enviar_pregunta)
+        layout_input_chat.addWidget(self.txt_pregunta, 1)
+
+        self.btn_enviar_chat = QPushButton("➤", self.widget_chat)
+        self.btn_enviar_chat.setFixedSize(20, 20)
+        self.btn_enviar_chat.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_enviar_chat.setStyleSheet(
+            "QPushButton { background-color: #003D95; color: #FFFFFF; border: none; border-radius: 10px; font-size: 9px; font-weight: bold; } "
+            "QPushButton:hover { background-color: #0284C7; }"
+        )
+        self.btn_enviar_chat.clicked.connect(self._al_enviar_pregunta)
+        layout_input_chat.addWidget(self.btn_enviar_chat)
+
+        self.layout_globo.addWidget(self.widget_chat)
+
+    def alternar_modo_chat(self) -> None:
+        """Abre o cierra la barra de chat de Utilín."""
+        self._modo_chat = not self._modo_chat
+        self.widget_chat.setVisible(self._modo_chat)
+        if self._modo_chat:
+            self.txt_pregunta.setFocus()
+        self.adjustSize()
+
+    def _al_enviar_pregunta(self) -> None:
+        texto = self.txt_pregunta.text().strip()
+        if not texto:
+            return
+        self.mostrar_pensando()
+        if self.al_enviar_chat:
+            self.al_enviar_chat(texto)
+        self.txt_pregunta.clear()
+
+    def mostrar_pensando(self) -> None:
+        self._modo_respuesta_ia = True
+        self.espaciador_izq.setVisible(False)
+        self.btn_volver_reloj.setVisible(True)
+        self.lbl_reloj.setText("💭 Utilín pensando...")
+        self.lbl_reloj.setStyleSheet(
+            "color: #0284C7; font-size: 11px; font-weight: 800; background: transparent; border: none;"
+        )
+        self.lbl_actividad.setText("Analizando tu solicitud...")
+        self.lbl_actividad.setWordWrap(True)
+        self.adjustSize()
+
+    def mostrar_respuesta_ia(self, mensaje: str) -> None:
+        self._modo_respuesta_ia = True
+        self.espaciador_izq.setVisible(False)
+        self.btn_volver_reloj.setVisible(True)
+        self.lbl_reloj.setText("🤖 Utilín:")
+        self.lbl_reloj.setStyleSheet(
+            "color: #003D95; font-size: 11.5px; font-weight: 800; background: transparent; border: none;"
+        )
+        self.lbl_actividad.setText(mensaje)
+        self.lbl_actividad.setWordWrap(True)
+        self.adjustSize()
+
+    def volver_a_cronometro(self) -> None:
+        self._modo_respuesta_ia = False
+        self.btn_volver_reloj.setVisible(False)
+        self.espaciador_izq.setVisible(True)
+        self.lbl_actividad.setWordWrap(False)
+        p = self.parent()
+        if p and hasattr(p, "actualizar_estado"):
+            p.actualizar_estado(
+                getattr(p, "_nombre_actividad", None),
+                getattr(p, "_segundos_actividad", 0),
+            )
+        self.adjustSize()
+
     def paintEvent(self, event) -> None:
-        """Dibuja el globo de diálogo vectorial con su colita orgánica y sombra suave."""
+        """Dibuja el globo de diálogo vectorial continuo sin costuras, con sombra suave y degradado perla."""
         p = QPainter(self)
         p.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         w = float(self.width())
         h = float(self.height())
-        alto_cola = 12.0
+        alto_cola = 11.0
+        ancho_cola = 16.0
+        r = 14.0
 
-        # Cuerpo del globo redondeado con margen para sombra exterior
-        rect_cuerpo = QRectF(5.0, 4.0, w - 10.0, h - alto_cola - 6.0)
+        rect = QRectF(5.0, 4.0, w - 10.0, h - alto_cola - 6.0)
+
+        # Contorno único continuo (evita costuras visibles o artefactos de unión)
         path = QPainterPath()
-        path.addRoundedRect(rect_cuerpo, 16.0, 16.0)
+        path.moveTo(rect.left() + r, rect.top())
+        path.lineTo(rect.right() - r, rect.top())
+        path.arcTo(rect.right() - 2 * r, rect.top(), 2 * r, 2 * r, 90, -90)
+        path.lineTo(rect.right(), rect.bottom() - r)
+        path.arcTo(rect.right() - 2 * r, rect.bottom() - 2 * r, 2 * r, 2 * r, 0, -90)
 
-        # Colita curvada y orgánica apuntando directamente a la cabeza de Utilín
-        cx = rect_cuerpo.center().x()
-        by = rect_cuerpo.bottom()
+        cx = rect.center().x()
+        hw = ancho_cola / 2.0
+        path.lineTo(cx + hw, rect.bottom())
+        path.quadTo(cx + 2.5, rect.bottom() + alto_cola * 0.6, cx, rect.bottom() + alto_cola)
+        path.quadTo(cx - 2.5, rect.bottom() + alto_cola * 0.6, cx - hw, rect.bottom())
 
-        cola = QPainterPath()
-        cola.moveTo(cx - 11.0, by - 1.0)
-        cola.quadTo(cx - 2.0, by + alto_cola * 0.5, cx, by + alto_cola)
-        cola.quadTo(cx + 2.0, by + alto_cola * 0.5, cx + 11.0, by - 1.0)
-        cola.closeSubpath()
-
-        globo_completo = path.united(cola)
+        path.lineTo(rect.left() + r, rect.bottom())
+        path.arcTo(rect.left(), rect.bottom() - 2 * r, 2 * r, 2 * r, 270, -90)
+        path.lineTo(rect.left(), rect.top() + r)
+        path.arcTo(rect.left(), rect.top(), 2 * r, 2 * r, 180, -90)
+        path.closeSubpath()
 
         # Sombra suave multicapa moderna
         for offset, alpha in [(4, 6), (3, 10), (2, 16), (1, 24)]:
@@ -169,13 +341,16 @@ class GloboTextoWidget(QWidget):
             p.setBrush(QColor(15, 23, 42, alpha))
             p.save()
             p.translate(0, offset)
-            p.drawPath(globo_completo)
+            p.drawPath(path)
             p.restore()
 
-        # Fondo blanco puro y borde refinado
+        # Fondo con sutil degradado blanco a perla y borde refinado
+        grad = QLinearGradient(0, 0, 0, rect.bottom())
+        grad.setColorAt(0.0, QColor(255, 255, 255))
+        grad.setColorAt(1.0, QColor(248, 250, 252))
+        p.setBrush(grad)
         p.setPen(QPen(QColor("#CBD5E1"), 1.2))
-        p.setBrush(QColor(255, 255, 255, 255))
-        p.drawPath(globo_completo)
+        p.drawPath(path)
         p.end()
 
 
@@ -402,14 +577,16 @@ class UtilinRender3DWidget(QWidget):
 
 
 class MascotaWidget(QWidget):
-    """Mascota de escritorio «UTILÍN» con arrastre libre a cualquier monitor."""
+    """Mascota de escritorio «UTILÍN» con arrastre libre a cualquier monitor y Asistente IA."""
 
     def __init__(
         self,
         *,
         al_restaurar: Callable[[], None] | None = None,
         al_finalizar: Callable[[], None] | None = None,
+        al_pausar: Callable[[], None] | None = None,
         al_cerrar_definitivo: Callable[[], None] | None = None,
+        srv_ia: Any = None,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(
@@ -420,7 +597,10 @@ class MascotaWidget(QWidget):
         )
         self.al_restaurar = al_restaurar
         self.al_finalizar = al_finalizar
+        self.al_pausar = al_pausar
         self.al_cerrar_definitivo = al_cerrar_definitivo
+        self.srv_ia = srv_ia
+        self._hilos_ia: list[QThread] = []
 
         self.setWindowTitle("Utilín · Mascota de Control de Tiempos")
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
@@ -441,8 +621,13 @@ class MascotaWidget(QWidget):
         layout_raiz.setSpacing(0)
         layout_raiz.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # 1. Globo de texto tipo cómic con colita
-        self.globo = GloboTextoWidget(parent=self, al_cerrar=self.alternar_globo)
+        # 1. Globo de texto tipo cómic con colita y asistente IA
+        self.globo = GloboTextoWidget(
+            parent=self,
+            al_cerrar=self.alternar_globo,
+            al_pausar=al_pausar,
+            al_enviar_chat=self._procesar_mensaje_chat,
+        )
         if al_restaurar:
             self.globo.btn_abrir.clicked.connect(al_restaurar)
         if al_finalizar:
@@ -453,6 +638,8 @@ class MascotaWidget(QWidget):
         self.lbl_actividad = self.globo.lbl_actividad
         self.btn_abrir = self.globo.btn_abrir
         self.btn_finalizar = self.globo.btn_finalizar
+        self.btn_pausar = self.globo.btn_pausar
+        self.btn_chat = self.globo.btn_chat
 
         layout_raiz.addWidget(self.globo, 0, Qt.AlignmentFlag.AlignCenter)
 
@@ -462,13 +649,30 @@ class MascotaWidget(QWidget):
             "Utilín — Mascota de Control de Tiempos\n"
             "• Arrastra para moverme a cualquier sitio\n"
             "• Doble clic para abrir la aplicación\n"
-            "• Clic derecho para opciones"
+            "• Clic derecho para opciones o hablar con IA"
         )
         layout_raiz.addWidget(self.lbl_mascota, 0, Qt.AlignmentFlag.AlignCenter)
 
         self.adjustSize()
         self._posicionar_defecto()
         self._instalar_filtro_arrastre()
+
+    def _procesar_mensaje_chat(self, pregunta: str) -> None:
+        """Envía la pregunta al servicio de IA en segundo plano sin congelar la interfaz."""
+        if not self.srv_ia:
+            self.globo.mostrar_respuesta_ia("Servicio de IA no inicializado.")
+            return
+
+        hilo = HiloConsultaIA(self.srv_ia, pregunta, self)
+        hilo.respuesta_lista.connect(self._al_recibir_respuesta_ia)
+        self._hilos_ia.append(hilo)
+        hilo.start()
+
+    def _al_recibir_respuesta_ia(self, respuesta: Any) -> None:
+        """Muestra la respuesta en el globo y hace que Utilín salude con entusiasmo."""
+        mensaje = getattr(respuesta, "mensaje", str(respuesta))
+        self.globo.mostrar_respuesta_ia(mensaje)
+        self.lbl_mascota.forzar_saludo()
 
     def _posicionar_defecto(self) -> None:
         """Ubica a Utilín en la esquina inferior derecha o en su posición guardada."""
@@ -511,28 +715,32 @@ class MascotaWidget(QWidget):
         self._nombre_actividad = nombre_actividad
         self._segundos_actividad = max(0, int(segundos))
 
-        if nombre_actividad:
-            tiempo_str = formatear_reloj_hms(self._segundos_actividad)
-            self.lbl_reloj.setText(f"⏱ {tiempo_str}")
-            self.lbl_reloj.setStyleSheet(
-                "color: #003D95; font-size: 13px; font-weight: 800; background: transparent; border: none;"
-            )
+        # Si está respondiendo la IA, no sobrescribir el texto de la respuesta
+        if not self.globo._modo_respuesta_ia:
+            if nombre_actividad:
+                tiempo_str = formatear_reloj_hms(self._segundos_actividad)
+                self.lbl_reloj.setText(f"⏱ {tiempo_str}")
+                self.lbl_reloj.setStyleSheet(
+                    "color: #003D95; font-size: 13px; font-weight: 800; background: transparent; border: none;"
+                )
 
-            texto_nom = nombre_actividad.strip()
-            if len(texto_nom) > 28:
-                self.lbl_actividad.setText(f"{texto_nom[:25]}…")
+                texto_nom = nombre_actividad.strip()
+                if len(texto_nom) > 28:
+                    self.lbl_actividad.setText(f"{texto_nom[:25]}…")
+                else:
+                    self.lbl_actividad.setText(texto_nom)
+                self.lbl_actividad.setToolTip(f"Actividad en curso: {nombre_actividad}")
+                self.btn_finalizar.setVisible(True)
+                self.btn_pausar.setVisible(True)
             else:
-                self.lbl_actividad.setText(texto_nom)
-            self.lbl_actividad.setToolTip(f"Actividad en curso: {nombre_actividad}")
-            self.btn_finalizar.setVisible(True)
-        else:
-            self.lbl_reloj.setText("👋 ¡Hola, soy Utilín!")
-            self.lbl_reloj.setStyleSheet(
-                "color: #003D95; font-size: 11.5px; font-weight: 800; background: transparent; border: none;"
-            )
-            self.lbl_actividad.setText("Doble clic para abrir app")
-            self.lbl_actividad.setToolTip("Sin actividad en curso · Doble clic para abrir Control de Tiempos")
-            self.btn_finalizar.setVisible(False)
+                self.lbl_reloj.setText("👋 ¡Hola, soy Utilín!")
+                self.lbl_reloj.setStyleSheet(
+                    "color: #003D95; font-size: 11.5px; font-weight: 800; background: transparent; border: none;"
+                )
+                self.lbl_actividad.setText("Doble clic para abrir app")
+                self.lbl_actividad.setToolTip("Sin actividad en curso · Doble clic para abrir Control de Tiempos")
+                self.btn_finalizar.setVisible(False)
+                self.btn_pausar.setVisible(False)
 
         self.globo.setVisible(self._globo_visible)
         self.adjustSize()
@@ -620,6 +828,9 @@ class MascotaWidget(QWidget):
         if self.al_restaurar:
             act_abrir.triggered.connect(self.al_restaurar)
 
+        act_chat = menu.addAction("💬 Hablar con Utilín IA")
+        act_chat.triggered.connect(self.globo.alternar_modo_chat)
+
         act_saludar = menu.addAction("👋 Saludar")
         act_saludar.triggered.connect(self.lbl_mascota.forzar_saludo)
 
@@ -628,6 +839,10 @@ class MascotaWidget(QWidget):
             tiempo_str = formatear_reloj_hms(self._segundos_actividad)
             act_info = menu.addAction(f"⏱ {self._nombre_actividad} ({tiempo_str})")
             act_info.setEnabled(False)
+
+            if self.al_pausar:
+                act_pausa = menu.addAction("⏸ Pausar actividad en curso")
+                act_pausa.triggered.connect(self.al_pausar)
 
             if self.al_finalizar:
                 act_fin = menu.addAction("⏹ Finalizar tarea en curso")
