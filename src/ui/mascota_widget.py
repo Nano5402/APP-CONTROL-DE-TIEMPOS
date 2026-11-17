@@ -20,6 +20,7 @@ from PySide6.QtCore import (
     QEvent,
     QObject,
     QPoint,
+    QPointF,
     QRectF,
     QSize,
     Qt,
@@ -254,6 +255,10 @@ class GloboTextoWidget(QWidget):
         self.widget_chat.setVisible(self._modo_chat)
         if self._modo_chat:
             self.txt_pregunta.setFocus()
+            # Si el widget padre tiene la mascota, dar saltito de atención
+            padre = self.parent()
+            if padre and hasattr(padre, "lbl_mascota"):
+                padre.lbl_mascota.activar_saltito()
         self.adjustSize()
 
     def _al_enviar_pregunta(self) -> None:
@@ -355,12 +360,12 @@ class GloboTextoWidget(QWidget):
 
 
 class UtilinRender3DWidget(QWidget):
-    """Lienzo 3D con físicas de levitación, respiración, saludo periódico y caminata direccional."""
+    """Lienzo 3D con físicas de bot IA: levitación antigravedad, halo neural, pedestal holográfico y caminata."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedSize(164, 184)
+        self.setFixedSize(176, 196)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
         self._t: float = 0.0
@@ -380,6 +385,21 @@ class UtilinRender3DWidget(QWidget):
         self._saludando: bool = False
         self._tiempo_saludo: float = 0.0
         self._duracion_saludo: float = 2.4
+
+        # Estados de Bot IA
+        self._pensando: bool = False
+        self._tiene_actividad: bool = False
+        self._ripple_radio: float = 0.0
+        self._ripple_alpha: float = 0.0
+        self._eureka_timer: float = 0.0
+
+        # Micro-partículas de datos cuánticos digitales
+        self._particulas = [
+            {"ox": -28.0, "speed": 22.0, "phase": 0.2, "size": 2.2},
+            {"ox": 26.0, "speed": 18.0, "phase": 1.4, "size": 2.0},
+            {"ox": -12.0, "speed": 28.0, "phase": 2.7, "size": 1.8},
+            {"ox": 32.0, "speed": 20.0, "phase": 4.1, "size": 2.2},
+        ]
 
         # Cargar poses 3D ultra-nítidas
         d = rutas.carpeta_assets()
@@ -416,14 +436,12 @@ class UtilinRender3DWidget(QWidget):
             self._direccion_caminar = -1  # Caminando a la izquierda
             self._esta_caminando = True
             self._distancia_caminar += abs(vx)
-            # Cancelar saludo temporal mientras el usuario lo traslada
             self._saludando = False
             self._temporizador_saludo = 0.0
         elif vx > 1.2:
             self._direccion_caminar = 1   # Caminando a la derecha
             self._esta_caminando = True
             self._distancia_caminar += abs(vx)
-            # Cancelar saludo temporal mientras el usuario lo traslada
             self._saludando = False
             self._temporizador_saludo = 0.0
 
@@ -434,9 +452,28 @@ class UtilinRender3DWidget(QWidget):
         self._tiempo_quieto = 0.0
 
     def activar_saltito(self) -> None:
-        """Efecto rebote táctil (hop) al hacer clic."""
+        """Efecto rebote táctil (hop) al hacer clic con onda holográfica expansiva."""
         self._jump_y = -9.0
         self._temporizador_saludo = 0.0
+        self._ripple_radio = 10.0
+        self._ripple_alpha = 230.0
+
+    def set_pensando(self, pensando: bool) -> None:
+        """Activa o desactiva el modo de cálculo/pensamiento IA."""
+        self._pensando = pensando
+        if pensando:
+            self._saludando = False
+
+    def set_tiene_actividad(self, tiene: bool) -> None:
+        """Actualiza si hay una actividad/cronómetro en ejecución."""
+        self._tiene_actividad = tiene
+
+    def activar_eureka(self) -> None:
+        """Dispara reacción alegre de respuesta encontrada: salto, halo radiante y saludo."""
+        self._pensando = False
+        self._eureka_timer = 1.6
+        self.activar_saltito()
+        self.forzar_saludo()
 
     def forzar_saludo(self) -> None:
         """Dispara de inmediato la animación de saludo amigable."""
@@ -448,8 +485,17 @@ class UtilinRender3DWidget(QWidget):
         dt = 0.030
         self._t += dt
 
+        # Onda táctil expansiva al hacer clic
+        if self._ripple_alpha > 0.0:
+            self._ripple_radio += 110.0 * dt
+            self._ripple_alpha = max(0.0, self._ripple_alpha - 550.0 * dt)
+
+        # Destello eureka
+        if self._eureka_timer > 0.0:
+            self._eureka_timer = max(0.0, self._eureka_timer - dt)
+
         # Control del saludo periódico cada 10 segundos
-        if not self._esta_caminando:
+        if not self._esta_caminando and not self._pensando:
             if not self._saludando:
                 self._temporizador_saludo += dt
                 if self._temporizador_saludo >= self._intervalo_saludo:
@@ -463,10 +509,10 @@ class UtilinRender3DWidget(QWidget):
                     self._tiempo_saludo = 0.0
                     self._temporizador_saludo = 0.0
         else:
-            # Si el usuario mantiene presionado pero deja de mover el cursor
-            self._tiempo_quieto += dt
-            if self._tiempo_quieto > 0.22:
-                self._esta_caminando = False
+            if self._esta_caminando:
+                self._tiempo_quieto += dt
+                if self._tiempo_quieto > 0.22:
+                    self._esta_caminando = False
 
         # Amortiguación elástica de inclinación
         self._tilt_deg += (self._tilt_objetivo - self._tilt_deg) * 0.25
@@ -485,7 +531,7 @@ class UtilinRender3DWidget(QWidget):
         p.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         cx = self.width() / 2.0
-        cy_sombra = self.height() - 9.0
+        cy_sombra = self.height() - 14.0
 
         step_y = 0.0
         waddle_tilt = 0.0
@@ -496,6 +542,9 @@ class UtilinRender3DWidget(QWidget):
             step_y = -abs(math.sin(self._distancia_caminar * 0.11)) * 4.8
             waddle_tilt = math.sin(self._distancia_caminar * 0.11) * 3.8
             bob_y = step_y + self._jump_y
+        elif self._pensando:
+            # Flotación analítica cognitiva rápida
+            bob_y = math.sin(self._t * 3.6) * 3.2 + self._jump_y
         elif self._saludando:
             # Pequeño rebote alegre durante el saludo
             wave_hop = -abs(math.sin(self._tiempo_saludo * 6.0)) * 2.8
@@ -507,7 +556,7 @@ class UtilinRender3DWidget(QWidget):
 
         # Sombra de contacto 3D en el suelo
         factor_sombra = max(0.58, min(1.15, 1.0 - (bob_y / 24.0)))
-        w_sombra = (88.0 if self._esta_caminando else 98.0) * factor_sombra
+        w_sombra = (88.0 if self._esta_caminando else 94.0) * factor_sombra
         h_sombra = 12.0 * factor_sombra
 
         grad_sombra = QRadialGradient(cx, cy_sombra, w_sombra / 2.0)
@@ -519,6 +568,53 @@ class UtilinRender3DWidget(QWidget):
         p.setBrush(grad_sombra)
         p.drawEllipse(QRectF(cx - w_sombra / 2.0, cy_sombra - h_sombra / 2.0, w_sombra, h_sombra))
 
+        # Pedestal de levitación holográfica Cyber-Ring
+        color_ring = (
+            QColor("#00E5FF")
+            if self._pensando
+            else (QColor("#38BDF8") if self._tiene_actividad else QColor("#0284C7"))
+        )
+        alpha_ring = 135 + int(50 * math.sin(self._t * (5.0 if self._pensando else 3.2)))
+        w_ring = w_sombra * 1.14
+        h_ring = h_sombra * 1.25
+        rect_ring = QRectF(cx - w_ring / 2.0, cy_sombra - h_ring / 2.0, w_ring, h_ring)
+
+        p.setPen(QPen(QColor(color_ring.red(), color_ring.green(), color_ring.blue(), alpha_ring), 1.4))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+        p.drawEllipse(rect_ring)
+
+        # Marcadores HUD que rotan lentamente en la base
+        rot_tick = (self._t * (1.6 if self._pensando else 0.8)) % (2 * math.pi)
+        for i in range(4):
+            ang = rot_tick + i * (math.pi / 2.0)
+            tx = cx + math.cos(ang) * (w_ring / 2.0)
+            ty = cy_sombra + math.sin(ang) * (h_ring / 2.0)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(color_ring.red(), color_ring.green(), color_ring.blue(), 190))
+            p.drawEllipse(QPointF(tx, ty), 1.8, 1.4)
+
+        # Partículas de datos cuánticas flotantes (bits holográficos)
+        if not self._esta_caminando:
+            for part in self._particulas:
+                ox = part["ox"]
+                speed = part["speed"]
+                phase = part["phase"]
+                size = part["size"]
+                part_y = cy_sombra - 8.0 - ((self._t * speed + phase * 22.0) % 95.0)
+                part_x = cx + ox + math.sin(self._t * 1.8 + phase) * 6.0
+                p_progress = (cy_sombra - part_y) / 95.0
+                part_alpha = max(0, min(220, int(190 * math.sin(p_progress * math.pi))))
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(QColor(56, 189, 248, part_alpha))
+                p.drawRect(QRectF(part_x - size / 2.0, part_y - size / 2.0, size, size))
+
+        # Onda holográfica expansiva al hacer clic
+        if self._ripple_alpha > 0.0:
+            p.setPen(QPen(QColor(0, 229, 255, int(self._ripple_alpha)), 1.5))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            r_rip = self._ripple_radio
+            p.drawEllipse(QRectF(cx - r_rip, cy_sombra - (r_rip * 0.4), r_rip * 2.0, r_rip * 0.8))
+
         # Selección de sprite y proporciones según estado
         pix_a_dibujar = self._pix_neutral
         es_caminata = False
@@ -527,13 +623,11 @@ class UtilinRender3DWidget(QWidget):
 
         if self._esta_caminando:
             es_caminata = True
-            # Alternar zancada entre walk1 y walk2
             paso_idx = int(self._distancia_caminar / 24.0) % 2
             pix_a_dibujar = self._pix_walk1 if paso_idx == 0 else self._pix_walk2
             ancho_base = 122.0
             alto_base = 154.0
         elif self._saludando:
-            # Alternar rítmicamente el saludo de mano
             fase_wave = math.sin(self._tiempo_saludo * 11.0)
             if fase_wave > -0.15 and not self._pix_wave.isNull():
                 pix_a_dibujar = self._pix_wave
@@ -556,12 +650,12 @@ class UtilinRender3DWidget(QWidget):
             alto_pj = alto_base * escala_y_respiracion
             cy_pj = cy_sombra - (alto_pj / 2.0) - 2.0 + bob_y
 
-            rotacion_total = self._tilt_deg + waddle_tilt + wave_tilt
+            thinking_tilt = math.sin(self._t * 3.0) * 3.5 if self._pensando else 0.0
+            rotacion_total = self._tilt_deg + waddle_tilt + wave_tilt + thinking_tilt
 
             t = QTransform()
             t.translate(cx, cy_pj + alto_pj * 0.40)
             if es_caminata and self._direccion_caminar == -1:
-                # Espejar horizontalmente para mirar y caminar hacia la izquierda
                 t.scale(-1.0, 1.0)
             t.rotate(rotacion_total)
             t.translate(-cx, -(cy_pj + alto_pj * 0.40))
@@ -569,6 +663,50 @@ class UtilinRender3DWidget(QWidget):
             p.setTransform(t)
             rect_pj = QRectF(cx - ancho_pj / 2.0, cy_pj - alto_pj / 2.0, ancho_pj, alto_pj)
             p.drawPixmap(rect_pj.toRect(), pix_a_dibujar)
+            p.resetTransform()
+
+            # Halo Neural de IA cuando está pensando
+            if self._pensando:
+                halo_y = cy_pj - alto_pj * 0.42
+                halo_rx = 34.0
+                halo_ry = 10.0
+
+                # Onda de pulso expansiva desde la cabeza
+                pulse = (self._t * 1.8) % 1.0
+                pulse_alpha = int((1.0 - pulse) * 140)
+                p.setPen(QPen(QColor(0, 240, 255, pulse_alpha), 1.5))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawEllipse(QRectF(
+                    cx - halo_rx * (1.0 + pulse * 0.4),
+                    halo_y - halo_ry * (1.0 + pulse * 0.4),
+                    halo_rx * 2 * (1.0 + pulse * 0.4),
+                    halo_ry * 2 * (1.0 + pulse * 0.4),
+                ))
+
+                # Anillo principal de órbita neural
+                p.setPen(QPen(QColor(0, 229, 255, 210), 1.8))
+                p.drawEllipse(QRectF(cx - halo_rx, halo_y - halo_ry, halo_rx * 2, halo_ry * 2))
+
+                # 3 nodos de datos orbitales
+                for i in range(3):
+                    ang = self._t * 4.6 + i * (2 * math.pi / 3.0)
+                    nx = cx + math.cos(ang) * halo_rx
+                    ny = halo_y + math.sin(ang) * halo_ry
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(QColor(255, 255, 255, 250))
+                    p.drawEllipse(QPointF(nx, ny), 3.0, 2.4)
+                    p.setBrush(QColor(0, 229, 255, 130))
+                    p.drawEllipse(QPointF(nx, ny), 5.5, 4.5)
+
+            # Destello Eureka al completar una consulta
+            if self._eureka_timer > 0.0:
+                e_alpha = int((self._eureka_timer / 1.6) * 180)
+                p.setPen(QPen(QColor(56, 189, 248, e_alpha), 2.0))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                e_rx = 40.0 + (1.6 - self._eureka_timer) * 18.0
+                e_ry = e_rx * 0.45
+                p.drawEllipse(QRectF(cx - e_rx, cy_pj - e_ry, e_rx * 2.0, e_ry * 2.0))
+
         else:
             p.setPen(QColor("#003D95"))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🤖 Utilín")
@@ -659,7 +797,11 @@ class MascotaWidget(QWidget):
 
     def _procesar_mensaje_chat(self, pregunta: str) -> None:
         """Envía la pregunta al servicio de IA en segundo plano sin congelar la interfaz."""
+        self.globo.mostrar_pensando()
+        self.lbl_mascota.set_pensando(True)
+
         if not self.srv_ia:
+            self.lbl_mascota.set_pensando(False)
             self.globo.mostrar_respuesta_ia("Servicio de IA no inicializado.")
             return
 
@@ -669,10 +811,11 @@ class MascotaWidget(QWidget):
         hilo.start()
 
     def _al_recibir_respuesta_ia(self, respuesta: Any) -> None:
-        """Muestra la respuesta en el globo y hace que Utilín salude con entusiasmo."""
+        """Muestra la respuesta en el globo y hace que Utilín celebre con eureka bot."""
+        self.lbl_mascota.set_pensando(False)
+        self.lbl_mascota.activar_eureka()
         mensaje = getattr(respuesta, "mensaje", str(respuesta))
         self.globo.mostrar_respuesta_ia(mensaje)
-        self.lbl_mascota.forzar_saludo()
 
     def _posicionar_defecto(self) -> None:
         """Ubica a Utilín en la esquina inferior derecha o en su posición guardada."""
@@ -714,6 +857,7 @@ class MascotaWidget(QWidget):
         """Actualiza el globo de texto con el cronómetro y tarea en curso."""
         self._nombre_actividad = nombre_actividad
         self._segundos_actividad = max(0, int(segundos))
+        self.lbl_mascota.set_tiene_actividad(bool(nombre_actividad))
 
         # Si está respondiendo la IA, no sobrescribir el texto de la respuesta
         if not self.globo._modo_respuesta_ia:

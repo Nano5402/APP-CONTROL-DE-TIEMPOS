@@ -175,4 +175,29 @@ def test_mascota_animaciones_saludo_y_caminata():
     lbl._actualizar_fisicas()
     assert lbl._saludando is True
 
+    # 6. Modo Bot IA: Halo neural pensando y pedestal con actividad
+    lbl.set_pensando(True)
+    assert lbl._pensando is True
+    lbl.repaint()
+    app.processEvents()
+
+    lbl.set_tiene_actividad(True)
+    assert lbl._tiene_actividad is True
+    lbl.repaint()
+    app.processEvents()
+
+    # 7. Reacción Eureka y saltito con onda holográfica
+    lbl.activar_saltito()
+    assert lbl._ripple_alpha > 0.0
+    assert lbl._jump_y < 0.0
+    lbl.repaint()
+    app.processEvents()
+
+    lbl.activar_eureka()
+    assert lbl._pensando is False
+    assert lbl._eureka_timer > 0.0
+    assert lbl._saludando is True
+    lbl.repaint()
+    app.processEvents()
+
     widget.close()
