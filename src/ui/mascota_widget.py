@@ -14,6 +14,7 @@ combinada con:
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Callable
 
 from PySide6.QtCore import (
@@ -359,8 +360,63 @@ class GloboTextoWidget(QWidget):
         p.end()
 
 
+def _dibujar_corazon(p: QPainter, cx: float, cy: float, tamano: float = 14.0, alpha: int = 255) -> None:
+    """Dibuja un corazón vectorial brillante flotante."""
+    path = QPainterPath()
+    r = tamano
+    path.moveTo(cx, cy + r * 0.75)
+    path.cubicTo(cx - r * 1.3, cy - r * 0.3, cx - r * 1.3, cy - r * 1.25, cx, cy - r * 0.6)
+    path.cubicTo(cx + r * 1.3, cy - r * 1.25, cx + r * 1.3, cy - r * 0.3, cx, cy + r * 0.75)
+
+    grad = QLinearGradient(cx, cy - r, cx, cy + r)
+    grad.setColorAt(0.0, QColor(244, 63, 94, alpha))
+    grad.setColorAt(1.0, QColor(225, 29, 72, alpha))
+    p.setPen(QPen(QColor(190, 18, 60, alpha), 1.0))
+    p.setBrush(grad)
+    p.drawPath(path)
+
+    # Brillo reflejo superior
+    p.setPen(Qt.PenStyle.NoPen)
+    p.setBrush(QColor(255, 255, 255, int(alpha * 0.7)))
+    p.drawEllipse(QPointF(cx - r * 0.45, cy - r * 0.45), r * 0.25, r * 0.18)
+
+
+def _dibujar_estrella(p: QPainter, cx: float, cy: float, radio: float = 10.0, alpha: int = 255) -> None:
+    """Dibuja una estrellita dorada brillante de 4 puntas."""
+    path = QPainterPath()
+    path.moveTo(cx, cy - radio)
+    path.quadTo(cx, cy, cx + radio, cy)
+    path.quadTo(cx, cy, cx, cy + radio)
+    path.quadTo(cx, cy, cx - radio, cy)
+    path.quadTo(cx, cy, cx, cy - radio)
+    p.setPen(QPen(QColor(217, 119, 6, alpha), 1.0))
+    p.setBrush(QColor(251, 191, 36, alpha))
+    p.drawPath(path)
+
+
+def _dibujar_zzz(p: QPainter, cx: float, cy: float, sz: float = 12.0, alpha: int = 255) -> None:
+    """Dibuja una letra Z estilizada de siesta."""
+    path = QPainterPath()
+    w, h = sz * 0.75, sz
+    path.moveTo(cx - w / 2.0, cy - h / 2.0)
+    path.lineTo(cx + w / 2.0, cy - h / 2.0)
+    path.lineTo(cx - w / 2.0, cy + h / 2.0)
+    path.lineTo(cx + w / 2.0, cy + h / 2.0)
+    p.setPen(
+        QPen(
+            QColor(99, 102, 241, alpha),
+            max(1.8, sz * 0.18),
+            Qt.PenStyle.SolidLine,
+            Qt.PenCapStyle.RoundCap,
+            Qt.PenJoinStyle.RoundJoin,
+        )
+    )
+    p.setBrush(Qt.BrushStyle.NoBrush)
+    p.drawPath(path)
+
+
 class UtilinRender3DWidget(QWidget):
-    """Lienzo 3D con físicas de bot IA: levitación antigravedad, halo neural, pedestal holográfico y caminata."""
+    """Lienzo de mascota virtual 3D con ciclo de caminata, expresiones, siesta y físicas de rebote."""
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -373,7 +429,7 @@ class UtilinRender3DWidget(QWidget):
         self._tilt_objetivo: float = 0.0
         self._jump_y: float = 0.0
 
-        # Físicas de caminata al arrastrar
+        # Físicas de caminata al arrastrar o paseo libre
         self._esta_caminando: bool = False
         self._direccion_caminar: int = 1  # 1 = derecha, -1 = izquierda
         self._distancia_caminar: float = 0.0
@@ -386,20 +442,14 @@ class UtilinRender3DWidget(QWidget):
         self._tiempo_saludo: float = 0.0
         self._duracion_saludo: float = 2.4
 
-        # Estados de Bot IA
-        self._pensando: bool = False
+        # Estados de mascota virtual
+        self._durmiendo: bool = False
+        self._tiempo_siesta: float = 0.0
         self._tiene_actividad: bool = False
-        self._ripple_radio: float = 0.0
-        self._ripple_alpha: float = 0.0
-        self._eureka_timer: float = 0.0
+        self._pensando: bool = False
 
-        # Micro-partículas de datos cuánticos digitales
-        self._particulas = [
-            {"ox": -28.0, "speed": 22.0, "phase": 0.2, "size": 2.2},
-            {"ox": 26.0, "speed": 18.0, "phase": 1.4, "size": 2.0},
-            {"ox": -12.0, "speed": 28.0, "phase": 2.7, "size": 1.8},
-            {"ox": 32.0, "speed": 20.0, "phase": 4.1, "size": 2.2},
-        ]
+        # Sistema de emotes flotantes estilo VS Code Pets
+        self._emotes: list[dict] = []
 
         # Cargar poses 3D ultra-nítidas
         d = rutas.carpeta_assets()
@@ -432,18 +482,22 @@ class UtilinRender3DWidget(QWidget):
         self.set_inclinacion_arrastre(vx * 0.70)
         self._tiempo_quieto = 0.0
 
-        if vx < -1.2:
+        if vx < -0.8:
             self._direccion_caminar = -1  # Caminando a la izquierda
             self._esta_caminando = True
             self._distancia_caminar += abs(vx)
             self._saludando = False
             self._temporizador_saludo = 0.0
-        elif vx > 1.2:
+            if self._durmiendo:
+                self.despertar()
+        elif vx > 0.8:
             self._direccion_caminar = 1   # Caminando a la derecha
             self._esta_caminando = True
             self._distancia_caminar += abs(vx)
             self._saludando = False
             self._temporizador_saludo = 0.0
+            if self._durmiendo:
+                self.despertar()
 
     def soltar_arrastre(self) -> None:
         """Restablece la pose de pie y la inclinación suavemente con rebote elástico."""
@@ -452,27 +506,65 @@ class UtilinRender3DWidget(QWidget):
         self._tiempo_quieto = 0.0
 
     def activar_saltito(self) -> None:
-        """Efecto rebote táctil (hop) al hacer clic con onda holográfica expansiva."""
+        """Efecto rebote táctil (hop) al hacer clic con corazoncito amoroso."""
         self._jump_y = -9.0
         self._temporizador_saludo = 0.0
-        self._ripple_radio = 10.0
-        self._ripple_alpha = 230.0
+        if self._durmiendo:
+            self.despertar()
+        else:
+            self.agregar_emote("heart")
+
+    def agregar_emote(self, tipo: str = "heart", offset_x: float = 0.0) -> None:
+        """Genera un emote flotante estilo mascota virtual que asciende y se desvanece."""
+        cx = self.width() / 2.0 + offset_x
+        cy = self.height() - 14.0 - 154.0 * 0.55
+        self._emotes.append({
+            "tipo": tipo,
+            "x": cx,
+            "y": cy,
+            "vx": random.uniform(-6.0, 6.0),
+            "vy": random.uniform(-28.0, -36.0),
+            "alpha": 255.0,
+            "tamano": 13.0 if tipo == "heart" else (11.0 if tipo == "star" else 12.0),
+            "vida": 0.0,
+            "max_vida": 1.4,
+        })
+
+    def set_durmiendo(self, durmiendo: bool) -> None:
+        """Activa o desactiva la siesta de Utilín."""
+        self._durmiendo = durmiendo
+        self._tiempo_siesta = 0.0
+        if durmiendo:
+            self._saludando = False
+            self._esta_caminando = False
+
+    def despertar(self) -> None:
+        """Despierta a Utilín con sorpresa y un salto alegre."""
+        if self._durmiendo:
+            self._durmiendo = False
+            self._jump_y = -9.0
+            self.agregar_emote("star")
+            self.forzar_saludo()
 
     def set_pensando(self, pensando: bool) -> None:
         """Activa o desactiva el modo de cálculo/pensamiento IA."""
         self._pensando = pensando
         if pensando:
             self._saludando = False
+            self._durmiendo = False
 
     def set_tiene_actividad(self, tiene: bool) -> None:
         """Actualiza si hay una actividad/cronómetro en ejecución."""
         self._tiene_actividad = tiene
+        if tiene and self._durmiendo:
+            self.despertar()
 
     def activar_eureka(self) -> None:
-        """Dispara reacción alegre de respuesta encontrada: salto, halo radiante y saludo."""
+        """Dispara reacción alegre de respuesta encontrada: salto, estrellitas y saludo."""
         self._pensando = False
-        self._eureka_timer = 1.6
-        self.activar_saltito()
+        self._jump_y = -10.0
+        self.agregar_emote("star", -16.0)
+        self.agregar_emote("star", 16.0)
         self.forzar_saludo()
 
     def forzar_saludo(self) -> None:
@@ -485,17 +577,23 @@ class UtilinRender3DWidget(QWidget):
         dt = 0.030
         self._t += dt
 
-        # Onda táctil expansiva al hacer clic
-        if self._ripple_alpha > 0.0:
-            self._ripple_radio += 110.0 * dt
-            self._ripple_alpha = max(0.0, self._ripple_alpha - 550.0 * dt)
+        # Actualizar emotes flotantes
+        for em in self._emotes:
+            em["x"] += em["vx"] * dt
+            em["y"] += em["vy"] * dt
+            em["vida"] += dt
+            em["alpha"] = max(0.0, 255.0 * (1.0 - (em["vida"] / em["max_vida"])))
+        self._emotes = [em for em in self._emotes if em["vida"] < em["max_vida"]]
 
-        # Destello eureka
-        if self._eureka_timer > 0.0:
-            self._eureka_timer = max(0.0, self._eureka_timer - dt)
+        # Si está durmiendo, emitir burbujitas Zzz periódicas
+        if self._durmiendo:
+            self._tiempo_siesta += dt
+            if self._tiempo_siesta >= 1.6:
+                self._tiempo_siesta = 0.0
+                self.agregar_emote("zzz", offset_x=random.uniform(8.0, 24.0))
 
-        # Control del saludo periódico cada 10 segundos
-        if not self._esta_caminando and not self._pensando:
+        # Control del saludo periódico cada 12 segundos (si está despierto y quieto)
+        if not self._esta_caminando and not self._pensando and not self._durmiendo:
             if not self._saludando:
                 self._temporizador_saludo += dt
                 if self._temporizador_saludo >= self._intervalo_saludo:
@@ -542,9 +640,12 @@ class UtilinRender3DWidget(QWidget):
             step_y = -abs(math.sin(self._distancia_caminar * 0.11)) * 4.8
             waddle_tilt = math.sin(self._distancia_caminar * 0.11) * 3.8
             bob_y = step_y + self._jump_y
+        elif self._durmiendo:
+            # Respiración más lenta y relajada de siesta
+            bob_y = math.sin(self._t * 1.4) * 1.8 + self._jump_y
         elif self._pensando:
-            # Flotación analítica cognitiva rápida
-            bob_y = math.sin(self._t * 3.6) * 3.2 + self._jump_y
+            # Flotación analítica
+            bob_y = math.sin(self._t * 3.6) * 3.0 + self._jump_y
         elif self._saludando:
             # Pequeño rebote alegre durante el saludo
             wave_hop = -abs(math.sin(self._tiempo_saludo * 6.0)) * 2.8
@@ -552,68 +653,21 @@ class UtilinRender3DWidget(QWidget):
             bob_y = math.sin(self._t * 2.4) * 3.5 + wave_hop + self._jump_y
         else:
             # Flotación / levitación idle suave
-            bob_y = math.sin(self._t * 2.4) * 4.4 + self._jump_y
+            bob_y = math.sin(self._t * 2.4) * 4.2 + self._jump_y
 
-        # Sombra de contacto 3D en el suelo
+        # Sombra de contacto 3D natural en el suelo
         factor_sombra = max(0.58, min(1.15, 1.0 - (bob_y / 24.0)))
         w_sombra = (88.0 if self._esta_caminando else 94.0) * factor_sombra
         h_sombra = 12.0 * factor_sombra
 
         grad_sombra = QRadialGradient(cx, cy_sombra, w_sombra / 2.0)
-        grad_sombra.setColorAt(0.0, QColor(0, 0, 0, int(52 * factor_sombra)))
-        grad_sombra.setColorAt(0.55, QColor(0, 0, 0, int(20 * factor_sombra)))
+        grad_sombra.setColorAt(0.0, QColor(0, 0, 0, int(50 * factor_sombra)))
+        grad_sombra.setColorAt(0.55, QColor(0, 0, 0, int(18 * factor_sombra)))
         grad_sombra.setColorAt(1.0, QColor(0, 0, 0, 0))
 
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(grad_sombra)
         p.drawEllipse(QRectF(cx - w_sombra / 2.0, cy_sombra - h_sombra / 2.0, w_sombra, h_sombra))
-
-        # Pedestal de levitación holográfica Cyber-Ring
-        color_ring = (
-            QColor("#00E5FF")
-            if self._pensando
-            else (QColor("#38BDF8") if self._tiene_actividad else QColor("#0284C7"))
-        )
-        alpha_ring = 135 + int(50 * math.sin(self._t * (5.0 if self._pensando else 3.2)))
-        w_ring = w_sombra * 1.14
-        h_ring = h_sombra * 1.25
-        rect_ring = QRectF(cx - w_ring / 2.0, cy_sombra - h_ring / 2.0, w_ring, h_ring)
-
-        p.setPen(QPen(QColor(color_ring.red(), color_ring.green(), color_ring.blue(), alpha_ring), 1.4))
-        p.setBrush(Qt.BrushStyle.NoBrush)
-        p.drawEllipse(rect_ring)
-
-        # Marcadores HUD que rotan lentamente en la base
-        rot_tick = (self._t * (1.6 if self._pensando else 0.8)) % (2 * math.pi)
-        for i in range(4):
-            ang = rot_tick + i * (math.pi / 2.0)
-            tx = cx + math.cos(ang) * (w_ring / 2.0)
-            ty = cy_sombra + math.sin(ang) * (h_ring / 2.0)
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor(color_ring.red(), color_ring.green(), color_ring.blue(), 190))
-            p.drawEllipse(QPointF(tx, ty), 1.8, 1.4)
-
-        # Partículas de datos cuánticas flotantes (bits holográficos)
-        if not self._esta_caminando:
-            for part in self._particulas:
-                ox = part["ox"]
-                speed = part["speed"]
-                phase = part["phase"]
-                size = part["size"]
-                part_y = cy_sombra - 8.0 - ((self._t * speed + phase * 22.0) % 95.0)
-                part_x = cx + ox + math.sin(self._t * 1.8 + phase) * 6.0
-                p_progress = (cy_sombra - part_y) / 95.0
-                part_alpha = max(0, min(220, int(190 * math.sin(p_progress * math.pi))))
-                p.setPen(Qt.PenStyle.NoPen)
-                p.setBrush(QColor(56, 189, 248, part_alpha))
-                p.drawRect(QRectF(part_x - size / 2.0, part_y - size / 2.0, size, size))
-
-        # Onda holográfica expansiva al hacer clic
-        if self._ripple_alpha > 0.0:
-            p.setPen(QPen(QColor(0, 229, 255, int(self._ripple_alpha)), 1.5))
-            p.setBrush(Qt.BrushStyle.NoBrush)
-            r_rip = self._ripple_radio
-            p.drawEllipse(QRectF(cx - r_rip, cy_sombra - (r_rip * 0.4), r_rip * 2.0, r_rip * 0.8))
 
         # Selección de sprite y proporciones según estado
         pix_a_dibujar = self._pix_neutral
@@ -637,6 +691,13 @@ class UtilinRender3DWidget(QWidget):
                 pix_a_dibujar = self._pix_neutral
                 ancho_base = 146.0
                 alto_base = 154.0
+        elif self._durmiendo:
+            # Postura relajada de siesta
+            escala_x_respiracion = 1.04 - math.sin(self._t * 1.4) * 0.015
+            escala_y_respiracion = 0.96 + math.sin(self._t * 1.4) * 0.015
+            pix_a_dibujar = self._pix_neutral
+            ancho_base = 146.0
+            alto_base = 154.0
         else:
             # Respiración elástica en reposo
             escala_x_respiracion = 1.0 + math.cos(self._t * 2.4) * 0.012
@@ -650,8 +711,7 @@ class UtilinRender3DWidget(QWidget):
             alto_pj = alto_base * escala_y_respiracion
             cy_pj = cy_sombra - (alto_pj / 2.0) - 2.0 + bob_y
 
-            thinking_tilt = math.sin(self._t * 3.0) * 3.5 if self._pensando else 0.0
-            rotacion_total = self._tilt_deg + waddle_tilt + wave_tilt + thinking_tilt
+            rotacion_total = self._tilt_deg + waddle_tilt + wave_tilt
 
             t = QTransform()
             t.translate(cx, cy_pj + alto_pj * 0.40)
@@ -665,48 +725,16 @@ class UtilinRender3DWidget(QWidget):
             p.drawPixmap(rect_pj.toRect(), pix_a_dibujar)
             p.resetTransform()
 
-            # Halo Neural de IA cuando está pensando
-            if self._pensando:
-                halo_y = cy_pj - alto_pj * 0.42
-                halo_rx = 34.0
-                halo_ry = 10.0
-
-                # Onda de pulso expansiva desde la cabeza
-                pulse = (self._t * 1.8) % 1.0
-                pulse_alpha = int((1.0 - pulse) * 140)
-                p.setPen(QPen(QColor(0, 240, 255, pulse_alpha), 1.5))
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                p.drawEllipse(QRectF(
-                    cx - halo_rx * (1.0 + pulse * 0.4),
-                    halo_y - halo_ry * (1.0 + pulse * 0.4),
-                    halo_rx * 2 * (1.0 + pulse * 0.4),
-                    halo_ry * 2 * (1.0 + pulse * 0.4),
-                ))
-
-                # Anillo principal de órbita neural
-                p.setPen(QPen(QColor(0, 229, 255, 210), 1.8))
-                p.drawEllipse(QRectF(cx - halo_rx, halo_y - halo_ry, halo_rx * 2, halo_ry * 2))
-
-                # 3 nodos de datos orbitales
-                for i in range(3):
-                    ang = self._t * 4.6 + i * (2 * math.pi / 3.0)
-                    nx = cx + math.cos(ang) * halo_rx
-                    ny = halo_y + math.sin(ang) * halo_ry
-                    p.setPen(Qt.PenStyle.NoPen)
-                    p.setBrush(QColor(255, 255, 255, 250))
-                    p.drawEllipse(QPointF(nx, ny), 3.0, 2.4)
-                    p.setBrush(QColor(0, 229, 255, 130))
-                    p.drawEllipse(QPointF(nx, ny), 5.5, 4.5)
-
-            # Destello Eureka al completar una consulta
-            if self._eureka_timer > 0.0:
-                e_alpha = int((self._eureka_timer / 1.6) * 180)
-                p.setPen(QPen(QColor(56, 189, 248, e_alpha), 2.0))
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                e_rx = 40.0 + (1.6 - self._eureka_timer) * 18.0
-                e_ry = e_rx * 0.45
-                p.drawEllipse(QRectF(cx - e_rx, cy_pj - e_ry, e_rx * 2.0, e_ry * 2.0))
-
+            # Dibujar emotes flotantes activos (Corazoncitos, Estrellitas, Zzz)
+            for em in self._emotes:
+                tipo = em["tipo"]
+                alpha = int(em["alpha"])
+                if tipo == "heart":
+                    _dibujar_corazon(p, em["x"], em["y"], em["tamano"], alpha)
+                elif tipo == "star":
+                    _dibujar_estrella(p, em["x"], em["y"], em["tamano"], alpha)
+                elif tipo == "zzz":
+                    _dibujar_zzz(p, em["x"], em["y"], em["tamano"], alpha)
         else:
             p.setPen(QColor("#003D95"))
             p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter, "🤖 Utilín")
@@ -750,6 +778,19 @@ class MascotaWidget(QWidget):
         self._ultimo_pos_raton: QPoint = QPoint()
         self._posicion_personalizada: QPoint | None = None
 
+        # Autonomía de mascota virtual (estilo VS Code Pets)
+        self._permitir_paseo_libre: bool = True
+        self._caminando_autonomo: bool = False
+        self._destino_x: int = 0
+        self._temporizador_decision: float = 0.0
+        self._tiempo_inactivo: float = 0.0
+        self._cayendo: bool = False
+        self._velocidad_caida: float = 0.0
+        self._y_suelo: int = 0
+        self._jugando_pelota: bool = False
+        self._paso_pelota: int = 0
+        self._origen_pelota_x: int = 0
+
         self._nombre_actividad: str | None = None
         self._segundos_actividad: int = 0
         self._globo_visible: bool = True
@@ -784,12 +825,18 @@ class MascotaWidget(QWidget):
         # 2. Utilín con render 3D original y físicas fluidas
         self.lbl_mascota = UtilinRender3DWidget(self)
         self.lbl_mascota.setToolTip(
-            "Utilín — Mascota de Control de Tiempos\n"
-            "• Arrastra para moverme a cualquier sitio\n"
+            "Utilín — Mascota Virtual de Control de Tiempos\n"
+            "• Arrastra para moverme a cualquier sitio (¡caigo con gravedad!)\n"
             "• Doble clic para abrir la aplicación\n"
-            "• Clic derecho para opciones o hablar con IA"
+            "• Clic derecho para jugar, acariciar o hablar con IA"
         )
         layout_raiz.addWidget(self.lbl_mascota, 0, Qt.AlignmentFlag.AlignCenter)
+
+        # Timer de comportamiento autónomo continuo
+        self._timer_autonomia = QTimer(self)
+        self._timer_autonomia.setInterval(30)
+        self._timer_autonomia.timeout.connect(self._actualizar_autonomia)
+        self._timer_autonomia.start()
 
         self.adjustSize()
         self._posicionar_defecto()
@@ -896,6 +943,132 @@ class MascotaWidget(QWidget):
         self.adjustSize()
 
     # ------------------------------------------------------------------
+    # Autonomía de Mascota Virtual (estilo VS Code Pets)
+    # ------------------------------------------------------------------
+
+    def _actualizar_autonomia(self) -> None:
+        """Ciclo de vida autónomo: gravedad, paseos, siestas y juego."""
+        dt = 0.030
+
+        # Si el usuario lo está arrastrando con el ratón
+        if self._arrastrando:
+            self._tiempo_inactivo = 0.0
+            return
+
+        # 1. Física de caída libre con gravedad al soltarlo en el aire
+        if self._cayendo:
+            self._velocidad_caida += 1400.0 * dt
+            nueva_y = self.y() + int(self._velocidad_caida * dt)
+            if nueva_y >= self._y_suelo:
+                nueva_y = self._y_suelo
+                self._cayendo = False
+                self._velocidad_caida = 0.0
+                self.lbl_mascota.activar_saltito()
+                self.lbl_mascota.agregar_emote("star")
+            self.move(self.x(), nueva_y)
+            self._posicion_personalizada = self.pos()
+            return
+
+        # 2. Si está jugando a la pelota
+        if self._jugando_pelota:
+            dist = self._destino_x - self.x()
+            if abs(dist) > 5:
+                paso = 3 if dist > 0 else -3
+                self.move(self.x() + paso, self.y())
+                self.lbl_mascota.registrar_movimiento(float(paso * 1.5))
+            else:
+                if self._paso_pelota == 1:
+                    # Atrapó la pelota: salto y corazoncito
+                    self.lbl_mascota.activar_saltito()
+                    self.lbl_mascota.agregar_emote("heart")
+                    self._paso_pelota = 2
+                    self._destino_x = self._origen_pelota_x
+                else:
+                    # Regresó con la pelota
+                    self._jugando_pelota = False
+                    self._paso_pelota = 0
+                    self.lbl_mascota.soltar_arrastre()
+                    self.lbl_mascota.forzar_saludo()
+            return
+
+        # 3. Si está en paseo autónomo por la pantalla
+        if self._caminando_autonomo:
+            dist = self._destino_x - self.x()
+            if abs(dist) > 4:
+                paso = 2 if dist > 0 else -2
+                self.move(self.x() + paso, self.y())
+                self.lbl_mascota.registrar_movimiento(float(paso * 1.2))
+            else:
+                self._caminando_autonomo = False
+                self.lbl_mascota.soltar_arrastre()
+                self.lbl_mascota.forzar_saludo()
+            return
+
+        # 4. Modo Inactividad / Siesta
+        self._tiempo_inactivo += dt
+        if not self._nombre_actividad and not self.globo._modo_chat and self._tiempo_inactivo > 40.0:
+            if not self.lbl_mascota._durmiendo:
+                self.lbl_mascota.set_durmiendo(True)
+
+        # 5. Toma de decisiones de paseo autónomo (cada 12-16 segundos)
+        if self._permitir_paseo_libre and not self.lbl_mascota._durmiendo and not self.globo._modo_chat:
+            self._temporizador_decision += dt
+            if self._temporizador_decision >= 14.0:
+                self._temporizador_decision = 0.0
+                if random.random() < 0.45:
+                    self.iniciar_paseo_autonomo()
+
+    def iniciar_paseo_autonomo(self) -> None:
+        """Elige un destino cercano para caminar libremente por la pantalla."""
+        pantalla = QApplication.primaryScreen()
+        if not pantalla:
+            return
+        geom = pantalla.availableGeometry()
+        ancho = self.width() or 220
+        desplazamiento = random.choice([-110, -70, 70, 110])
+        nuevo_x = max(geom.left() + 20, min(geom.right() - ancho - 20, self.x() + desplazamiento))
+        if abs(nuevo_x - self.x()) > 25:
+            self._destino_x = nuevo_x
+            self._caminando_autonomo = True
+
+    def jugar_pelota(self) -> None:
+        """Lanza una pelota para que Utilín corra tras ella y la traiga feliz."""
+        self.lbl_mascota.despertar()
+        self._tiempo_inactivo = 0.0
+        self._caminando_autonomo = False
+        pantalla = QApplication.primaryScreen()
+        geom = pantalla.availableGeometry() if pantalla else None
+
+        self._origen_pelota_x = self.x()
+        offset = 130 if (geom and self.x() - 130 < geom.left() + 40) else -130
+        self._destino_x = self.x() + offset
+        self._jugando_pelota = True
+        self._paso_pelota = 1
+        self.lbl_mascota.activar_saltito()
+
+    def acariciar(self) -> None:
+        """Le da caricias y afecto a Utilín (saltito y corazoncitos)."""
+        self.lbl_mascota.despertar()
+        self._tiempo_inactivo = 0.0
+        self.lbl_mascota.activar_saltito()
+        self.lbl_mascota.agregar_emote("heart")
+
+    def alternar_paseo_libre(self, activo: bool) -> None:
+        """Habilita o deshabilita los paseos autónomos de Utilín."""
+        self._permitir_paseo_libre = activo
+        if not activo and self._caminando_autonomo:
+            self._caminando_autonomo = False
+            self.lbl_mascota.soltar_arrastre()
+
+    def alternar_siesta(self) -> None:
+        """Envía a dormir o despierta manualmente a Utilín."""
+        if self.lbl_mascota._durmiendo:
+            self.lbl_mascota.despertar()
+            self._tiempo_inactivo = 0.0
+        else:
+            self.lbl_mascota.set_durmiendo(True)
+
+    # ------------------------------------------------------------------
     # Arrastre suave con física de inercia e inclinación
     # ------------------------------------------------------------------
 
@@ -911,7 +1084,16 @@ class MascotaWidget(QWidget):
         if t == QEvent.Type.MouseButtonPress:
             ev: QMouseEvent = evento
             if ev.button() == Qt.MouseButton.LeftButton:
+                self._tiempo_inactivo = 0.0
+                if self.lbl_mascota._durmiendo:
+                    self.lbl_mascota.despertar()
+                if self._caminando_autonomo or self._jugando_pelota:
+                    self._caminando_autonomo = False
+                    self._jugando_pelota = False
+                    self.lbl_mascota.soltar_arrastre()
+
                 self._arrastrando = True
+                self._cayendo = False
                 self._drag_start_pos = ev.globalPosition().toPoint()
                 self._widget_start_pos = self.pos()
                 self._ultimo_pos_raton = ev.globalPosition().toPoint()
@@ -940,6 +1122,17 @@ class MascotaWidget(QWidget):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._posicion_personalizada = self.pos()
                 self.lbl_mascota.soltar_arrastre()
+
+                pantalla = QApplication.primaryScreen()
+                if pantalla:
+                    geom = pantalla.availableGeometry()
+                    alto = self.height() or 270
+                    suelo = geom.bottom() - alto - 35
+                    # Si el usuario lo soltó en el aire, caer con gravedad hasta el suelo
+                    if self.y() < suelo - 30:
+                        self._cayendo = True
+                        self._velocidad_caida = 0.0
+                        self._y_suelo = suelo
 
         elif t == QEvent.Type.MouseButtonDblClick:
             ev_d: QMouseEvent = evento
@@ -977,6 +1170,20 @@ class MascotaWidget(QWidget):
 
         act_saludar = menu.addAction("👋 Saludar")
         act_saludar.triggered.connect(self.lbl_mascota.forzar_saludo)
+
+        act_caricia = menu.addAction("💖 Acariciar a Utilín")
+        act_caricia.triggered.connect(self.acariciar)
+
+        act_pelota = menu.addAction("🎾 Jugar con la pelota")
+        act_pelota.triggered.connect(self.jugar_pelota)
+
+        act_paseo = menu.addAction("🚶 Paseo autónomo libre")
+        act_paseo.setCheckable(True)
+        act_paseo.setChecked(self._permitir_paseo_libre)
+        act_paseo.toggled.connect(self.alternar_paseo_libre)
+
+        act_siesta = menu.addAction("💤 Despertar" if self.lbl_mascota._durmiendo else "💤 Enviar a dormir")
+        act_siesta.triggered.connect(self.alternar_siesta)
 
         if self._nombre_actividad:
             menu.addSeparator()
