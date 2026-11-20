@@ -166,3 +166,71 @@ def test_ia_utilin_contingencia_amigable(bd):
     res = srv.consultar("Dime algo motivacional")
     assert res.mensaje is not None
     assert "Utilín" in res.mensaje or "Reportes" in res.mensaje
+
+
+def test_ia_utilin_lenguaje_natural_y_memoria(bd):
+    """Valida la interacción en lenguaje natural flexible y la memoria multi-turno."""
+    pantalla_abierta = None
+
+    def on_nav(p: str) -> bool:
+        nonlocal pantalla_abierta
+        pantalla_abierta = p
+        return True
+
+    srv = ServicioUtilinIA(bd, callback_navegar=on_nav)
+
+    # 1. Navegación en lenguaje natural coloquial
+    res_nav = srv.consultar("¿puedes abrir los reportes por favor?")
+    assert res_nav.accion_ejecutada == "ABRIR_PANTALLA"
+    assert pantalla_abierta == "reportes"
+
+    # 2. Iniciar tarea con frase natural
+    res_ini = srv.consultar("quiero empezar a trabajar en la liquidación de nómina")
+    assert res_ini.accion_ejecutada == "INICIAR_ACTIVIDAD"
+    assert "liquidación de nómina" in res_ini.mensaje.lower() or "nómina" in res_ini.mensaje.lower()
+
+    # 3. Pausar por almuerzo / comida
+    res_pausa = srv.consultar("oye voy a salir a almorzar un momento")
+    assert res_pausa.accion_ejecutada == "PAUSAR_ACTIVIDAD"
+
+    # 4. Finalizar con expresión coloquial
+    # Reanudar primero
+    srv.consultar("arranca nómina")
+    res_fin = srv.consultar("ya terminé lo que estaba haciendo")
+    assert res_fin.accion_ejecutada == "FINALIZAR_ACTIVIDAD"
+
+    # 5. Pregunta sobre quién es y capacidades
+    res_quien = srv.consultar("¿quién eres y qué puedes hacer?")
+    assert "Utilín" in res_quien.mensaje
+    assert "Gente Útil" in res_quien.mensaje
+
+    # 6. Saludo amigable y agradecimiento
+    res_hola = srv.consultar("hola utilin buenos dias")
+    assert "Hola" in res_hola.mensaje
+
+    res_gracias = srv.consultar("muchas gracias eres un crack")
+    assert "gusto" in res_gracias.mensaje.lower()
+
+    # 7. Verificación de memoria multi-turno
+    assert len(srv.historial_conversacion) >= 10
+    srv.limpiar_historial()
+    assert len(srv.historial_conversacion) == 0
+
+
+def test_ia_utilin_fallback_llm(bd):
+    """Verifica que si el LLM promete abrir una sección sin tag, el fallback la ejecuta."""
+    pantalla_abierta = None
+
+    def on_nav(p: str) -> bool:
+        nonlocal pantalla_abierta
+        pantalla_abierta = p
+        return True
+
+    srv = ServicioUtilinIA(bd, callback_navegar=on_nav)
+
+    # Respuesta de LLM donde dice "Abriendo la sección de reportes..." sin etiqueta [ACCION:...]
+    texto_sin_tag = "¡Claro que sí! Abriendo la sección de reportes para que consultes tus métricas."
+    res = srv._procesar_salida_llm(texto_sin_tag, "ollama:gemma2:2b")
+    assert res.accion_ejecutada == "ABRIR_PANTALLA"
+    assert pantalla_abierta == "reportes"
+

@@ -118,7 +118,7 @@ class ServicioUtilinIA:
         self,
         bd: BaseDatos,
         *,
-        endpoint_ollama: str = "http://localhost:11434",
+        endpoint_ollama: str = "http://127.0.0.1:11434",
         modelo_ollama: str = "gemma2:2b",
         api_key_gemini: str | None = None,
         modelo_gemini: str = "gemini-1.5-flash",
@@ -137,6 +137,7 @@ class ServicioUtilinIA:
         self.callback_abrir_app = callback_abrir_app
         self.callback_alternar_mini = callback_alternar_mini
         self.recordatorios_rapidos: list[dict[str, Any]] = []
+        self.historial_conversacion: list[dict[str, str]] = []
 
     # ------------------------------------------------------------------
     # Verificación de conectividad
@@ -243,10 +244,12 @@ class ServicioUtilinIA:
         msg = mensaje_usuario.strip()
         msg_limpio = re.sub(r"[¿?¡!;:\"]", "", msg.lower()).strip()
 
-        # 1. Navegación de Pantallas de la App
-        # Ejemplos: "abre los reportes", "ir a planeacion", "ver historial", "abre configuración", "reportes"
+        # 1. Navegación de Pantallas de la App en lenguaje natural
+        # Ejemplos: "puedes abrir los reportes?", "ábreme la planeación por favor", "quiero ver las estadísticas", "vamos a hoy"
         m_pantalla = re.search(
-            r"^(?:abre|abrir|ir a|ll[eé]vame a|mostrar|ver|pantalla de)\s+(?:los\s+|la\s+|el\s+)?(reportes?|planeaci[oó]n|historial|estad[ií]sticas?|m[eé]tricas?|cron[oó]metro|hoy|configuraci[oó]n|ajustes|planear|cierre|actividad extra)$",
+            r"\b(?:abre|abrir|[aá]breme|puedes abrir|me abres|ll[eé]vame a|ir a|vamos a|mostrar|mu[eé]strame|ver|pasar a)\s+"
+            r"(?:los\s+|la\s+|el\s+)?(?:pantalla\s+(?:de\s+)?|secci[oó]n\s+(?:de\s+)?|pesta[ñn]a\s+(?:de\s+)?)?"
+            r"(reportes?|planeaci[oó]n|historial|estad[ií]sticas?|m[eé]tricas?|cron[oó]metro|hoy|configuraci[oó]n|ajustes|planear|cierre|actividad extra)\b",
             msg_limpio,
         )
         if m_pantalla:
@@ -256,32 +259,84 @@ class ServicioUtilinIA:
             return self._accion_abrir_pantalla(msg_limpio)
 
         # 2. Abrir o restaurar la Ventana Principal
-        # Ejemplos: "abre la app", "mostrar app", "maximizar", "restaurar", "muestra la ventana"
-        if re.search(r"\b(?:abre la app|abrir la app|mostrar app|abre el programa|restaurar|maximizar|muestra la ventana|abrir ventana|abre ventana|abrir aplicaci[oó]n)\b", msg_limpio):
+        if re.search(r"\b(?:abre la app|[aá]breme la app|abrir la app|mostrar app|abre el programa|restaurar|maximizar|muestra la ventana|abrir ventana|abre ventana|abrir aplicaci[oó]n|abre la aplicaci[oó]n)\b", msg_limpio):
             return self._accion_abrir_app()
 
         # 3. Alternar Mini Widget Flotante
-        if re.search(r"\b(?:mini widget|mini ventana|widget flotante|abrir mini|ocultar mini)\b", msg_limpio):
+        if re.search(r"\b(?:mini widget|mini ventana|widget flotante|abrir mini|ocultar mini|pasa a mini|modo mini)\b", msg_limpio):
             return self._accion_alternar_mini()
 
-        # 4. Herramientas del Sistema / Externas
-        # 4.1 WhatsApp Web
+        # 4. Pausar actividad en curso (muy flexible en lenguaje natural)
+        # Ejemplos: "pausar", "voy a almorzar", "salgo a comer", "para el tiempo", "ponle pausa", "un cafecito", "un break"
+        if re.search(
+            r"\b(?:pausar|pausa|pa[uú]salo|pa[uú]same|ponle pausa|poner en pausa|pon en pausa|"
+            r"almorzar|almuerzo|a almorzar|comer algo|a comer|voy a comer|voy a almorzar|desayunar|cenar|"
+            r"un tinto|un caf[eé]|un cafecito|al ba[ñn]o|un break|un descanso|receso|pausate|paro|parar|"
+            r"para el tiempo|pausa el tiempo|pausa el reloj|para el reloj|det[eé]n el tiempo|det[eé]n el cron[oó]metro|"
+            r"detener el tiempo|detener el reloj)\b",
+            msg_limpio,
+        ):
+            return self._accion_pausar_tarea()
+
+        # 5. Finalizar actividad en curso
+        # Ejemplos: "finalizar", "ya terminé", "ya acabé", "terminamos", "dar por terminada", "listo acabé", "cerrar tarea"
+        if re.search(
+            r"\b(?:finalizar|finaliza|final[ií]zala|terminar|termina|termin[eé]|ya termin[eé]|ya acab[eé]|acab[eé]|"
+            r"completar|completada|dar por terminada|dar por finalizada|cerrar tarea|cerrar la tarea|listo|acabamos|terminamos)\b",
+            msg_limpio,
+        ):
+            return self._accion_finalizar_tarea()
+
+        # 6. Iniciar / Reanudar Tarea (con cronómetro)
+        # Ejemplos: "quiero empezar a trabajar en la nómina", "vamos a diseñar el flyer", "iníciame selección", "arranca reunión"
+        m_iniciar = re.search(
+            r"\b(?:quiero\s+(?:empezar|iniciar|comenzar|ponerme a)|"
+            r"voy a\s+(?:empezar|iniciar|comenzar|ponerme a)|"
+            r"vamos a\s+(?:empezar|iniciar|comenzar)|"
+            r"empecemos\s+(?:con|a)?|ponme a|iniciar|inicia|in[ií]ciame|arranca(?:r)?|arr[aá]ncame|"
+            r"empieza|empezar|a trabajar en|trabajar en|reanudar|reanuda|seguir con|sigue con|cronometra(?:r)?)\s+"
+            r"(?:la\s+tarea\s+(?:de\s+)?|el\s+trabajo\s+(?:de\s+)?|a\s+trabajar\s+en\s+|en\s+|a\s+|con\s+)?"
+            r"(.+)",
+            msg,
+            re.IGNORECASE,
+        )
+        if m_iniciar:
+            nombre_tarea = m_iniciar.group(1).strip()
+            nombre_tarea = re.sub(r"\b(?:por\s+favor|porfa|gracias)\b", "", nombre_tarea, flags=re.IGNORECASE).strip()
+            if nombre_tarea and len(nombre_tarea) > 1:
+                return self._accion_iniciar_tarea(nombre_tarea)
+
+        # Acciones directas como "vamos a diseñar el flyer", "voy a redactar un contrato"
+        m_accion_directa = re.search(
+            r"\b(?:voy a|vamos a|quiero)\s+([a-záéíóúñ]+(?:\s+[a-záéíóúñ0-9]+){1,6})\b",
+            msg,
+            re.IGNORECASE,
+        )
+        if m_accion_directa:
+            candidata = m_accion_directa.group(1).strip()
+            if not any(kw in candidata.lower() for kw in ["almorzar", "comer", "salir", "abrir", "reportes", "planeacion", "whatsapp", "calculadora", "ver"]):
+                candidata = re.sub(r"\b(?:por\s+favor|porfa|gracias)\b", "", candidata, flags=re.IGNORECASE).strip()
+                if len(candidata.split()) >= 2:
+                    return self._accion_iniciar_tarea(candidata)
+
+        # 7. Herramientas del Sistema / Externas
+        # 7.1 WhatsApp Web
         if re.search(r"\b(?:whatsapp|wasap|wpp)\b", msg_limpio):
             return self._accion_abrir_herramienta("whatsapp")
 
-        # 4.2 Calculadora de Windows
+        # 7.2 Calculadora de Windows
         if re.search(r"\b(?:calculadora|calc)\b", msg_limpio) and not re.search(r"\b(?:cu[aá]nto|resuelve|\d+)\b", msg_limpio):
             return self._accion_abrir_herramienta("calculadora")
 
-        # 4.3 Bloc de notas
-        if re.search(r"\b(?:bloc de notas|notepad|abrir notas)\b", msg_limpio):
+        # 7.3 Bloc de notas
+        if re.search(r"\b(?:bloc de notas|notepad|abrir notas|tomar nota)\b", msg_limpio):
             return self._accion_abrir_herramienta("bloc_notas")
 
-        # 4.4 Carpeta de reportes / descargas
-        if re.search(r"\b(?:carpeta de reportes|mis reportes|carpeta de descargas|mis archivos|abrir descargas)\b", msg_limpio):
+        # 7.4 Carpeta de reportes / descargas
+        if re.search(r"\b(?:carpeta de reportes|mis reportes|carpeta de descargas|mis archivos|abrir descargas|mis pdfs|d[oó]nde est[aá]n mis reportes|d[oó]nde se guardan los reportes)\b", msg_limpio):
             return self._accion_abrir_herramienta("carpeta_reportes")
 
-        # 4.5 Búsqueda en Google
+        # 7.5 Búsqueda en Google
         m_google = re.search(r"^(?:busca(?:r)? en google|googlea|buscar|busca)\s+(.+)$", msg_limpio)
         if m_google:
             query = m_google.group(1).strip()
@@ -290,13 +345,12 @@ class ServicioUtilinIA:
         if msg_limpio in ("abre google", "abrir google", "google"):
             return self._accion_abrir_herramienta("google", argumento="")
 
-        # 4.6 Enlaces conocidos (Canva, LinkedIn, YouTube)
-        m_enlace = re.search(r"^(?:abre|abrir|ir a)\s+(canva|linkedin|youtube)$", msg_limpio)
+        # 7.6 Enlaces conocidos (Canva, LinkedIn, YouTube)
+        m_enlace = re.search(r"\b(?:abre|abrir|ir a)\s+(canva|linkedin|youtube)\b", msg_limpio)
         if m_enlace:
             return self._accion_abrir_herramienta(m_enlace.group(1))
 
-        # 5. Cálculo Matemático Rápido y Seguro
-        # Ejemplos: "cuánto es 1850000 / 30", "calcula 40 * 1.25", "suma 200 + 450", "45 * 12"
+        # 8. Cálculo Matemático Rápido y Seguro
         m_calc = re.search(r"(?:cu[aá]nto es|calcula(?:r)?|cu[aá]nto da|resuelve)\s+([\d\s\+\-\*\/\^\(\)\.\,\%]+)", msg_limpio)
         if m_calc:
             return self._accion_calcular(m_calc.group(1))
@@ -304,44 +358,20 @@ class ServicioUtilinIA:
         if re.match(r"^\s*[\d\.\,]+\s*[\+\-\*\/]\s*[\d\.\,]+", msg_limpio):
             return self._accion_calcular(msg_limpio)
 
-        # 6. Crear Tarea Pendiente (sin iniciar cronómetro aún)
-        # Ejemplos: "agrega tarea enviar informe", "anota pendiente llamar al candidato"
+        # 9. Crear Tarea Pendiente
         m_crear = re.search(
-            r"^(?:agrega(?:r)?|anota(?:r)?|crea(?:r)?|a[ñn]adir?|nueva tarea|nuevo pendiente)\s+(?:la\s+tarea\s+|una\s+tarea\s+|el\s+pendiente\s+|pendiente\s+)?(.+)$",
+            r"\b(?:agrega(?:r)?|anota(?:r)?|crea(?:r)?|a[ñn]adir?|nueva tarea|nuevo pendiente)\s+(?:la\s+tarea\s+|una\s+tarea\s+|el\s+pendiente\s+|pendiente\s+)?(.+)",
             msg,
             re.IGNORECASE,
         )
         if m_crear:
-            tarea = m_crear.group(1).strip()
+            tarea = re.sub(r"\b(?:por\s+favor|porfa|gracias)\b", "", m_crear.group(1), flags=re.IGNORECASE).strip()
             if tarea:
                 return self._accion_crear_tarea(tarea)
 
-        # 7. Iniciar / Reanudar Tarea (con cronómetro)
-        # Ejemplos: "iniciar flyer promocional", "ponme a diseñar", "vamos a trabajar en nómina", "arranca reunión"
-        m_iniciar = re.search(
-            r"^(?:iniciar|comenzar|arranca(?:r)?|inicia|empieza|empezar|ponme a|vamos a trabajar en|a trabajar en|vamos a|trabajar en|reanudar|reanuda|seguir con|sigue con)\s+(?:la\s+tarea\s+|el\s+trabajo\s+|el\s+dise[ñn]o\s+de\s+|el\s+|la\s+)?(.+)$",
-            msg,
-            re.IGNORECASE,
-        )
-        if m_iniciar:
-            nombre_tarea = m_iniciar.group(1).strip()
-            if nombre_tarea:
-                return self._accion_iniciar_tarea(nombre_tarea)
-
-        # 8. Pausar actividad en curso
-        # Ejemplos: "pausar", "pausa", "voy a almorzar", "almuerzo", "paro", "descanso"
-        if re.search(r"\b(?:pausar|pausa|poner en pausa|pon en pausa|pa[uú]salo|voy a almorzar|almuerzo|voy a comer|paro|parar|descanso|voy al ba[ñn]o|receso|pausate)\b", msg_limpio):
-            return self._accion_pausar_tarea()
-
-        # 9. Finalizar actividad en curso
-        # Ejemplos: "finalizar", "terminar", "terminé", "completar", "cerrar tarea", "listo", "acabé"
-        if re.search(r"\b(?:finalizar|terminar|termin[eé]|completar|completada|cerrar tarea|listo|acab[eé]|finaliza|final[ií]zala)\b", msg_limpio):
-            return self._accion_finalizar_tarea()
-
         # 10. Recordatorio Rápido
-        # Ejemplos: "recuérdame llamar a María a las 3", "recordatorio revisar firmas"
         m_rec = re.search(
-            r"^(?:recu[eé]rdame|recordatorio|anota recordatorio|ponme recordatorio)\s+(.+)$",
+            r"\b(?:recu[eé]rdame|recordatorio|anota recordatorio|ponme recordatorio)\s+(.+)",
             msg,
             re.IGNORECASE,
         )
@@ -349,18 +379,52 @@ class ServicioUtilinIA:
             return self._accion_crear_recordatorio(m_rec.group(1))
 
         # 11. Consultar tareas pendientes de hoy
-        if any(kw in msg_limpio for kw in ["que tengo", "qué tengo", "mis tareas", "pendientes", "que hay para hoy", "qué hay para hoy", "tareas de hoy", "tareas para hoy", "que hago", "qué hago"]):
+        if any(kw in msg_limpio for kw in ["que tengo", "qué tengo", "mis tareas", "pendientes", "que hay para hoy", "qué hay para hoy", "tareas de hoy", "tareas para hoy", "que hago", "qué hago", "que estoy haciendo", "qué estoy haciendo", "cual es mi tarea", "cuál es mi tarea"]):
             return self._accion_consultar_hoy()
 
         # 12. Consultar resumen de productividad y tiempo
-        if any(kw in msg_limpio for kw in ["como voy", "cómo voy", "resumen", "productividad", "cuanto tiempo", "cuánto tiempo", "tiempo trabajado", "horas de hoy", "mi rendimiento"]):
+        if any(kw in msg_limpio for kw in ["como voy", "cómo voy", "resumen", "productividad", "cuanto tiempo", "cuánto tiempo", "tiempo trabajado", "horas de hoy", "mi rendimiento", "cuantas horas llevo", "cuántas horas llevo"]):
             return self._accion_consultar_productividad()
 
         # 13. Consultar planeación semanal
         if any(kw in msg_limpio for kw in ["planeacion", "planeación", "tablero", "esta semana", "semana"]):
             return self._accion_consultar_planeacion()
 
+        # 14. Ayuda y Capacidades
+        if re.search(r"\b(?:qui[eé]n eres|qui[eé]n eres t[uú]|qu[eé] puedes hacer|qu[eé] sabes hacer|c[oó]mo funcionas|ayuda|para qu[eé] sirves)\b", msg_limpio):
+            return self._accion_ayuda_capacidades()
+
+        # 15. Saludos cordiales
+        if re.search(r"^(?:hola|buenos d[ií]as|buenas tardes|buenas noches|hey|qu[eé] tal|c[oó]mo est[aá]s)\b", msg_limpio):
+            ctx = self.obtener_resumen_contextual()
+            act = ctx.get("actividad_activa")
+            extra = f" Estás en: «{act}» ⏱️" if act else " ¿Qué tarea iniciamos hoy? 🚀"
+            return RespuestaUtilin(
+                mensaje=f"¡Hola! 👋 ¡Con toda la energía para tu jornada en Gente Útil!{extra}",
+                modelo_usado="directo",
+            )
+
+        # 16. Agradecimiento y felicitación
+        if re.search(r"\b(?:muchas gracias|gracias util[ií]n|gracias|te lo agradezco|un crack|genial|excelente|perfecto)\b", msg_limpio):
+            return RespuestaUtilin(
+                mensaje="¡Con el mayor de los gustos! Siempre listo para apoyarte en lo que necesites. ✨🙌",
+                modelo_usado="directo",
+            )
+
         return None
+
+    def _accion_ayuda_capacidades(self) -> RespuestaUtilin:
+        return RespuestaUtilin(
+            mensaje=(
+                "¡Soy Utilín, tu bot de IA en Gente Útil! 🤖✨ Puedes pedirme cosas en lenguaje natural como:\n"
+                "• ⏱️ «Vamos a liquidar nómina» o «Pausa que voy a almorzar»\n"
+                "• 📄 «Abre los reportes» o «Ver planeación semanal»\n"
+                "• 💬 «Abre WhatsApp» o «Abre la calculadora»\n"
+                "• 💼 «Redacta una vacante para asesor comercial en Cali»\n"
+                "• 🧮 «Cuánto es 1.850.000 / 30» o «Cómo voy de tiempo hoy»"
+            ),
+            modelo_usado="directo",
+        )
 
     # ------------------------------------------------------------------
     # Implementación de Acciones Concretas
@@ -742,9 +806,10 @@ class ServicioUtilinIA:
 
     def consultar(self, mensaje_usuario: str) -> RespuestaUtilin:
         """Punto de entrada principal para interactuar con Utilín."""
-        # 1. Probar primero si es una orden directa (Capa 1: <10 ms)
+        # 1. Probar primero si es una orden directa en lenguaje natural (Capa 1: <10 ms)
         res_directa = self.procesar_intencion_directa(mensaje_usuario)
         if res_directa:
+            self._registrar_en_historial(mensaje_usuario, res_directa.mensaje)
             return res_directa
 
         ctx = self.obtener_resumen_contextual()
@@ -767,33 +832,76 @@ class ServicioUtilinIA:
             "Si pide redactar copys de vacantes, mensajes o conversar, responde con calidad, profesionalismo y cercanía."
         )
 
+        prompt_few_shots = (
+            "Ejemplos de cómo debes responder si el usuario pide una acción:\n"
+            "Usuario: \"puedes abrir los reportes?\"\n"
+            "Utilín: [ACCION:ABRIR_PANTALLA:reportes] ¡Claro que sí! Abriendo tus reportes PDF. 📄✨\n\n"
+            "Usuario: \"voy a salir a almorzar, pausa el reloj\"\n"
+            "Utilín: [ACCION:PAUSAR_ACTIVIDAD] ¡Buen provecho! He pausado tu actividad en curso. 🍽️⏸️\n\n"
+            "Usuario: \"quiero empezar a trabajar en la nómina\"\n"
+            "Utilín: [ACCION:INICIAR_ACTIVIDAD:Nómina] ¡Listo! Cronómetro iniciado para la nómina. ⏱️🚀\n\n"
+            "Usuario: \"ya terminé con esto\"\n"
+            "Utilín: [ACCION:FINALIZAR_ACTIVIDAD] ¡Excelente trabajo! Tarea finalizada. 🎉✅\n\n"
+            "Usuario: \"ábreme la planeación porfa\"\n"
+            "Utilín: [ACCION:ABRIR_PANTALLA:planeacion] ¡De una! Abriendo tu planeación semanal. 📅✨\n\n"
+            "Usuario: \"abre whatsapp que voy a escribirle a un candidato\"\n"
+            "Utilín: [ACCION:ABRIR_HERRAMIENTA:whatsapp] ¡Abriendo WhatsApp Web! 💬📱\n"
+        )
+
+        historial_str = ""
+        if self.historial_conversacion:
+            bloques_h = []
+            for h in self.historial_conversacion[-6:]:
+                rol_str = "Usuario" if h["rol"] == "user" else "Utilín"
+                bloques_h.append(f"{rol_str}: {h['texto']}")
+            historial_str = "Historial reciente del chat:\n" + "\n".join(bloques_h) + "\n\n"
+
         prompt_completo = (
             f"{PROMPT_SISTEMA_UTILIN}\n\n"
-            f"{contexto_str}\n"
+            f"{contexto_str}\n\n"
             f"{instruccion_herramientas}\n\n"
-            f"El usuario dice: \"{mensaje_usuario}\"\n"
-            f"Respuesta de Utilín:"
+            f"{prompt_few_shots}\n\n"
+            f"{historial_str}"
+            f"Usuario: \"{mensaje_usuario}\"\n"
+            f"Utilín:"
         )
 
         # 2. Intentar con Ollama local (Gemma 2:2B)
         resp_ollama = self._consultar_ollama(prompt_completo)
         if resp_ollama:
-            return self._procesar_salida_llm(resp_ollama, modelo=f"ollama:{self.modelo_ollama}")
+            res_llm = self._procesar_salida_llm(resp_ollama, modelo=f"ollama:{self.modelo_ollama}")
+            self._registrar_en_historial(mensaje_usuario, res_llm.mensaje)
+            return res_llm
 
         # 3. Intentar con Gemini API si está configurada
         if self.api_key_gemini:
             resp_gemini = self._consultar_gemini(prompt_completo)
             if resp_gemini:
-                return self._procesar_salida_llm(resp_gemini, modelo=f"gemini:{self.modelo_gemini}")
+                res_gemini = self._procesar_salida_llm(resp_gemini, modelo=f"gemini:{self.modelo_gemini}")
+                self._registrar_en_historial(mensaje_usuario, res_gemini.mensaje)
+                return res_gemini
 
         # 4. Respuesta amigable de contingencia
-        return RespuestaUtilin(
+        res_cont = RespuestaUtilin(
             mensaje=(
                 "¡Hola! Te escucho con atención. Puedo iniciar o pausar tus tareas, abrir Reportes, "
                 "Planeación, WhatsApp Web, Calculadora, redactar copys o resolver cálculos. ¿Qué necesitas hoy? 🤖✨"
             ),
             modelo_usado="contingencia",
         )
+        self._registrar_en_historial(mensaje_usuario, res_cont.mensaje)
+        return res_cont
+
+    def _registrar_en_historial(self, mensaje_usuario: str, mensaje_utilin: str) -> None:
+        """Almacena el turno en memoria conversacional (hasta 12 intercambios)."""
+        self.historial_conversacion.append({"rol": "user", "texto": mensaje_usuario.strip()})
+        self.historial_conversacion.append({"rol": "utilin", "texto": mensaje_utilin.strip()})
+        if len(self.historial_conversacion) > 12:
+            self.historial_conversacion = self.historial_conversacion[-12:]
+
+    def limpiar_historial(self) -> None:
+        """Reinicia la memoria conversacional de Utilín."""
+        self.historial_conversacion.clear()
 
     def _procesar_salida_llm(self, texto_llm: str, modelo: str) -> RespuestaUtilin:
         """Extrae posibles etiquetas de acción [ACCION:...] o JSON de la respuesta del LLM."""
@@ -848,7 +956,45 @@ class ServicioUtilinIA:
             except Exception:
                 pass
 
-        # 3. Respuesta conversacional o redacción directa
+        # 3. Fallback inteligente: si el LLM prometió una acción en su texto pero omitió el tag
+        texto_lower = texto_llm.lower()
+        if re.search(r"\b(?:abriendo|te abro|vamos a abrir|accediendo a)\s+(?:la\s+secci[oó]n\s+de\s+|la\s+pantalla\s+de\s+)?reportes", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("ABRIR_PANTALLA", "reportes")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:abriendo|te abro|vamos a abrir|accediendo a)\s+(?:la\s+secci[oó]n\s+de\s+|la\s+pantalla\s+de\s+)?planeaci[oó]n", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("ABRIR_PANTALLA", "planeacion")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:abriendo|te abro|vamos a abrir|accediendo a)\s+(?:la\s+secci[oó]n\s+de\s+|la\s+pantalla\s+de\s+)?estad[ií]sticas", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("ABRIR_PANTALLA", "estadisticas")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:abriendo|te abro|vamos a abrir|accediendo a)\s+(?:la\s+secci[oó]n\s+de\s+|la\s+pantalla\s+de\s+)?historial", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("ABRIR_PANTALLA", "historial")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:abriendo|te abro|accediendo a)\s+(?:el\s+)?whatsapp", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("ABRIR_HERRAMIENTA", "whatsapp")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:abriendo|te abro)\s+(?:la\s+)?calculadora", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("ABRIR_HERRAMIENTA", "calculadora")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:abriendo|te abro)\s+(?:el\s+)?bloc de notas", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("ABRIR_HERRAMIENTA", "bloc_notas")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:he pausado|actividad pausada|pausando la actividad|puesta en pausa)\b", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("PAUSAR_ACTIVIDAD", "")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        if re.search(r"\b(?:tarea finalizada|actividad finalizada|he finalizado la tarea|completada con éxito)\b", texto_lower):
+            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada("FINALIZAR_ACTIVIDAD", "")
+            return RespuestaUtilin(mensaje=texto_llm.strip(), accion_ejecutada=acc_ej, datos_accion=datos, modelo_usado=modelo)
+
+        # 4. Respuesta conversacional o redacción directa
         return RespuestaUtilin(mensaje=texto_llm.strip(), modelo_usado=modelo)
 
     def _consultar_ollama(self, prompt: str) -> str | None:

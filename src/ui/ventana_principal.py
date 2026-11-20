@@ -180,6 +180,7 @@ class VentanaPrincipal(QMainWindow):
         # Servicio de IA para Utilín (Ollama local Gemma / Gemini / intenciones)
         self.srv_utilin_ia = ServicioUtilinIA(
             bd,
+            endpoint_ollama="http://127.0.0.1:11434",
             callback_notificar_cambio=self._al_actualizar_datos,
             callback_navegar=self.navegar_a_pantalla,
             callback_abrir_app=self.restaurar_ventana_completa,
