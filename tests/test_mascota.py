@@ -206,3 +206,77 @@ def test_mascota_animaciones_saludo_y_caminata():
     app.processEvents()
 
     widget.close()
+
+
+def test_globo_dinamico_ia_y_reloj():
+    """Valida la adaptabilidad dinámica del globo: anchos, scroll, botones contextuales y anclaje."""
+    app = QApplication.instance() or QApplication([])
+    widget = MascotaWidget()
+    widget.show()
+    app.processEvents()
+
+    globo = widget.globo
+
+    # 1. Modo reloj inicial: compacto 246px
+    assert globo.width() == 246
+    assert globo.btn_volver_reloj.isVisible() is False
+    assert globo.btn_copiar.isVisible() is False
+    assert globo.widget_chat.isVisible() is False
+
+    # 2. Abrir chat: expande a 298px
+    globo.alternar_modo_chat()
+    app.processEvents()
+    assert globo._modo_chat is True
+    assert globo.width() == 298
+    assert globo.widget_chat.isVisible() is True
+
+    # 3. Mostrar estado pensando
+    globo.mostrar_pensando()
+    app.processEvents()
+    assert "pensando" in globo.lbl_reloj.text().lower()
+    assert globo.btn_volver_reloj.isVisible() is True
+    assert globo.btn_abrir.isVisible() is False
+    assert globo.btn_copiar.isVisible() is False
+
+    # 4. Mostrar respuesta IA extensa: verifica auto-expansión y scroll
+    mensaje_largo = (
+        "¡Hola! 👋 Soy Utilín, tu asistente de IA en Gente Útil. ✨ "
+        "Puedo ayudarte a organizar tu jornada laboral, crear tareas y mucho más... 🚀 "
+        "¿Qué te gustaría hacer hoy?"
+    )
+    globo.mostrar_respuesta_ia(mensaje_largo, accion_ejecutada=None)
+    app.processEvents()
+
+    assert "Utilín:" in globo.lbl_reloj.text()
+    assert globo.scroll_mensaje.height() >= 34
+    assert globo.btn_copiar.isVisible() is True
+    assert globo.btn_volver_reloj.isVisible() is True
+    # Botones de cronómetro deben estar ocultos para no saturar la vista
+    assert globo.btn_abrir.isVisible() is False
+    assert globo.btn_pausar.isVisible() is False
+    assert globo.btn_finalizar.isVisible() is False
+
+    # 5. Volver al cronómetro: restaura modo compacto y controles
+    widget.actualizar_estado("Rediseño UI", 45)
+    app.processEvents()
+    globo.volver_a_cronometro()
+    app.processEvents()
+
+    assert globo._modo_respuesta_ia is False
+    assert globo.btn_volver_reloj.isVisible() is False
+    assert globo.btn_copiar.isVisible() is False
+    assert globo.btn_abrir.isVisible() is True
+    assert globo.btn_pausar.isVisible() is True
+    assert globo.btn_finalizar.isVisible() is True
+    assert "00:00:45" in widget.lbl_reloj.text()
+
+    # 6. Verificación de anclaje de suelo al ajustar tamaño
+    suelo_inicial = widget.y() + widget.height()
+    globo.mostrar_respuesta_ia(mensaje_largo)
+    app.processEvents()
+    suelo_expandido = widget.y() + widget.height()
+    # El suelo debe mantenerse fijo (variación menor a 2px)
+    assert abs(suelo_expandido - suelo_inicial) <= 2
+
+    widget.close()
+

@@ -16,6 +16,7 @@ from __future__ import annotations
 import math
 import random
 from collections.abc import Callable
+from typing import Any
 
 from PySide6.QtCore import (
     QEvent,
@@ -43,11 +44,13 @@ from PySide6.QtGui import (
 )
 from PySide6.QtWidgets import (
     QApplication,
+    QFrame,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QMenu,
     QPushButton,
+    QScrollArea,
     QVBoxLayout,
     QWidget,
 )
@@ -80,6 +83,9 @@ class HiloConsultaIA(QThread):
 class GloboTextoWidget(QWidget):
     """Globo de diálogo tipo cómic vectorial moderno con cuerpo redondeado, sombra y chat IA."""
 
+    _ancho_compacto: int = 246
+    _ancho_expandido: int = 298
+
     def __init__(
         self,
         parent: QWidget | None = None,
@@ -93,40 +99,40 @@ class GloboTextoWidget(QWidget):
         self.al_enviar_chat = al_enviar_chat
         self._modo_chat: bool = False
         self._modo_respuesta_ia: bool = False
+        self._ultimo_mensaje_ia: str = ""
 
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
-        self.setFixedWidth(252)
-        self.setMinimumHeight(96)
+        self.setFixedWidth(self._ancho_compacto)
 
         self.layout_globo = QVBoxLayout(self)
         self.layout_globo.setContentsMargins(14, 9, 14, 22)
-        self.layout_globo.setSpacing(3)
+        self.layout_globo.setSpacing(4)
         self.layout_globo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # Fila superior: Título / Reloj y botones auxiliares
+        # Fila superior: Cabecera con Reloj / Título y controles
         self.fila_cabecera = QHBoxLayout()
         self.fila_cabecera.setContentsMargins(0, 0, 0, 0)
         self.fila_cabecera.setSpacing(4)
 
-        # Botón volver al cronómetro (visible solo cuando se muestra respuesta IA)
-        self.btn_volver_reloj = QPushButton("⏱", self)
-        self.btn_volver_reloj.setFixedSize(16, 16)
+        # Botón volver al cronómetro (visible solo en modo IA/pensando)
+        self.btn_volver_reloj = QPushButton("⏱ Reloj", self)
         self.btn_volver_reloj.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_volver_reloj.setToolTip("Volver al cronómetro")
+        self.btn_volver_reloj.setToolTip("Volver a ver el cronómetro")
         self.btn_volver_reloj.setStyleSheet(
-            "QPushButton { background: transparent; color: #003D95; border: none; font-size: 11px; font-weight: bold; border-radius: 8px; } "
-            "QPushButton:hover { background-color: #EFF6FF; }"
+            "QPushButton { background: #EFF6FF; color: #003D95; border: 1px solid #BFDBFE; "
+            "border-radius: 9px; padding: 1px 7px; font-size: 9.5px; font-weight: bold; } "
+            "QPushButton:hover { background-color: #DBEAFE; color: #1E40AF; }"
         )
         self.btn_volver_reloj.setVisible(False)
         self.btn_volver_reloj.clicked.connect(self.volver_a_cronometro)
         self.fila_cabecera.addWidget(self.btn_volver_reloj)
 
-        # Espaciador dummy para centrar el título
+        # Espaciador dummy para centrar el título en modo cronómetro
         self.espaciador_izq = QWidget(self)
         self.espaciador_izq.setFixedSize(16, 16)
         self.fila_cabecera.addWidget(self.espaciador_izq)
 
-        # Línea 1: Reloj o Saludo destacado
+        # Título o Reloj
         self.lbl_reloj = QLabel("👋 ¡Hola, soy Utilín!", self)
         f_reloj = self.lbl_reloj.font()
         f_reloj.setPointSize(11)
@@ -136,7 +142,7 @@ class GloboTextoWidget(QWidget):
         self.lbl_reloj.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.fila_cabecera.addWidget(self.lbl_reloj, 1)
 
-        # Botón sutil de cerrar (ocultar globo de texto)
+        # Botón sutil de cerrar globo
         self.btn_cerrar = QPushButton("✕", self)
         self.btn_cerrar.setFixedSize(16, 16)
         self.btn_cerrar.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -151,20 +157,36 @@ class GloboTextoWidget(QWidget):
 
         self.layout_globo.addLayout(self.fila_cabecera)
 
-        # Línea 2: Tarea en curso o texto secundario (sin quiebres forzados)
-        self.lbl_actividad = QLabel("Doble clic para abrir app", self)
-        self.lbl_actividad.setWordWrap(False)
-        self.lbl_actividad.setMaximumWidth(224)
+        # ScrollArea para mensaje o actividad (evita cortes de texto y da fluidez)
+        self.scroll_mensaje = QScrollArea(self)
+        self.scroll_mensaje.setWidgetResizable(True)
+        self.scroll_mensaje.setFrameShape(QFrame.Shape.NoFrame)
+        self.scroll_mensaje.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_mensaje.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_mensaje.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; } "
+            "QScrollBar:vertical { background: #F1F5F9; width: 4px; border-radius: 2px; margin: 0; } "
+            "QScrollBar::handle:vertical { background: #CBD5E1; border-radius: 2px; min-height: 14px; } "
+            "QScrollBar::handle:vertical:hover { background: #94A3B8; } "
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; } "
+            "QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical { background: transparent; }"
+        )
+        self.scroll_mensaje.setFixedHeight(28)
+
+        self.lbl_actividad = QLabel("Doble clic para abrir app", self.scroll_mensaje)
+        self.lbl_actividad.setWordWrap(True)
+        self.lbl_actividad.setFixedWidth(214)
         self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_actividad.setStyleSheet(
-            "color: #64748B; font-size: 10.5px; font-weight: 500; background: transparent; border: none;"
+            "color: #64748B; font-size: 10.5px; font-weight: 500; background: transparent; border: none; padding: 1px 2px;"
         )
-        self.layout_globo.addWidget(self.lbl_actividad)
+        self.scroll_mensaje.setWidget(self.lbl_actividad)
+        self.layout_globo.addWidget(self.scroll_mensaje)
 
-        # Línea 3: Botones de acción estilo píldora moderna
+        # Fila de acciones contextuales
         self.fila_acciones = QHBoxLayout()
         self.fila_acciones.setSpacing(6)
-        self.fila_acciones.setContentsMargins(0, 3, 0, 0)
+        self.fila_acciones.setContentsMargins(0, 2, 0, 0)
         self.fila_acciones.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.btn_abrir = QPushButton("Abrir app", self)
@@ -178,7 +200,6 @@ class GloboTextoWidget(QWidget):
         configurar_boton(self.btn_abrir, "play", color="#FFFFFF", tamano=10)
         self.fila_acciones.addWidget(self.btn_abrir)
 
-        # Botón Pausar rápido
         self.btn_pausar = QPushButton("Pausar", self)
         self.btn_pausar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pausar.setStyleSheet(
@@ -193,7 +214,6 @@ class GloboTextoWidget(QWidget):
             self.btn_pausar.clicked.connect(self.al_pausar)
         self.fila_acciones.addWidget(self.btn_pausar)
 
-        # Botón Finalizar
         self.btn_finalizar = QPushButton("Finalizar", self)
         self.btn_finalizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_finalizar.setStyleSheet(
@@ -206,7 +226,18 @@ class GloboTextoWidget(QWidget):
         self.btn_finalizar.setVisible(False)
         self.fila_acciones.addWidget(self.btn_finalizar)
 
-        # Botón alternar chat IA
+        self.btn_copiar = QPushButton("📋 Copiar texto", self)
+        self.btn_copiar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_copiar.setToolTip("Copiar texto generado por Utilín al portapapeles")
+        self.btn_copiar.setStyleSheet(
+            "QPushButton { background-color: #F8FAFC; color: #1E293B; border: 1px solid #CBD5E1; "
+            "border-radius: 11px; padding: 2px 10px; font-size: 9.5px; font-weight: bold; } "
+            "QPushButton:hover { background-color: #E2E8F0; color: #003D95; border-color: #94A3B8; }"
+        )
+        self.btn_copiar.clicked.connect(self._copiar_respuesta_al_portapapeles)
+        self.btn_copiar.setVisible(False)
+        self.fila_acciones.addWidget(self.btn_copiar)
+
         self.btn_chat = QPushButton("💬", self)
         self.btn_chat.setFixedSize(22, 22)
         self.btn_chat.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -219,34 +250,23 @@ class GloboTextoWidget(QWidget):
         self.btn_chat.clicked.connect(self.alternar_modo_chat)
         self.fila_acciones.addWidget(self.btn_chat)
 
-        # Botón Copiar respuesta de IA al portapapeles
-        self.btn_copiar = QPushButton("📋 Copiar", self)
-        self.btn_copiar.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_copiar.setToolTip("Copiar texto generado por Utilín al portapapeles")
-        self.btn_copiar.setStyleSheet(
-            "QPushButton { background-color: #F8FAFC; color: #1E293B; border: 1px solid #CBD5E1; "
-            "border-radius: 12px; padding: 3px 9px; font-size: 10px; font-weight: 700; } "
-            "QPushButton:hover { background-color: #E2E8F0; color: #003D95; border-color: #94A3B8; }"
-        )
-        self.btn_copiar.clicked.connect(self._copiar_respuesta_al_portapapeles)
-        self.btn_copiar.setVisible(False)
-        self.fila_acciones.addWidget(self.btn_copiar)
-
         self.layout_globo.addLayout(self.fila_acciones)
 
-        # Línea 4: Campo de entrada de chat IA (oculto por defecto)
-        self.widget_chat = QWidget(self)
+        # Cápsula de entrada de chat IA unificada moderna
+        self.widget_chat = QFrame(self)
         self.widget_chat.setVisible(False)
+        self.widget_chat.setStyleSheet(
+            "QFrame { background-color: #FFFFFF; border: 1.2px solid #CBD5E1; border-radius: 13px; }"
+        )
+        self.widget_chat.setFixedHeight(27)
         layout_input_chat = QHBoxLayout(self.widget_chat)
-        layout_input_chat.setContentsMargins(0, 3, 0, 0)
+        layout_input_chat.setContentsMargins(8, 0, 3, 0)
         layout_input_chat.setSpacing(4)
 
         self.txt_pregunta = QLineEdit(self.widget_chat)
         self.txt_pregunta.setPlaceholderText("Escribe a Utilín... (Enter)")
         self.txt_pregunta.setStyleSheet(
-            "QLineEdit { background-color: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 10px; "
-            "padding: 2px 8px; font-size: 10px; color: #0F172A; } "
-            "QLineEdit:focus { border-color: #003D95; background-color: #FFFFFF; }"
+            "QLineEdit { border: none; background: transparent; font-size: 10px; color: #0F172A; padding: 0; }"
         )
         self.txt_pregunta.returnPressed.connect(self._al_enviar_pregunta)
         layout_input_chat.addWidget(self.txt_pregunta, 1)
@@ -271,29 +291,46 @@ class GloboTextoWidget(QWidget):
             self.btn_copiar.setText("¡Copiado! ✓")
             self.btn_copiar.setStyleSheet(
                 "QPushButton { background-color: #DCFCE7; color: #166534; border: 1px solid #86EFAC; "
-                "border-radius: 12px; padding: 3px 9px; font-size: 10px; font-weight: 700; }"
+                "border-radius: 11px; padding: 2px 10px; font-size: 9.5px; font-weight: bold; }"
             )
             QTimer.singleShot(1800, self._restablecer_boton_copiar)
 
     def _restablecer_boton_copiar(self) -> None:
-        self.btn_copiar.setText("📋 Copiar")
+        self.btn_copiar.setText("📋 Copiar texto")
         self.btn_copiar.setStyleSheet(
             "QPushButton { background-color: #F8FAFC; color: #1E293B; border: 1px solid #CBD5E1; "
-            "border-radius: 12px; padding: 3px 9px; font-size: 10px; font-weight: 700; } "
+            "border-radius: 11px; padding: 2px 10px; font-size: 9.5px; font-weight: bold; } "
             "QPushButton:hover { background-color: #E2E8F0; color: #003D95; border-color: #94A3B8; }"
         )
+
+    def _notificar_cambio_tamano(self) -> None:
+        """Notifica al widget padre para reajustar dimensiones con anclaje al suelo."""
+        self.adjustSize()
+        p = self.parent()
+        if p and hasattr(p, "ajustar_tamano_dinamico"):
+            p.ajustar_tamano_dinamico()
+        elif p:
+            p.adjustSize()
 
     def alternar_modo_chat(self) -> None:
         """Abre o cierra la barra de chat de Utilín."""
         self._modo_chat = not self._modo_chat
         self.widget_chat.setVisible(self._modo_chat)
+
+        if self._modo_chat or self._modo_respuesta_ia:
+            self.setFixedWidth(self._ancho_expandido)
+            self.lbl_actividad.setFixedWidth(264)
+        else:
+            self.setFixedWidth(self._ancho_compacto)
+            self.lbl_actividad.setFixedWidth(214)
+
         if self._modo_chat:
             self.txt_pregunta.setFocus()
-            # Si el widget padre tiene la mascota, dar saltito de atención
             padre = self.parent()
             if padre and hasattr(padre, "lbl_mascota"):
                 padre.lbl_mascota.activar_saltito()
-        self.adjustSize()
+
+        self._notificar_cambio_tamano()
 
     def _al_enviar_pregunta(self) -> None:
         texto = self.txt_pregunta.text().strip()
@@ -306,16 +343,26 @@ class GloboTextoWidget(QWidget):
 
     def mostrar_pensando(self) -> None:
         self._modo_respuesta_ia = True
+        self.setFixedWidth(self._ancho_expandido)
+        self.lbl_actividad.setFixedWidth(264)
         self.espaciador_izq.setVisible(False)
         self.btn_volver_reloj.setVisible(True)
         self.btn_copiar.setVisible(False)
+        self.btn_abrir.setVisible(False)
+        self.btn_pausar.setVisible(False)
+        self.btn_finalizar.setVisible(False)
         self.lbl_reloj.setText("💭 Utilín pensando...")
         self.lbl_reloj.setStyleSheet(
             "color: #0284C7; font-size: 11px; font-weight: 800; background: transparent; border: none;"
         )
         self.lbl_actividad.setText("Analizando tu solicitud...")
-        self.lbl_actividad.setWordWrap(True)
-        self.adjustSize()
+        self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_actividad.setStyleSheet(
+            "color: #0284C7; font-size: 10.5px; font-weight: 600; font-style: italic; background: transparent; border: none;"
+        )
+        self.scroll_mensaje.setFixedHeight(34)
+        self.widget_chat.setVisible(True)
+        self._notificar_cambio_tamano()
 
     def mostrar_respuesta_ia(
         self,
@@ -325,6 +372,7 @@ class GloboTextoWidget(QWidget):
     ) -> None:
         self._modo_respuesta_ia = True
         self._ultimo_mensaje_ia = mensaje
+        self.setFixedWidth(self._ancho_expandido)
         self.espaciador_izq.setVisible(False)
         self.btn_volver_reloj.setVisible(True)
 
@@ -348,27 +396,65 @@ class GloboTextoWidget(QWidget):
         self.lbl_reloj.setStyleSheet(
             "color: #003D95; font-size: 11.5px; font-weight: 800; background: transparent; border: none;"
         )
-        self.lbl_actividad.setText(mensaje)
-        self.lbl_actividad.setWordWrap(True)
 
-        # Mostrar botón de copiar si el texto es relevante o generado
+        self.lbl_actividad.setFixedWidth(264)
+        self.lbl_actividad.setText(mensaje)
+        self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.lbl_actividad.setStyleSheet(
+            "color: #1E293B; font-size: 10.5px; font-weight: 500; background: transparent; border: none; padding: 2px 2px;"
+        )
+
+        # Ocultar botones de cronómetro para evitar saturación
+        self.btn_abrir.setVisible(False)
+        self.btn_pausar.setVisible(False)
+        self.btn_finalizar.setVisible(False)
+
+        # Mostrar botón copiar si el texto es copiable
         es_copiable = len(mensaje) >= 20 or accion_ejecutada in ("CALCULAR", "CREAR_RECORDATORIO")
         self.btn_copiar.setVisible(es_copiable)
-        self.adjustSize()
+
+        # Mantener barra de chat visible para conversación continua
+        self.widget_chat.setVisible(True)
+        self._modo_chat = True
+
+        # Altura dinámica según contenido del mensaje
+        self.lbl_actividad.adjustSize()
+        h_req = self.lbl_actividad.heightForWidth(264)
+        if h_req <= 0:
+            h_req = self.lbl_actividad.sizeHint().height()
+        alto_scroll = max(34, min(140, h_req + 8))
+        self.scroll_mensaje.setFixedHeight(alto_scroll)
+
+        self._notificar_cambio_tamano()
 
     def volver_a_cronometro(self) -> None:
         self._modo_respuesta_ia = False
         self.btn_volver_reloj.setVisible(False)
         self.btn_copiar.setVisible(False)
         self.espaciador_izq.setVisible(True)
-        self.lbl_actividad.setWordWrap(False)
+
+        if not self._modo_chat:
+            self.setFixedWidth(self._ancho_compacto)
+            self.lbl_actividad.setFixedWidth(214)
+        else:
+            self.lbl_actividad.setFixedWidth(264)
+
+        self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.lbl_actividad.setStyleSheet(
+            "color: #64748B; font-size: 10.5px; font-weight: 500; background: transparent; border: none; padding: 1px 2px;"
+        )
+        self.scroll_mensaje.setFixedHeight(28)
+
         p = self.parent()
         if p and hasattr(p, "actualizar_estado"):
             p.actualizar_estado(
                 getattr(p, "_nombre_actividad", None),
                 getattr(p, "_segundos_actividad", 0),
             )
-        self.adjustSize()
+        else:
+            self.btn_abrir.setVisible(True)
+
+        self._notificar_cambio_tamano()
 
     def paintEvent(self, event) -> None:
         """Dibuja el globo de diálogo vectorial continuo sin costuras, con sombra suave y degradado perla."""
@@ -381,7 +467,7 @@ class GloboTextoWidget(QWidget):
         ancho_cola = 16.0
         r = 14.0
 
-        rect = QRectF(5.0, 4.0, w - 10.0, h - alto_cola - 6.0)
+        rect = QRectF(4.0, 4.0, w - 8.0, h - alto_cola - 6.0)
 
         # Contorno único continuo (evita costuras visibles o artefactos de unión)
         path = QPainterPath()
@@ -969,6 +1055,26 @@ class MascotaWidget(QWidget):
         """Oculta a Utilín."""
         self.hide()
 
+    def ajustar_tamano_dinamico(self) -> None:
+        """Ajusta el tamaño de la ventana manteniendo la posición del suelo de Utilín."""
+        alto_antiguo = self.height()
+        y_antiguo = self.y()
+        suelo_actual = y_antiguo + alto_antiguo
+
+        self.adjustSize()
+        nuevo_alto = self.height()
+        delta_alto = nuevo_alto - alto_antiguo
+
+        if delta_alto != 0:
+            nuevo_y = suelo_actual - nuevo_alto
+            pantalla = QApplication.primaryScreen()
+            if pantalla:
+                geom = pantalla.availableGeometry()
+                if nuevo_y < geom.top() + 10:
+                    nuevo_y = geom.top() + 10
+            self.move(self.x(), nuevo_y)
+            self._posicion_personalizada = self.pos()
+
     def actualizar_estado(
         self,
         nombre_actividad: str | None,
@@ -981,6 +1087,23 @@ class MascotaWidget(QWidget):
 
         # Si está respondiendo la IA, no sobrescribir el texto de la respuesta
         if not self.globo._modo_respuesta_ia:
+            self.globo.btn_abrir.setVisible(True)
+            self.globo.btn_copiar.setVisible(False)
+            self.globo.btn_volver_reloj.setVisible(False)
+            self.globo.espaciador_izq.setVisible(True)
+
+            if not self.globo._modo_chat:
+                self.globo.setFixedWidth(self.globo._ancho_compacto)
+                self.globo.lbl_actividad.setFixedWidth(214)
+            else:
+                self.globo.lbl_actividad.setFixedWidth(264)
+
+            self.globo.scroll_mensaje.setFixedHeight(28)
+            self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.lbl_actividad.setStyleSheet(
+                "color: #64748B; font-size: 10.5px; font-weight: 500; background: transparent; border: none; padding: 1px 2px;"
+            )
+
             if nombre_actividad:
                 tiempo_str = formatear_reloj_hms(self._segundos_actividad)
                 self.lbl_reloj.setText(f"⏱ {tiempo_str}")
@@ -1007,13 +1130,13 @@ class MascotaWidget(QWidget):
                 self.btn_pausar.setVisible(False)
 
         self.globo.setVisible(self._globo_visible)
-        self.adjustSize()
+        self.ajustar_tamano_dinamico()
 
     def alternar_globo(self) -> None:
         """Muestra u oculta el globo de texto cómic."""
         self._globo_visible = not self._globo_visible
         self.globo.setVisible(self._globo_visible)
-        self.adjustSize()
+        self.ajustar_tamano_dinamico()
 
     # ------------------------------------------------------------------
     # Autonomía de Mascota Virtual (estilo VS Code Pets)
