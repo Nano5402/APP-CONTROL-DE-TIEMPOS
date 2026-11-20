@@ -181,6 +181,9 @@ class VentanaPrincipal(QMainWindow):
         self.srv_utilin_ia = ServicioUtilinIA(
             bd,
             callback_notificar_cambio=self._al_actualizar_datos,
+            callback_navegar=self.navegar_a_pantalla,
+            callback_abrir_app=self.restaurar_ventana_completa,
+            callback_alternar_mini=self.alternar_mini_desde_ia,
         )
 
         # Mascota de escritorio interactiva (Codex Pets + Asistente IA)
@@ -536,6 +539,41 @@ class VentanaPrincipal(QMainWindow):
         self.showNormal()
         self.raise_()
         self.activateWindow()
+
+    def restaurar_ventana_completa(self) -> None:
+        """Muestra y trae al frente la ventana principal."""
+        self.showNormal()
+        self.raise_()
+        self.activateWindow()
+
+    def alternar_mini_desde_ia(self) -> None:
+        """Alterna el mini-widget flotante a petición de Utilín."""
+        if hasattr(self, "btn_toggle_mini"):
+            self.btn_toggle_mini.toggle()
+
+    def navegar_a_pantalla(self, nombre_pantalla: str) -> bool:
+        """Navega a la pantalla indicada por Utilín IA y muestra la ventana."""
+        mapa = {
+            "hoy": (0, self.btn_nav_hoy),
+            "cronometro": (0, self.btn_nav_hoy),
+            "principal": (0, self.btn_nav_hoy),
+            "planear": (1, self.btn_nav_planear),
+            "extra": (2, self.btn_nav_extra),
+            "cierre": (3, self.btn_nav_cierre),
+            "historial": (4, self.btn_nav_historial),
+            "reportes": (5, self.btn_nav_reportes),
+            "estadisticas": (6, self.btn_nav_estadisticas),
+            "configuracion": (7, self.btn_nav_config),
+            "planeacion": (8, self.btn_nav_planeacion),
+        }
+        clave = nombre_pantalla.strip().lower()
+        if clave in mapa:
+            idx, btn = mapa[clave]
+            btn.setChecked(True)
+            self.cambiar_pagina(idx)
+            self.restaurar_ventana_completa()
+            return True
+        return False
 
     def cerrar_definitivo(self) -> None:
         """Finaliza y cierra por completo la aplicación sin dejar mascota ni procesos."""

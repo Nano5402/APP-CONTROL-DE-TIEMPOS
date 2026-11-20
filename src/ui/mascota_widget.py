@@ -219,6 +219,19 @@ class GloboTextoWidget(QWidget):
         self.btn_chat.clicked.connect(self.alternar_modo_chat)
         self.fila_acciones.addWidget(self.btn_chat)
 
+        # Botón Copiar respuesta de IA al portapapeles
+        self.btn_copiar = QPushButton("📋 Copiar", self)
+        self.btn_copiar.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_copiar.setToolTip("Copiar texto generado por Utilín al portapapeles")
+        self.btn_copiar.setStyleSheet(
+            "QPushButton { background-color: #F8FAFC; color: #1E293B; border: 1px solid #CBD5E1; "
+            "border-radius: 12px; padding: 3px 9px; font-size: 10px; font-weight: 700; } "
+            "QPushButton:hover { background-color: #E2E8F0; color: #003D95; border-color: #94A3B8; }"
+        )
+        self.btn_copiar.clicked.connect(self._copiar_respuesta_al_portapapeles)
+        self.btn_copiar.setVisible(False)
+        self.fila_acciones.addWidget(self.btn_copiar)
+
         self.layout_globo.addLayout(self.fila_acciones)
 
         # Línea 4: Campo de entrada de chat IA (oculto por defecto)
@@ -250,6 +263,26 @@ class GloboTextoWidget(QWidget):
 
         self.layout_globo.addWidget(self.widget_chat)
 
+    def _copiar_respuesta_al_portapapeles(self) -> None:
+        """Copia el texto actual de Utilín al portapapeles del sistema."""
+        texto = getattr(self, "_ultimo_mensaje_ia", "") or self.lbl_actividad.text()
+        if texto:
+            QApplication.clipboard().setText(texto)
+            self.btn_copiar.setText("¡Copiado! ✓")
+            self.btn_copiar.setStyleSheet(
+                "QPushButton { background-color: #DCFCE7; color: #166534; border: 1px solid #86EFAC; "
+                "border-radius: 12px; padding: 3px 9px; font-size: 10px; font-weight: 700; }"
+            )
+            QTimer.singleShot(1800, self._restablecer_boton_copiar)
+
+    def _restablecer_boton_copiar(self) -> None:
+        self.btn_copiar.setText("📋 Copiar")
+        self.btn_copiar.setStyleSheet(
+            "QPushButton { background-color: #F8FAFC; color: #1E293B; border: 1px solid #CBD5E1; "
+            "border-radius: 12px; padding: 3px 9px; font-size: 10px; font-weight: 700; } "
+            "QPushButton:hover { background-color: #E2E8F0; color: #003D95; border-color: #94A3B8; }"
+        )
+
     def alternar_modo_chat(self) -> None:
         """Abre o cierra la barra de chat de Utilín."""
         self._modo_chat = not self._modo_chat
@@ -275,6 +308,7 @@ class GloboTextoWidget(QWidget):
         self._modo_respuesta_ia = True
         self.espaciador_izq.setVisible(False)
         self.btn_volver_reloj.setVisible(True)
+        self.btn_copiar.setVisible(False)
         self.lbl_reloj.setText("💭 Utilín pensando...")
         self.lbl_reloj.setStyleSheet(
             "color: #0284C7; font-size: 11px; font-weight: 800; background: transparent; border: none;"
@@ -283,21 +317,49 @@ class GloboTextoWidget(QWidget):
         self.lbl_actividad.setWordWrap(True)
         self.adjustSize()
 
-    def mostrar_respuesta_ia(self, mensaje: str) -> None:
+    def mostrar_respuesta_ia(
+        self,
+        mensaje: str,
+        accion_ejecutada: str | None = None,
+        datos_accion: dict | None = None,
+    ) -> None:
         self._modo_respuesta_ia = True
+        self._ultimo_mensaje_ia = mensaje
         self.espaciador_izq.setVisible(False)
         self.btn_volver_reloj.setVisible(True)
-        self.lbl_reloj.setText("🤖 Utilín:")
+
+        titulos_accion = {
+            "INICIAR_ACTIVIDAD": "🚀 ¡En marcha!",
+            "PAUSAR_ACTIVIDAD": "⏸️ En pausa",
+            "FINALIZAR_ACTIVIDAD": "🎉 ¡Completada!",
+            "ABRIR_PANTALLA": "📂 Navegación",
+            "ABRIR_HERRAMIENTA": "🛠️ Herramienta",
+            "CALCULAR": "🧮 Cálculo",
+            "CREAR_TAREA": "📋 Tarea creada",
+            "CREAR_RECORDATORIO": "🔔 Recordatorio",
+            "CONSULTAR_HOY": "📅 Tus tareas",
+            "CONSULTAR_PRODUCTIVIDAD": "💼 Rendimiento",
+            "CONSULTAR_PLANEACION": "🗓️ Planeación",
+            "ABRIR_APP": "💻 Aplicación",
+            "MINI_VENTANA": "⏱️ Mini ventana",
+        }
+        titulo = titulos_accion.get(accion_ejecutada, "🤖 Utilín:")
+        self.lbl_reloj.setText(titulo)
         self.lbl_reloj.setStyleSheet(
             "color: #003D95; font-size: 11.5px; font-weight: 800; background: transparent; border: none;"
         )
         self.lbl_actividad.setText(mensaje)
         self.lbl_actividad.setWordWrap(True)
+
+        # Mostrar botón de copiar si el texto es relevante o generado
+        es_copiable = len(mensaje) >= 20 or accion_ejecutada in ("CALCULAR", "CREAR_RECORDATORIO")
+        self.btn_copiar.setVisible(es_copiable)
         self.adjustSize()
 
     def volver_a_cronometro(self) -> None:
         self._modo_respuesta_ia = False
         self.btn_volver_reloj.setVisible(False)
+        self.btn_copiar.setVisible(False)
         self.espaciador_izq.setVisible(True)
         self.lbl_actividad.setWordWrap(False)
         p = self.parent()
@@ -862,7 +924,18 @@ class MascotaWidget(QWidget):
         self.lbl_mascota.set_pensando(False)
         self.lbl_mascota.activar_eureka()
         mensaje = getattr(respuesta, "mensaje", str(respuesta))
-        self.globo.mostrar_respuesta_ia(mensaje)
+        accion = getattr(respuesta, "accion_ejecutada", None)
+        datos = getattr(respuesta, "datos_accion", None)
+
+        if accion in ("INICIAR_ACTIVIDAD", "FINALIZAR_ACTIVIDAD", "ABRIR_HERRAMIENTA", "CALCULAR", "ABRIR_PANTALLA"):
+            self.lbl_mascota.activar_saltito()
+            self.lbl_mascota.agregar_emote("sparkle")
+        elif accion == "PAUSAR_ACTIVIDAD":
+            self.lbl_mascota.agregar_emote("alert")
+        elif accion in ("CREAR_RECORDATORIO", "CREAR_TAREA"):
+            self.lbl_mascota.agregar_emote("sparkle")
+
+        self.globo.mostrar_respuesta_ia(mensaje, accion_ejecutada=accion, datos_accion=datos)
 
     def _posicionar_defecto(self) -> None:
         """Ubica a Utilín en la esquina inferior derecha o en su posición guardada."""
