@@ -217,17 +217,17 @@ def test_globo_dinamico_ia_y_reloj():
 
     globo = widget.globo
 
-    # 1. Modo reloj inicial: compacto 246px
-    assert globo.width() == 246
+    # 1. Modo reloj inicial: compacto 268px
+    assert globo.width() == globo._ancho_compacto
     assert globo.btn_volver_reloj.isVisible() is False
     assert globo.btn_copiar.isVisible() is False
     assert globo.widget_chat.isVisible() is False
 
-    # 2. Abrir chat: expande a 298px
+    # 2. Abrir chat: expande a 308px
     globo.alternar_modo_chat()
     app.processEvents()
     assert globo._modo_chat is True
-    assert globo.width() == 298
+    assert globo.width() == globo._ancho_expandido
     assert globo.widget_chat.isVisible() is True
 
     # 3. Mostrar estado pensando
@@ -240,14 +240,14 @@ def test_globo_dinamico_ia_y_reloj():
 
     # 4. Mostrar respuesta IA extensa: verifica auto-expansión y scroll
     mensaje_largo = (
-        "¡Hola! 👋 Soy Utilín, tu asistente de IA en Gente Útil. ✨ "
-        "Puedo ayudarte a organizar tu jornada laboral, crear tareas y mucho más... 🚀 "
+        "¡Hola! Soy Utilín, tu copiloto de IA en Gente Útil. "
+        "Puedo ayudarte a organizar tu jornada laboral, crear tareas y mucho más... "
         "¿Qué te gustaría hacer hoy?"
     )
     globo.mostrar_respuesta_ia(mensaje_largo, accion_ejecutada=None)
     app.processEvents()
 
-    assert "Utilín:" in globo.lbl_reloj.text()
+    assert "Utilín" in globo.lbl_reloj.text()
     assert globo.scroll_mensaje.height() >= 34
     assert globo.btn_copiar.isVisible() is True
     assert globo.btn_volver_reloj.isVisible() is True
