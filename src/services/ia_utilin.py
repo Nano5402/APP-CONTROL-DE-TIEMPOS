@@ -102,12 +102,42 @@ def calcular_aritmetica_segura(expr_str: str) -> float | int:
 # Prompts de Sistema para Utilín
 # ----------------------------------------------------------------------
 
-PROMPT_SISTEMA_UTILIN = """Eres Utilín, la mascota oficial y asistente de inteligencia artificial de Gente Útil (empresa colombiana líder en talento humano y servicios temporales).
-Trabajas directamente en la aplicación de escritorio 'Control de Tiempos'.
-Tu personalidad es alegre, entusiasta, cercana, servicial, profesional y motivadora.
-Tus respuestas deben ser CONCISAS y breves (máximo 2 a 3 oraciones cortas), salvo que te pidan redactar un copy de vacante o un mensaje completo.
-Usa emojis amigables con moderación (🤖, ⏱️, 💼, ✨, 🚀, 📋, 👏).
-Siempre estás dispuesto a ayudar al colaborador a cuidar su tiempo, organizar su jornada y realizar tareas de productividad en su PC.
+PROMPT_SISTEMA_UTILIN = """Eres Utilín, la mascota virtual y copiloto de inteligencia artificial de Gente Útil (empresa colombiana líder en talento humano y gestión laboral).
+Trabajas integrado en la aplicación de escritorio 'Control de Tiempos'.
+Eres como un compañero de trabajo experto y cercano (como ChatGPT/Claude): inteligente, proactivo, analítico, amable y con excelente criterio.
+
+==================================================
+🛡️ LO QUE NO PUEDES HACER (LÍMITES Y LÍNEAS ROJAS - PRIORIDAD MÁXIMA):
+==================================================
+1. NO PUEDES BORRAR NI DESTRUIR DATOS:
+   - Está terminantemente prohibido borrar actividades registradas, eliminar registros de tiempo, purgar la base de datos o vaciar historiales.
+   - Si el usuario te pide borrar datos, recházalo con cordialidad explicando que los registros de tiempo son inmutables para garantizar la transparencia laboral y la trazabilidad de la jornada.
+2. NO PUEDES ACCEDER A CREDENCIALES NI INFORMACIÓN CONFIDENCIAL:
+   - Jamás solicites, reveles ni manipules contraseñas de usuarios, claves de acceso, PINes de seguridad, tokens, cuentas bancarias ni datos financieros privados.
+3. NO PUEDES REALIZAR ENVÍOS NI ACCIONES AUTÓNOMAS SIN SUPERVISIÓN:
+   - No puedes enviar correos masivos de forma autónoma, ni publicar en redes sociales ni comprometer a la empresa legalmente.
+   - Tu rol es redactar y pulir los mejores borradores, copys y mensajes para que el colaborador los revise y decida enviarlos.
+4. NO PUEDES INVENTAR NI FALSEAR DATOS LABORALES:
+   - Nunca inventes horas trabajadas ficticias ni alteres métricas de productividad. Las consultas de tiempo se rigen estrictamente por los datos reales de la jornada en curso.
+5. NO PUEDES FINGIR ACCIONES FÍSICAS O TÉCNICAS IMPOSIBLES:
+   - Si te piden algo que no está a tu alcance en la PC (como comprar un producto en una tienda online, llamar por teléfono o manipular hardware), dilo con honestidad y explica la alternativa.
+6. NO GENERES CONTENIDO DAÑINO, OFENSIVO, DISCRIMINATORIO O ILEGAL.
+
+==================================================
+🚀 LO QUE SÍ PUEDES HACER (LIBERTAD TOTAL COMO COPILOTO):
+==================================================
+- Responder cualquier pregunta externa a la app:
+  * Fórmulas y trucos de Excel (BUSCARX, BUSCARV, SUMAR.SI, tablas dinámicas).
+  * Redacción de correos formales, comunicados, copys para vacantes y mensajes de WhatsApp.
+  * Temas laborales colombianos (SMLMV, auxilio de transporte, cesantías, prima, vacaciones, horas extras).
+  * Consejos de productividad, método Pomodoro, organización y dudas de cultura general o tecnología.
+- Controlar y manipular la aplicación 'Control de Tiempos':
+  * Iniciar, pausar y finalizar cronómetros de tareas.
+  * Navegar a pantallas: Reportes PDF, Planeación Semanal, Historial, Estadísticas, Hoy, Configuración, Cierre de jornada.
+  * Consultar tareas pendientes y productividad en tiempo real.
+- Manipular herramientas externas de la PC y la Web:
+  * Abrir WhatsApp Web, Calculadora, Bloc de notas, Carpeta de reportes, Google Search, Gmail, Outlook, Calendar, LinkedIn, Canva.
+  * Resolver cálculos aritméticos y conversiones en lenguaje natural.
 """
 
 
@@ -240,9 +270,55 @@ class ServicioUtilinIA:
     # ------------------------------------------------------------------
 
     def procesar_intencion_directa(self, mensaje_usuario: str) -> RespuestaUtilin | None:
-        """Clasifica y ejecuta órdenes directas en <10 ms sin esperar inferencia del LLM."""
+        """Clasifica y ejecuta órdenes directas y guardrails en <10 ms sin esperar inferencia del LLM."""
         msg = mensaje_usuario.strip()
         msg_limpio = re.sub(r"[¿?¡!;:\"]", "", msg.lower()).strip()
+
+        # ==============================================================
+        # GUARDRAILS DE SEGURIDAD (LO QUE UTILÍN NO PUEDE HACER)
+        # ==============================================================
+
+        # GUARDRAIL 1: Bloqueo de acciones destructivas (borrado de datos / historial / BD / archivos)
+        if re.search(
+            r"\b(?:borra(?:r)?|elimina(?:r)?|destru(?:ir)?|purgar|limpia(?:r)?|formatea(?:r)?)\s+"
+            r"(?:todas?\s+|mis?\s+|los?\s+|las?\s+|el\s+|la\s+)*"
+            r"(?:base de datos|registros?|horas?|jornadas?|actividades?|historial|tiempos?|archivos?|disco)\b",
+            msg_limpio,
+        ):
+            return RespuestaUtilin(
+                mensaje=(
+                    "🛡️🔒 Como Utilín y copiloto de Gente Útil, por políticas de seguridad estrictas "
+                    "no puedo borrar ni alterar destructivamente registros de tiempo, actividades pasadas "
+                    "ni la base de datos. Tus registros son inmutables y están protegidos para asegurar "
+                    "la transparencia laboral y la trazabilidad de tu jornada. ¿Deseas pausar, finalizar o registrar una nueva tarea?"
+                ),
+                accion_ejecutada="BLOQUEO_SEGURIDAD",
+                modelo_usado="guardrail",
+            )
+
+        # GUARDRAIL 2: Bloqueo de solicitud de contraseñas, claves, PINs o credenciales
+        if re.search(r"\b(?:contraseñas?|claves?|passwords?|pin(?:es)?|credenciales?|tarjetas?|tokens?)\b", msg_limpio) and \
+           re.search(r"\b(?:dame|dime|cu[aá]l es|revela|mostrar|ver|ens[eé][ñn]ame|sacar|obtener|hackea|roba)\b", msg_limpio):
+            return RespuestaUtilin(
+                mensaje=(
+                    "🔐✨ Por estrictas políticas de privacidad y seguridad digital, no tengo acceso a contraseñas, "
+                    "PINs de seguridad ni credenciales privadas, ni puedo revelarlas. ¡Tu seguridad siempre es lo primero! "
+                    "¿Hay alguna tarea, duda o cálculo en el que pueda apoyarte hoy?"
+                ),
+                accion_ejecutada="BLOQUEO_SEGURIDAD",
+                modelo_usado="guardrail",
+            )
+
+        # GUARDRAIL 3: Bloqueo de envíos autónomos o compras no supervisadas
+        if re.search(r"\b(?:env[ií]a(?:r)?\s+(?:correos?|emails?|mensajes?)\s+(?:masivos?|solo|autom[aá]tico)|compra(?:r)?\s+(?:en|por)\s+(?:amazon|mercado\s*libre))\b", msg_limpio):
+            return RespuestaUtilin(
+                mensaje=(
+                    "✉️✨ No realizo envíos masivos ni transacciones de forma 100% autónoma sin supervisión humana. "
+                    "Lo que sí puedo hacer con mucho gusto es redactarte el borrador perfecto para que tú lo revises y envíes con un clic."
+                ),
+                accion_ejecutada="BLOQUEO_SEGURIDAD",
+                modelo_usado="guardrail",
+            )
 
         # 1. Navegación de Pantallas de la App en lenguaje natural
         # Ejemplos: "puedes abrir los reportes?", "ábreme la planeación por favor", "quiero ver las estadísticas", "vamos a hoy"
@@ -345,7 +421,21 @@ class ServicioUtilinIA:
         if msg_limpio in ("abre google", "abrir google", "google"):
             return self._accion_abrir_herramienta("google", argumento="")
 
-        # 7.6 Enlaces conocidos (Canva, LinkedIn, YouTube)
+        # 7.6 Correo Web (Gmail / Outlook)
+        if re.search(r"\b(?:abre|abrir|ir a)\s+(?:mi\s+)?(?:gmail|correo|email|outlook)\b", msg_limpio) or msg_limpio in ("gmail", "correo", "outlook"):
+            if "outlook" in msg_limpio:
+                return self._accion_abrir_herramienta("outlook")
+            return self._accion_abrir_herramienta("gmail")
+
+        # 7.7 Calendario
+        if re.search(r"\b(?:abre|abrir|ir a)\s+(?:el\s+)?calendario\b", msg_limpio) or msg_limpio in ("calendario", "calendar"):
+            return self._accion_abrir_herramienta("calendar")
+
+        # 7.8 CompuTrabajo
+        if re.search(r"\b(?:abre|abrir|ir a)\s+computrabajo\b", msg_limpio) or msg_limpio == "computrabajo":
+            return self._accion_abrir_herramienta("computrabajo")
+
+        # 7.9 Enlaces conocidos (Canva, LinkedIn, YouTube)
         m_enlace = re.search(r"\b(?:abre|abrir|ir a)\s+(canva|linkedin|youtube)\b", msg_limpio)
         if m_enlace:
             return self._accion_abrir_herramienta(m_enlace.group(1))
@@ -416,12 +506,17 @@ class ServicioUtilinIA:
     def _accion_ayuda_capacidades(self) -> RespuestaUtilin:
         return RespuestaUtilin(
             mensaje=(
-                "¡Soy Utilín, tu bot de IA en Gente Útil! 🤖✨ Puedes pedirme cosas en lenguaje natural como:\n"
-                "• ⏱️ «Vamos a liquidar nómina» o «Pausa que voy a almorzar»\n"
-                "• 📄 «Abre los reportes» o «Ver planeación semanal»\n"
-                "• 💬 «Abre WhatsApp» o «Abre la calculadora»\n"
-                "• 💼 «Redacta una vacante para asesor comercial en Cali»\n"
-                "• 🧮 «Cuánto es 1.850.000 / 30» o «Cómo voy de tiempo hoy»"
+                "¡Soy Utilín, tu copiloto de IA en Gente Útil! 🤖✨\n\n"
+                "🛡️ LO QUE NO PUEDO HACER (Líneas rojas y seguridad):\n"
+                "• ❌ Borrar actividades, eliminar tiempos o alterar la base de datos (tus registros son inmutables y sagrados para trazabilidad laboral).\n"
+                "• ❌ Acceder, pedir o revelar contraseñas, PINs de seguridad ni claves financieras.\n"
+                "• ❌ Enviar correos masivos o hacer compras/pagos de forma autónoma (te genero borradores listos para que los revises).\n"
+                "• ❌ Inventar horas trabajadas o falsear métricas de productividad.\n\n"
+                "🚀 LO QUE SÍ PUEDO HACER (Libertad total como copiloto):\n"
+                "• 💡 Responder dudas externas: Fórmulas de Excel (BUSCARX, SUMAR.SI), leyes laborales colombianas, redacción de correos formales y vacantes.\n"
+                "• ⏱️ Manejar la app: Iniciar, pausar y terminar tareas, reportes PDF, planeación, estadísticas e historial.\n"
+                "• 🛠️ Abrir herramientas: Calculadora, Bloc de notas, WhatsApp Web, Gmail, Outlook, Calendar, CompuTrabajo, Canva, Google.\n"
+                "• 🧮 Resolver cálculos matemáticos y conversar amigablemente sobre productividad."
             ),
             modelo_usado="directo",
         )
@@ -646,6 +741,18 @@ class ServicioUtilinIA:
         elif herramienta == "youtube":
             webbrowser.open("https://www.youtube.com")
             msg = "¡Abriendo YouTube! 🎬"
+        elif herramienta in ("gmail", "correo", "email"):
+            webbrowser.open("https://mail.google.com")
+            msg = "¡Abriendo Gmail en tu navegador! ✉️📬"
+        elif herramienta in ("outlook", "hotmail"):
+            webbrowser.open("https://outlook.office.com")
+            msg = "¡Abriendo Microsoft Outlook en tu navegador! 📧💼"
+        elif herramienta in ("calendar", "calendario"):
+            webbrowser.open("https://calendar.google.com")
+            msg = "¡Abriendo Google Calendar en tu navegador! 📅✨"
+        elif herramienta in ("computrabajo",):
+            webbrowser.open("https://co.computrabajo.com")
+            msg = "¡Abriendo CompuTrabajo Colombia en tu navegador! 💼🔍"
         elif herramienta == "url" and argumento:
             url = argumento if argumento.startswith("http") else f"https://{argumento}"
             webbrowser.open(url)
@@ -1005,9 +1112,9 @@ class ServicioUtilinIA:
             "prompt": prompt,
             "stream": False,
             "options": {
-                "temperature": 0.5,
+                "temperature": 0.55,
                 "top_p": 0.9,
-                "num_predict": 180,
+                "num_predict": 350,
             },
         }
         try:
@@ -1037,7 +1144,7 @@ class ServicioUtilinIA:
         )
         payload = {
             "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.6, "maxOutputTokens": 200},
+            "generationConfig": {"temperature": 0.6, "maxOutputTokens": 500},
         }
         try:
             req = urllib.request.Request(
