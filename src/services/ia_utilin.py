@@ -727,11 +727,15 @@ class ServicioUtilinIA:
                 msg = "¡Abriendo tu carpeta de reportes y exportaciones! 📁"
             except Exception as e:
                 msg = f"No pude abrir la carpeta: {e} 📂"
-        elif herramienta in ("google", "buscar"):
-            query = argumento or "Gente Util Colombia"
-            url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+        elif herramienta in ("google", "buscar", "google_search", "buscador"):
+            query = argumento.strip()
+            if query:
+                url = f"https://www.google.com/search?q={urllib.parse.quote(query)}"
+                msg = f"¡Buscando «{query}» en Google! 🔍🌐"
+            else:
+                url = "https://www.google.com"
+                msg = "¡Abriendo Google en tu navegador! 🔍🌐"
             webbrowser.open(url)
-            msg = f"¡Buscando «{query}» en Google! 🔍🌐"
         elif herramienta == "canva":
             webbrowser.open("https://www.canva.com")
             msg = "¡Abriendo Canva en tu navegador! 🎨✨"
@@ -890,7 +894,14 @@ class ServicioUtilinIA:
             res = self._accion_abrir_pantalla(p or "hoy")
             return res.accion_ejecutada, res.mensaje, res.datos_accion
         if tipo == "ABRIR_HERRAMIENTA":
-            res = self._accion_abrir_herramienta(p or "whatsapp")
+            herr = p
+            arg = ""
+            if ":" in p:
+                herr, _, arg = p.partition(":")
+            h_norm = herr.strip().lower()
+            if h_norm in ("google_search", "buscar_en_google", "buscador"):
+                h_norm = "google"
+            res = self._accion_abrir_herramienta(h_norm or "whatsapp", arg.strip())
             return res.accion_ejecutada, res.mensaje, res.datos_accion
         if tipo == "CREAR_TAREA":
             res = self._accion_crear_tarea(p or "Tarea pendiente")
@@ -929,30 +940,34 @@ class ServicioUtilinIA:
         )
 
         instruccion_herramientas = (
-            "Si el usuario te da una orden o pide realizar una acción en la app o PC, incluye al inicio de tu respuesta:\n"
-            "- [ACCION:INICIAR_ACTIVIDAD:nombre_tarea]\n"
-            "- [ACCION:PAUSAR_ACTIVIDAD]\n"
-            "- [ACCION:FINALIZAR_ACTIVIDAD]\n"
+            "REGLAS DE COMUNICACIÓN Y ACCIONES:\n"
+            "1. CONVERSACIÓN NATURAL: Si el usuario te hace preguntas generales, charla contigo, cuenta algo personal (ej: 'quiero agua', 'tengo sed', 'cuéntame un chiste', 'qué opinas') o pide explicaciones (Excel, leyes, redacción), RESPONDE DIRECTAMENTE DE FORMA NATURAL Y AMIGABLE SIN USAR NINGUNA ACCIÓN.\n"
+            "2. ACCIONES DEL SISTEMA: ÚNICAMENTE si el usuario te DA UNA ORDEN EXPLÍCITA para controlar la app o PC, incluye la etiqueta al principio:\n"
+            "- [ACCION:INICIAR_ACTIVIDAD:nombre_tarea] (para empezar cronómetro)\n"
+            "- [ACCION:PAUSAR_ACTIVIDAD] (para pausar el reloj o almorzar)\n"
+            "- [ACCION:FINALIZAR_ACTIVIDAD] (para terminar la tarea)\n"
             "- [ACCION:ABRIR_PANTALLA:reportes|planeacion|historial|estadisticas|hoy|configuracion]\n"
-            "- [ACCION:ABRIR_HERRAMIENTA:whatsapp|calculadora|bloc_notas|carpeta_reportes]\n"
+            "- [ACCION:ABRIR_HERRAMIENTA:whatsapp|calculadora|bloc_notas|google:termino]\n"
             "- [ACCION:CREAR_TAREA:nombre_tarea]\n"
-            "Si pide redactar copys de vacantes, mensajes o conversar, responde con calidad, profesionalismo y cercanía."
+            "3. NUNCA enumeres estas etiquetas de acción ni las pongas en viñetas en tus respuestas a menos que te pidan ayuda sobre comandos."
         )
 
         prompt_few_shots = (
-            "Ejemplos de cómo debes responder si el usuario pide una acción:\n"
-            "Usuario: \"puedes abrir los reportes?\"\n"
-            "Utilín: [ACCION:ABRIR_PANTALLA:reportes] ¡Claro que sí! Abriendo tus reportes PDF. 📄✨\n\n"
-            "Usuario: \"voy a salir a almorzar, pausa el reloj\"\n"
-            "Utilín: [ACCION:PAUSAR_ACTIVIDAD] ¡Buen provecho! He pausado tu actividad en curso. 🍽️⏸️\n\n"
+            "Ejemplos de cómo responder:\n"
+            "Usuario: \"quiero agua\"\n"
+            "Utilín: ¡Excelente idea! Mantenerse bien hidratado es clave para la concentración y la energía en la jornada. Ve por tu vaso de agua fresco, aquí te espero. 💧✨\n\n"
+            "Usuario: \"cuándo se estrena avengers doom?\"\n"
+            "Utilín: [ACCION:ABRIR_HERRAMIENTA:google:estreno avengers doomsday] Según Marvel Studios, 'Avengers: Doomsday' está programada para estrenarse en mayo de 2026 con Robert Downey Jr. como Doctor Doom. ¡Te abro la búsqueda en Google para que veas todas las novedades y detalles! 🎬🍿\n\n"
+            "Usuario: \"cómo se hace un BUSCARX en Excel?\"\n"
+            "Utilín: La función BUSCARX en Excel se usa así: =BUSCARX(valor_buscado; matriz_buscada; matriz_devuelta). Por ejemplo: =BUSCARX(A2; D2:D50; E2:E50). Es mucho más potente que BUSCARV porque busca hacia la izquierda y no se desconfigura al insertar columnas. 📊✨\n\n"
+            "Usuario: \"voy a salir a almorzar\"\n"
+            "Utilín: [ACCION:PAUSAR_ACTIVIDAD] ¡Buen provecho! He pausado tu actividad en curso. Disfruta tu almuerzo y avísame al regresar. 🍽️⏸️\n\n"
             "Usuario: \"quiero empezar a trabajar en la nómina\"\n"
             "Utilín: [ACCION:INICIAR_ACTIVIDAD:Nómina] ¡Listo! Cronómetro iniciado para la nómina. ⏱️🚀\n\n"
-            "Usuario: \"ya terminé con esto\"\n"
-            "Utilín: [ACCION:FINALIZAR_ACTIVIDAD] ¡Excelente trabajo! Tarea finalizada. 🎉✅\n\n"
-            "Usuario: \"ábreme la planeación porfa\"\n"
-            "Utilín: [ACCION:ABRIR_PANTALLA:planeacion] ¡De una! Abriendo tu planeación semanal. 📅✨\n\n"
-            "Usuario: \"abre whatsapp que voy a escribirle a un candidato\"\n"
-            "Utilín: [ACCION:ABRIR_HERRAMIENTA:whatsapp] ¡Abriendo WhatsApp Web! 💬📱\n"
+            "Usuario: \"puedes abrir los reportes?\"\n"
+            "Utilín: [ACCION:ABRIR_PANTALLA:reportes] ¡Claro que sí! Abriendo tus reportes PDF. 📄✨\n\n"
+            "Usuario: \"abre la calculadora\"\n"
+            "Utilín: [ACCION:ABRIR_HERRAMIENTA:calculadora] ¡Abriendo la calculadora de Windows! 🧮✨\n"
         )
 
         historial_str = ""
@@ -1013,29 +1028,38 @@ class ServicioUtilinIA:
     def _procesar_salida_llm(self, texto_llm: str, modelo: str) -> RespuestaUtilin:
         """Extrae posibles etiquetas de acción [ACCION:...] o JSON de la respuesta del LLM."""
         # 1. Buscar etiqueta [ACCION:TIPO:PARAM]
-        m_tag = re.search(r"\[ACCION:([A-Z_]+)(?::([^\]]+))?\]", texto_llm)
-        if m_tag:
-            tipo = m_tag.group(1).strip()
-            param = m_tag.group(2).strip() if m_tag.group(2) else ""
-            acc_ej, msg_acc, datos = self._ejecutar_accion_parseada(tipo, param)
+        # Debe ser un comando intencional en las primeras 2 líneas, NO una viñeta explicativa
+        lineas = [ln.strip() for ln in texto_llm.strip().splitlines() if ln.strip()]
+        linea_comando = None
+        for ln in lineas[:2]:
+            if re.match(r"^\[ACCION:[A-Z_]+(?::[^\]]+)?\]", ln):
+                linea_comando = ln
+                break
 
-            # Limpiar etiqueta del texto
-            texto_limpio = re.sub(r"\[ACCION:[^\]]+\]", "", texto_llm)
-            texto_limpio = re.sub(r"\*\*\s*\*\*", "", texto_limpio).strip()
+        if linea_comando:
+            m_tag = re.search(r"\[ACCION:([A-Z_]+)(?::([^\]]+))?\]", linea_comando)
+            if m_tag:
+                tipo = m_tag.group(1).strip()
+                param = m_tag.group(2).strip() if m_tag.group(2) else ""
+                acc_ej, msg_acc, datos = self._ejecutar_accion_parseada(tipo, param)
 
-            if msg_acc and texto_limpio:
-                mensaje_final = f"{msg_acc} {texto_limpio}"
-            elif texto_limpio:
-                mensaje_final = texto_limpio
-            else:
-                mensaje_final = msg_acc
+                # Limpiar etiqueta del texto
+                texto_limpio = re.sub(r"\[ACCION:[^\]]+\]", "", texto_llm)
+                texto_limpio = re.sub(r"\*\*\s*\*\*", "", texto_limpio).strip()
 
-            return RespuestaUtilin(
-                mensaje=mensaje_final,
-                accion_ejecutada=acc_ej,
-                datos_accion=datos,
-                modelo_usado=modelo,
-            )
+                if msg_acc and texto_limpio:
+                    mensaje_final = f"{msg_acc} {texto_limpio}"
+                elif texto_limpio:
+                    mensaje_final = texto_limpio
+                else:
+                    mensaje_final = msg_acc
+
+                return RespuestaUtilin(
+                    mensaje=mensaje_final,
+                    accion_ejecutada=acc_ej,
+                    datos_accion=datos,
+                    modelo_usado=modelo,
+                )
 
         # 2. Buscar bloque JSON {"accion": "..."}
         m_json = re.search(r'\{\s*"accion"\s*:\s*"([^"]+)"(?:,\s*"[^"]+"\s*:\s*"([^"]*)")?[^}]*\}', texto_llm, re.DOTALL)
