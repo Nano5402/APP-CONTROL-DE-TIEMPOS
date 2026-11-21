@@ -83,8 +83,8 @@ class HiloConsultaIA(QThread):
 class GloboTextoWidget(QWidget):
     """Globo de diálogo tipo cómic vectorial moderno con cuerpo redondeado, sombra y chat IA."""
 
-    _ancho_compacto: int = 268
-    _ancho_expandido: int = 308
+    _ancho_compacto: int = 276
+    _ancho_expandido: int = 310
 
     def __init__(
         self,
@@ -120,7 +120,7 @@ class GloboTextoWidget(QWidget):
         self.btn_volver_reloj.setToolTip("Volver a ver el cronómetro")
         self.btn_volver_reloj.setStyleSheet(
             "QPushButton { background: #EFF6FF; color: #003D95; border: 1px solid #BFDBFE; "
-            "border-radius: 9px; padding: 2px 7px; font-size: 9.5px; font-weight: 700; } "
+            "border-radius: 9px; padding: 2px 7px; margin: 0px; min-height: 18px; max-height: 20px; font-size: 9.5px; font-weight: 700; } "
             "QPushButton:hover { background-color: #DBEAFE; color: #1E40AF; }"
         )
         configurar_boton(self.btn_volver_reloj, "clock", color="#003D95", tamano=11)
@@ -149,7 +149,8 @@ class GloboTextoWidget(QWidget):
         self.btn_cerrar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_cerrar.setToolTip("Ocultar globo de texto")
         self.btn_cerrar.setStyleSheet(
-            "QPushButton { background: transparent; border: none; border-radius: 9px; } "
+            "QPushButton { background: transparent; border: none; border-radius: 9px; "
+            "padding: 0px; margin: 0px; min-width: 18px; max-width: 18px; min-height: 18px; max-height: 18px; } "
             "QPushButton:hover { background-color: #F1F5F9; }"
         )
         configurar_boton(self.btn_cerrar, "x", color="#64748B", tamano=11)
@@ -177,7 +178,7 @@ class GloboTextoWidget(QWidget):
 
         self.lbl_actividad = QLabel("Doble clic para abrir app", self.scroll_mensaje)
         self.lbl_actividad.setWordWrap(True)
-        self.lbl_actividad.setFixedWidth(236)
+        self.lbl_actividad.setFixedWidth(244)
         self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_actividad.setStyleSheet(
             "color: #64748B; font-size: 10.5px; font-weight: 500; background: transparent; border: none; padding: 1px 2px;"
@@ -195,7 +196,7 @@ class GloboTextoWidget(QWidget):
         self.btn_abrir.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_abrir.setStyleSheet(
             "QPushButton { background-color: #003D95; color: #FFFFFF; border: 1px solid #002D6E; "
-            "border-radius: 12px; padding: 3px 8px; font-size: 9.5px; font-weight: 700; } "
+            "border-radius: 11px; padding: 2px 8px; margin: 0px; min-height: 20px; max-height: 22px; font-size: 9.5px; font-weight: 700; } "
             "QPushButton:hover { background-color: #0284C7; border-color: #0284C7; color: #FFFFFF; } "
             "QPushButton:pressed { background-color: #002255; }"
         )
@@ -206,7 +207,7 @@ class GloboTextoWidget(QWidget):
         self.btn_pausar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_pausar.setStyleSheet(
             "QPushButton { background-color: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; "
-            "border-radius: 12px; padding: 3px 8px; font-size: 9.5px; font-weight: 700; } "
+            "border-radius: 11px; padding: 2px 8px; margin: 0px; min-height: 20px; max-height: 22px; font-size: 9.5px; font-weight: 700; } "
             "QPushButton:hover { background-color: #FDE68A; color: #78350F; border-color: #FCD34D; } "
             "QPushButton:pressed { background-color: #F59E0B; color: #FFFFFF; }"
         )
@@ -220,7 +221,7 @@ class GloboTextoWidget(QWidget):
         self.btn_finalizar.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_finalizar.setStyleSheet(
             "QPushButton { background-color: #FEF2F2; color: #DC2626; border: 1px solid #FECACA; "
-            "border-radius: 12px; padding: 3px 8px; font-size: 9.5px; font-weight: 700; } "
+            "border-radius: 11px; padding: 2px 8px; margin: 0px; min-height: 20px; max-height: 22px; font-size: 9.5px; font-weight: 700; } "
             "QPushButton:hover { background-color: #DC2626; color: #FFFFFF; border-color: #DC2626; } "
             "QPushButton:pressed { background-color: #B91C1C; color: #FFFFFF; }"
         )
@@ -233,7 +234,7 @@ class GloboTextoWidget(QWidget):
         self.btn_copiar.setToolTip("Copiar texto al portapapeles")
         self.btn_copiar.setStyleSheet(
             "QPushButton { background-color: #F8FAFC; color: #1E293B; border: 1px solid #CBD5E1; "
-            "border-radius: 11px; padding: 2px 10px; font-size: 9.5px; font-weight: 700; } "
+            "border-radius: 11px; padding: 2px 10px; margin: 0px; min-height: 20px; max-height: 22px; font-size: 9.5px; font-weight: 700; } "
             "QPushButton:hover { background-color: #E2E8F0; color: #003D95; border-color: #94A3B8; }"
         )
         configurar_boton(self.btn_copiar, "copy", color="#1E293B", tamano=11)
@@ -247,7 +248,8 @@ class GloboTextoWidget(QWidget):
         self.btn_chat.setToolTip("Hablar con Utilín IA")
         self.btn_chat.setStyleSheet(
             "QPushButton { background-color: #EFF6FF; border: 1px solid #BFDBFE; "
-            "border-radius: 12px; } "
+            "border-radius: 12px; padding: 0px; margin: 0px; min-width: 24px; max-width: 24px; "
+            "min-height: 24px; max-height: 24px; } "
             "QPushButton:hover { background-color: #DBEAFE; border-color: #003D95; } "
             "QPushButton:pressed { background-color: #BFDBFE; }"
         )
@@ -265,13 +267,14 @@ class GloboTextoWidget(QWidget):
         )
         self.widget_chat.setFixedHeight(28)
         layout_input_chat = QHBoxLayout(self.widget_chat)
+        layout_input_chat.setAlignment(Qt.AlignmentFlag.AlignVCenter)
         layout_input_chat.setContentsMargins(10, 2, 3, 2)
         layout_input_chat.setSpacing(4)
 
         self.txt_pregunta = QLineEdit(self.widget_chat)
         self.txt_pregunta.setPlaceholderText("Escribe a Utilín... (Enter)")
         self.txt_pregunta.setStyleSheet(
-            "QLineEdit { border: none; background: transparent; font-size: 10px; color: #0F172A; padding: 0; }"
+            "QLineEdit { border: none; background: transparent; font-size: 10px; color: #0F172A; padding: 0px; margin: 0px; }"
         )
         self.txt_pregunta.returnPressed.connect(self._al_enviar_pregunta)
         layout_input_chat.addWidget(self.txt_pregunta, 1)
@@ -281,7 +284,9 @@ class GloboTextoWidget(QWidget):
         self.btn_enviar_chat.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_enviar_chat.setToolTip("Enviar mensaje")
         self.btn_enviar_chat.setStyleSheet(
-            "QPushButton { background-color: #003D95; border: none; border-radius: 11px; } "
+            "QPushButton { background-color: #003D95; border: none; border-radius: 11px; "
+            "padding: 0px; margin: 0px; min-width: 22px; max-width: 22px; "
+            "min-height: 22px; max-height: 22px; } "
             "QPushButton:hover { background-color: #0284C7; } "
             "QPushButton:pressed { background-color: #002255; }"
         )
@@ -300,7 +305,7 @@ class GloboTextoWidget(QWidget):
             configurar_boton(self.btn_copiar, "check", color="#166534", tamano=11)
             self.btn_copiar.setStyleSheet(
                 "QPushButton { background-color: #DCFCE7; color: #166534; border: 1px solid #86EFAC; "
-                "border-radius: 11px; padding: 2px 10px; font-size: 9.5px; font-weight: 700; }"
+                "border-radius: 11px; padding: 2px 10px; margin: 0px; min-height: 20px; max-height: 22px; font-size: 9.5px; font-weight: 700; }"
             )
             QTimer.singleShot(1800, self._restablecer_boton_copiar)
 
@@ -309,7 +314,7 @@ class GloboTextoWidget(QWidget):
         configurar_boton(self.btn_copiar, "copy", color="#1E293B", tamano=11)
         self.btn_copiar.setStyleSheet(
             "QPushButton { background-color: #F8FAFC; color: #1E293B; border: 1px solid #CBD5E1; "
-            "border-radius: 11px; padding: 2px 10px; font-size: 9.5px; font-weight: 700; } "
+            "border-radius: 11px; padding: 2px 10px; margin: 0px; min-height: 20px; max-height: 22px; font-size: 9.5px; font-weight: 700; } "
             "QPushButton:hover { background-color: #E2E8F0; color: #003D95; border-color: #94A3B8; }"
         )
 
@@ -329,10 +334,10 @@ class GloboTextoWidget(QWidget):
 
         if self._modo_chat or self._modo_respuesta_ia:
             self.setFixedWidth(self._ancho_expandido)
-            self.lbl_actividad.setFixedWidth(276)
+            self.lbl_actividad.setFixedWidth(278)
         else:
             self.setFixedWidth(self._ancho_compacto)
-            self.lbl_actividad.setFixedWidth(236)
+            self.lbl_actividad.setFixedWidth(244)
 
         if self._modo_chat:
             self.txt_pregunta.setFocus()
@@ -354,7 +359,7 @@ class GloboTextoWidget(QWidget):
     def mostrar_pensando(self) -> None:
         self._modo_respuesta_ia = True
         self.setFixedWidth(self._ancho_expandido)
-        self.lbl_actividad.setFixedWidth(276)
+        self.lbl_actividad.setFixedWidth(278)
         self.espaciador_izq.setVisible(False)
         self.btn_volver_reloj.setVisible(True)
         self.btn_copiar.setVisible(False)
@@ -408,7 +413,7 @@ class GloboTextoWidget(QWidget):
             "color: #003D95; font-size: 11.5px; font-weight: 800; background: transparent; border: none;"
         )
 
-        self.lbl_actividad.setFixedWidth(276)
+        self.lbl_actividad.setFixedWidth(278)
         self.lbl_actividad.setText(mensaje)
         self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
         self.lbl_actividad.setStyleSheet(
@@ -446,9 +451,9 @@ class GloboTextoWidget(QWidget):
 
         if not self._modo_chat:
             self.setFixedWidth(self._ancho_compacto)
-            self.lbl_actividad.setFixedWidth(236)
+            self.lbl_actividad.setFixedWidth(244)
         else:
-            self.lbl_actividad.setFixedWidth(276)
+            self.lbl_actividad.setFixedWidth(278)
 
         self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_actividad.setStyleSheet(
@@ -936,6 +941,7 @@ class MascotaWidget(QWidget):
         self._widget_start_pos: QPoint = QPoint()
         self._ultimo_pos_raton: QPoint = QPoint()
         self._posicion_personalizada: QPoint | None = None
+        self._suelo_anclaje: int | None = None
 
         # Autonomía de mascota virtual (estilo VS Code Pets)
         self._permitir_paseo_libre: bool = True
@@ -1038,6 +1044,7 @@ class MascotaWidget(QWidget):
         """Ubica a Utilín en la esquina inferior derecha o en su posición guardada."""
         if self._posicion_personalizada is not None:
             self.move(self._posicion_personalizada)
+            self._suelo_anclaje = self.y() + self.height()
             return
 
         pantalla = QApplication.primaryScreen()
@@ -1048,10 +1055,12 @@ class MascotaWidget(QWidget):
             x = max(10, geom.right() - ancho - 30)
             y = max(10, geom.bottom() - alto - 35)
             self.move(x, y)
+            self._suelo_anclaje = y + alto
 
     def restablecer_posicion(self) -> None:
         """Vuelve a colocar a Utilín en la esquina inferior derecha habitual."""
         self._posicion_personalizada = None
+        self._suelo_anclaje = None
         self._posicionar_defecto()
 
     def mostrar_mascota(self) -> None:
@@ -1068,23 +1077,20 @@ class MascotaWidget(QWidget):
 
     def ajustar_tamano_dinamico(self) -> None:
         """Ajusta el tamaño de la ventana manteniendo la posición del suelo de Utilín."""
-        alto_antiguo = self.height()
-        y_antiguo = self.y()
-        suelo_actual = y_antiguo + alto_antiguo
+        if self._suelo_anclaje is None:
+            self._suelo_anclaje = self.y() + self.height()
 
         self.adjustSize()
         nuevo_alto = self.height()
-        delta_alto = nuevo_alto - alto_antiguo
+        nuevo_y = self._suelo_anclaje - nuevo_alto
 
-        if delta_alto != 0:
-            nuevo_y = suelo_actual - nuevo_alto
-            pantalla = QApplication.primaryScreen()
-            if pantalla:
-                geom = pantalla.availableGeometry()
-                if nuevo_y < geom.top() + 10:
-                    nuevo_y = geom.top() + 10
-            self.move(self.x(), nuevo_y)
-            self._posicion_personalizada = self.pos()
+        pantalla = QApplication.primaryScreen()
+        if pantalla:
+            geom = pantalla.availableGeometry()
+            if nuevo_y < geom.top() + 10:
+                nuevo_y = geom.top() + 10
+        self.move(self.x(), nuevo_y)
+        self._posicion_personalizada = self.pos()
 
     def actualizar_estado(
         self,
@@ -1105,9 +1111,9 @@ class MascotaWidget(QWidget):
 
             if not self.globo._modo_chat:
                 self.globo.setFixedWidth(self.globo._ancho_compacto)
-                self.globo.lbl_actividad.setFixedWidth(236)
+                self.globo.lbl_actividad.setFixedWidth(244)
             else:
-                self.globo.lbl_actividad.setFixedWidth(276)
+                self.globo.lbl_actividad.setFixedWidth(278)
 
             self.globo.scroll_mensaje.setFixedHeight(28)
             self.lbl_actividad.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -1172,6 +1178,7 @@ class MascotaWidget(QWidget):
                 self._velocidad_caida = 0.0
                 self.lbl_mascota.activar_saltito()
                 self.lbl_mascota.agregar_emote("star")
+                self._suelo_anclaje = nueva_y + self.height()
             self.move(self.x(), nueva_y)
             self._posicion_personalizada = self.pos()
             return
@@ -1328,6 +1335,7 @@ class MascotaWidget(QWidget):
                 self._arrastrando = False
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
                 self._posicion_personalizada = self.pos()
+                self._suelo_anclaje = self.y() + self.height()
                 self.lbl_mascota.soltar_arrastre()
 
                 pantalla = QApplication.primaryScreen()
